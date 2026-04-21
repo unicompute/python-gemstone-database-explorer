@@ -18,19 +18,17 @@ def _mock_session():
 
 
 @contextmanager
-def _mock_request_session(session):
+def _mock_request_session(session, **kwargs):
     yield session
 
 
 class TestRoutes(unittest.TestCase):
     def setUp(self):
-        patcher = patch("gemstone_p.session.install_flask_request_session")
-        patcher.start()
+        # Patch GemStoneConfig so init_app doesn't need real env vars
+        patcher = patch("gemstone_p.session.GemStoneConfig")
+        mock_config_cls = patcher.start()
+        mock_config_cls.from_env.return_value = MagicMock()
         self.addCleanup(patcher.stop)
-
-        patcher2 = patch("gemstone_p.session.GemStoneConfig")
-        patcher2.start()
-        self.addCleanup(patcher2.stop)
 
         from gemstone_p.app import create_app
         self.app = create_app()
