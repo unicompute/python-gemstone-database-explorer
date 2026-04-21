@@ -15,7 +15,6 @@ from typing import Any
 
 from gemstone_py import GemStoneSession, OOP_NIL, OOP_TRUE, OOP_FALSE
 from gemstone_py._smalltalk_batch import (
-    fetch_mapping_oop_pairs,
     fetch_collection_oops,
     object_for_oop_expr,
 )
@@ -138,8 +137,45 @@ def _named_inst_vars(
 
 
 # --------------------------------------------------------------------------- #
-# Dictionary entries — fetched via batch helper (one eval, correct Smalltalk) #
+# Dictionary entries                                                           #
 # --------------------------------------------------------------------------- #
+
+def _fetch_dict_oop_pairs(session: GemStoneSession, oop: int) -> list[tuple[int, int]]:
+    """
+    Return all (key_oop, val_oop) pairs for a dictionary-like object.
+
+    Uses a single Smalltalk eval that serialises key and value OOPs as decimal
+    integers (via asOop, which is valid on all GemStone objects) separated by
+    '|', one pair per line.
+    """
+    raw = session.eval(
+        f"| d stream |\n"
+        f"d := {object_for_oop_expr(oop)}.\n"
+        f"stream := ''.\n"
+        f"d associationsDo: [:assoc |\n"
+        f"  stream := stream,\n"
+        f"    assoc key asOop printString, '|',\n"
+        f"    assoc value asOop printString, String lf asString\n"
+        f"].\n"
+        f"stream"
+    )
+    if not raw:
+        return []
+    pairs: list[tuple[int, int]] = []
+    text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        key_s, sep, val_s = line.partition("|")
+        if not sep:
+            continue
+        try:
+            pairs.append((int(key_s), int(val_s)))
+        except ValueError:
+            continue
+    return pairs
+
 
 def _dict_entries(
     session: GemStoneSession,
@@ -150,10 +186,12 @@ def _dict_entries(
     params: dict,
 ) -> tuple[int, dict]:
     try:
-        # fetch_mapping_oop_pairs uses Object _objectForOop: internally
-        pairs = fetch_mapping_oop_pairs(session, oop)
-    except Exception:
-        return 0, {}
+        pairs = _fetch_dict_oop_pairs(session, oop)
+    except Exception as exc:
+        return 0, {1: [
+            {"oop": None, "inspection": "(fetch error)", "basetype": "symbol", "loaded": False},
+            {"oop": None, "inspection": str(exc), "basetype": "object", "loaded": False},
+        ]}
 
     total = len(pairs)
     if total == 0:
@@ -187,8 +225,11 @@ def _array_entries(
 ) -> tuple[int, dict]:
     try:
         all_oops = fetch_collection_oops(session, oop)
-    except Exception:
-        return 0, {}
+    except Exception as exc:
+        return 0, {1: [
+            {"oop": None, "inspection": "(fetch error)", "basetype": "symbol", "loaded": False},
+            {"oop": None, "inspection": str(exc), "basetype": "object", "loaded": False},
+        ]}
 
     total = len(all_oops)
     if total == 0:
