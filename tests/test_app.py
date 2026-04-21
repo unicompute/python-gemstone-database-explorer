@@ -8,7 +8,8 @@ from unittest.mock import MagicMock, patch
 
 def _mock_session():
     session = MagicMock()
-    session.eval.return_value = 12345
+    session.eval.return_value = "object"
+    session.eval_oop.return_value = 12345
     return session
 
 

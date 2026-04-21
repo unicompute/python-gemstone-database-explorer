@@ -22,7 +22,7 @@ import os
 from flask import Flask, jsonify, request, render_template
 
 from gemstone_p import session as gs_session
-from gemstone_p.object_view import object_view, eval_in_context, _eval, _escape_st
+from gemstone_p.object_view import object_view, eval_in_context, _eval_oop, _escape_st
 
 
 def create_app() -> Flask:
@@ -51,9 +51,9 @@ def create_app() -> Flask:
     def ids():
         try:
             with gs_session.request_session() as session:
-                persistent_root_oop = int(_eval(session, "UserGlobals basicHash"))
-                system_oop = int(_eval(session, "System basicHash"))
-                globals_oop = int(_eval(session, "Globals basicHash"))
+                persistent_root_oop = _eval_oop(session, "UserGlobals")
+                system_oop = _eval_oop(session, "System")
+                globals_oop = _eval_oop(session, "Globals")
         except Exception as exc:
             return jsonify(success=False, error=str(exc)), 500
 
@@ -180,12 +180,9 @@ def create_app() -> Flask:
     def version():
         try:
             with gs_session.request_session() as session:
-                stone_ver = session.eval("SystemRepository versionString")
-                if isinstance(stone_ver, (bytes, bytearray)):
-                    stone_ver = stone_ver.decode("utf-8", errors="replace")
-                gem_ver = session.eval("GemStone version")
-                if isinstance(gem_ver, (bytes, bytearray)):
-                    gem_ver = gem_ver.decode("utf-8", errors="replace")
+                from gemstone_p.object_view import _eval_str
+                stone_ver = _eval_str(session, "SystemRepository versionString")
+                gem_ver = _eval_str(session, "GemStone version")
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, stone=str(stone_ver), gem=str(gem_ver))
