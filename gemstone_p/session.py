@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from flask import Flask, g
+from contextlib import contextmanager
+from typing import Iterator
 
-from gemstone_py import GemStoneConfig, install_flask_request_session
+from flask import Flask
+
+from gemstone_py import GemStoneConfig, GemStoneSession, install_flask_request_session
+from gemstone_py import session_scope as _session_scope
 
 
 def init_app(app: Flask) -> None:
@@ -20,7 +24,8 @@ def init_app(app: Flask) -> None:
     )
 
 
-def get_session():
-    """Return the GemStone session bound to the current request."""
-    from gemstone_py import current_flask_request_session
-    return current_flask_request_session()
+@contextmanager
+def request_session() -> Iterator[GemStoneSession]:
+    """Context manager that yields the GemStone session for the current request."""
+    with _session_scope() as session:
+        yield session

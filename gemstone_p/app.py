@@ -14,13 +14,12 @@ GET  /code/selectors/<id>       — list selectors by category for an object
 GET  /code/code/<id>            — return source for a selector
 GET  /transaction/commit        — commit the current transaction
 GET  /transaction/abort         — abort the current transaction
-GET  /transaction/toggle_mode   — toggle persistent / transient mode
 """
 
 from __future__ import annotations
 
 import os
-from flask import Flask, jsonify, request, send_from_directory, render_template
+from flask import Flask, jsonify, request, render_template
 
 from gemstone_p import session as gs_session
 from gemstone_p.object_view import object_view, eval_in_context, _eval, _escape_st
@@ -50,11 +49,11 @@ def create_app() -> Flask:
 
     @app.get("/ids")
     def ids():
-        session = gs_session.get_session()
         try:
-            persistent_root_oop = int(_eval(session, "UserGlobals basicHash"))
-            system_oop = int(_eval(session, "System basicHash"))
-            globals_oop = int(_eval(session, "Globals basicHash"))
+            with gs_session.request_session() as session:
+                persistent_root_oop = int(_eval(session, "UserGlobals basicHash"))
+                system_oop = int(_eval(session, "System basicHash"))
+                globals_oop = int(_eval(session, "Globals basicHash"))
         except Exception as exc:
             return jsonify(success=False, error=str(exc)), 500
 
@@ -71,12 +70,11 @@ def create_app() -> Flask:
 
     @app.get("/object/index/<int:oop>")
     def object_index(oop: int):
-        session = gs_session.get_session()
         depth = int(request.args.get("depth", 2))
         ranges = _parse_ranges(request.args)
-
         try:
-            view = object_view(session, oop, depth, ranges, dict(request.args))
+            with gs_session.request_session() as session:
+                view = object_view(session, oop, depth, ranges, dict(request.args))
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -89,18 +87,17 @@ def create_app() -> Flask:
 
     @app.get("/object/evaluate/<int:oop>")
     def object_evaluate(oop: int):
-        session = gs_session.get_session()
         code = request.args.get("code", "")
         language = request.args.get("language", "smalltalk")
         depth = int(request.args.get("depth", 2))
         ranges = _parse_ranges(request.args)
-
         try:
-            is_exc, result_oop_or_err = eval_in_context(session, oop, code, language)
-            if isinstance(result_oop_or_err, int):
-                result_view = object_view(session, result_oop_or_err, 1 if is_exc else depth, ranges, dict(request.args))
-            else:
-                result_view = {"oop": None, "inspection": str(result_oop_or_err), "basetype": "object", "loaded": False}
+            with gs_session.request_session() as session:
+                is_exc, result_oop_or_err = eval_in_context(session, oop, code, language)
+                if isinstance(result_oop_or_err, int):
+                    result_view = object_view(session, result_oop_or_err, 1 if is_exc else depth, ranges, dict(request.args))
+                else:
+                    result_view = {"oop": None, "inspection": str(result_oop_or_err), "basetype": "object", "loaded": False}
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -113,23 +110,19 @@ def create_app() -> Flask:
 
     @app.get("/code/selectors/<int:oop>")
     def code_selectors(oop: int):
-        session = gs_session.get_session()
         try:
-            raw = session.eval(
-                f"| obj dict |"
-                f"obj := ObjectMemory objectForOop: {oop}."
-                f"dict := Dictionary new."
-                f"obj class methodDictionary keysDo: [:sel |"
-                f"  | cat | cat := (obj class compiledMethodAt: sel) category."
-                f"  (dict includesKey: cat) ifFalse: [dict at: cat put: OrderedCollection new]."
-                f"  (dict at: cat) add: sel asString]."
-                f"dict"
-            )
-            # raw may come back as a dict-like object; convert to plain dict
-            if hasattr(raw, "items"):
-                result = {str(k): list(v) for k, v in raw.items()}
-            else:
-                result = {}
+            with gs_session.request_session() as session:
+                raw = session.eval(
+                    f"| obj dict |"
+                    f"obj := ObjectMemory objectForOop: {oop}."
+                    f"dict := Dictionary new."
+                    f"obj class methodDictionary keysDo: [:sel |"
+                    f"  | cat | cat := (obj class compiledMethodAt: sel) category."
+                    f"  (dict includesKey: cat) ifFalse: [dict at: cat put: OrderedCollection new]."
+                    f"  (dict at: cat) add: sel asString]."
+                    f"dict"
+                )
+                result = {str(k): list(v) for k, v in raw.items()} if hasattr(raw, "items") else {}
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -142,18 +135,16 @@ def create_app() -> Flask:
 
     @app.get("/code/code/<int:oop>")
     def code_source(oop: int):
-        session = gs_session.get_session()
         selector = request.args.get("selector", "")
-        language = request.args.get("language", "smalltalk")
-
         try:
-            raw = session.eval(
-                f"| obj method |"
-                f"obj := ObjectMemory objectForOop: {oop}."
-                f"method := obj class compiledMethodAt: '{_escape_st(selector)}' ifAbsent: [nil]."
-                f"method isNil ifTrue: [''] ifFalse: [method sourceString]"
-            )
-            source = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+            with gs_session.request_session() as session:
+                raw = session.eval(
+                    f"| obj method |"
+                    f"obj := ObjectMemory objectForOop: {oop}."
+                    f"method := obj class compiledMethodAt: '{_escape_st(selector)}' ifAbsent: [nil]."
+                    f"method isNil ifTrue: [''] ifFalse: [method sourceString]"
+                )
+                source = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -161,23 +152,22 @@ def create_app() -> Flask:
 
     # ------------------------------------------------------------------ #
     # Transaction control                                                  #
-    # Extends mdbe with explicit HTTP endpoints                            #
     # ------------------------------------------------------------------ #
 
     @app.get("/transaction/commit")
     def transaction_commit():
-        session = gs_session.get_session()
         try:
-            session.commit()
+            with gs_session.request_session() as session:
+                session.commit()
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True)
 
     @app.get("/transaction/abort")
     def transaction_abort():
-        session = gs_session.get_session()
         try:
-            session.abort()
+            with gs_session.request_session() as session:
+                session.abort()
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True)
@@ -188,14 +178,14 @@ def create_app() -> Flask:
 
     @app.get("/version")
     def version():
-        session = gs_session.get_session()
         try:
-            stone_ver = session.eval("SystemRepository versionString")
-            if isinstance(stone_ver, (bytes, bytearray)):
-                stone_ver = stone_ver.decode("utf-8", errors="replace")
-            gem_ver = session.eval("GemStone version")
-            if isinstance(gem_ver, (bytes, bytearray)):
-                gem_ver = gem_ver.decode("utf-8", errors="replace")
+            with gs_session.request_session() as session:
+                stone_ver = session.eval("SystemRepository versionString")
+                if isinstance(stone_ver, (bytes, bytearray)):
+                    stone_ver = stone_ver.decode("utf-8", errors="replace")
+                gem_ver = session.eval("GemStone version")
+                if isinstance(gem_ver, (bytes, bytearray)):
+                    gem_ver = gem_ver.decode("utf-8", errors="replace")
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, stone=str(stone_ver), gem=str(gem_ver))
