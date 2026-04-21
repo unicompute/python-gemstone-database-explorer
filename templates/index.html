@@ -382,10 +382,34 @@ function renderBreadcrumb() {
   });
 }
 
+// Build a navigable link or plain text cell for a value view
+function makeValueCell(valView, labelForHistory) {
+  const td = document.createElement('td');
+  if (!valView) { td.textContent = 'nil'; return td; }
+
+  const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valView.basetype);
+  const text = valView.inspection || (valView.oop != null ? `oop:${valView.oop}` : 'nil');
+
+  if (!isLeaf && valView.oop != null) {
+    const a = document.createElement('a');
+    a.className = 'link-oop';
+    a.textContent = text;
+    a.addEventListener('click', () => {
+      history.push({label: labelForHistory || text, oop: valView.oop});
+      loadObject(valView.oop, labelForHistory || text);
+    });
+    td.appendChild(a);
+  } else {
+    td.textContent = text;
+    td.style.color = '#a6e3a1';
+  }
+  return td;
+}
+
 function renderObject(obj) {
   const div = document.createElement('div');
 
-  // header card
+  // ── header card ──────────────────────────────────────────────────────────
   const card = document.createElement('div');
   card.className = 'obj-card';
 
@@ -400,74 +424,101 @@ function renderObject(obj) {
   ins.className = 'inspection';
   ins.textContent = obj.inspection || '';
 
-  const oop = document.createElement('span');
-  oop.className = 'oop';
-  oop.textContent = `oop: ${obj.oop}`;
+  const oopSpan = document.createElement('span');
+  oopSpan.className = 'oop';
+  oopSpan.textContent = `oop: ${obj.oop}`;
 
   hdr.appendChild(bt);
   hdr.appendChild(ins);
-  hdr.appendChild(oop);
+  hdr.appendChild(oopSpan);
   card.appendChild(hdr);
 
-  if (obj.loaded && obj.instVarsSize > 0) {
+  // ── entries table ────────────────────────────────────────────────────────
+  const entries = obj.instVars || {};
+  const entryCount = Object.keys(entries).length;
+  const isDictLike = ['hash'].includes(obj.basetype);
+  const isArrayLike = ['array'].includes(obj.basetype);
+
+  if (obj.loaded && entryCount > 0) {
     const body = document.createElement('div');
     body.className = 'obj-card-body';
 
     const tbl = document.createElement('table');
     tbl.className = 'inst-vars';
-    tbl.innerHTML = '<thead><tr><th>Variable</th><th>Value</th></tr></thead>';
+
+    // Choose column headers based on collection type
+    if (isDictLike) {
+      tbl.innerHTML = '<thead><tr><th>Key</th><th>Value</th></tr></thead>';
+    } else if (isArrayLike) {
+      tbl.innerHTML = '<thead><tr><th>#</th><th>Value</th></tr></thead>';
+    } else {
+      tbl.innerHTML = '<thead><tr><th>Variable</th><th>Value</th></tr></thead>';
+    }
+
     const tbody = document.createElement('tbody');
 
-    const vars = obj.instVars || {};
-    for (const [idx, pair] of Object.entries(vars)) {
-      const [nameView, valView] = pair;
+    for (const [idx, pair] of Object.entries(entries)) {
+      const [nameOrKeyView, valView] = pair;
       const tr = document.createElement('tr');
 
-      const tdName = document.createElement('td');
-      tdName.textContent = nameView.inspection || `@${idx}`;
-
-      const tdVal = document.createElement('td');
-      if (valView && valView.oop !== null && valView.oop !== undefined) {
+      // Key / name cell
+      const tdKey = document.createElement('td');
+      const keyText = nameOrKeyView.inspection || `@${idx}`;
+      // Dict keys that are navigable objects get a link too
+      if (isDictLike && nameOrKeyView.oop != null && !['string','symbol','fixnum','float','boolean','nilclass'].includes(nameOrKeyView.basetype)) {
         const a = document.createElement('a');
         a.className = 'link-oop';
-        a.textContent = valView.inspection || `oop:${valView.oop}`;
+        a.textContent = keyText;
         a.addEventListener('click', () => {
-          const label = nameView.inspection || `@${idx}`;
-          history.push({label, oop: valView.oop});
-          loadObject(valView.oop, label);
+          history.push({label: keyText, oop: nameOrKeyView.oop});
+          loadObject(nameOrKeyView.oop, keyText);
         });
-        tdVal.appendChild(a);
+        tdKey.appendChild(a);
       } else {
-        tdVal.textContent = valView ? (valView.inspection || 'nil') : 'nil';
+        tdKey.textContent = keyText;
       }
 
-      tr.appendChild(tdName);
+      // Value cell
+      const tdVal = makeValueCell(valView, keyText);
+
+      tr.appendChild(tdKey);
       tr.appendChild(tdVal);
       tbody.appendChild(tr);
     }
 
     tbl.appendChild(tbody);
-    body.appendChild(tbl);
+
+    // Show count if there are more entries than displayed
+    if (obj.instVarsSize > entryCount) {
+      const more = document.createElement('div');
+      more.style.cssText = 'padding:4px 0;font-size:11px;color:#6c7086';
+      more.textContent = `Showing ${entryCount} of ${obj.instVarsSize} entries`;
+      body.appendChild(tbl);
+      body.appendChild(more);
+    } else {
+      body.appendChild(tbl);
+    }
+
     card.appendChild(body);
   } else if (obj.loaded) {
     const body = document.createElement('div');
     body.className = 'obj-card-body';
     body.style.color = '#6c7086';
-    body.textContent = '(no instance variables)';
+    body.textContent = '(no entries)';
     card.appendChild(body);
   }
 
   div.appendChild(card);
 
-  // class object sub-card
+  // ── class link ───────────────────────────────────────────────────────────
   if (obj.classObject && obj.classObject.oop) {
     const classDiv = document.createElement('div');
-    classDiv.style.marginLeft = '16px';
+    classDiv.style.cssText = 'margin-left:16px;margin-top:6px;font-size:11px';
 
-    const classHdr = document.createElement('div');
-    classHdr.style.cssText = 'color:#a6adc8;font-size:11px;margin-bottom:4px';
-    classHdr.textContent = 'Class:';
-    classDiv.appendChild(classHdr);
+    const classLbl = document.createElement('span');
+    classLbl.style.color = '#a6adc8';
+    classLbl.textContent = 'Class: ';
+    classDiv.appendChild(classLbl);
 
     const a = document.createElement('a');
     a.className = 'link-oop';
