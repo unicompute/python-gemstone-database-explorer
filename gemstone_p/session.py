@@ -25,7 +25,20 @@ def init_app(app: Flask) -> None:
 
 
 @contextmanager
-def request_session() -> Iterator[GemStoneSession]:
-    """Context manager that yields the GemStone session for the current request."""
+def request_session(*, read_only: bool = True) -> Iterator[GemStoneSession]:
+    """
+    Yield the GemStone session for the current request.
+
+    For read-only routes we abort before returning the session to the pool so
+    that finalize_flask_request_session finds nothing to commit and doesn't
+    raise GemStone error #0.
+    """
     with _session_scope() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            if read_only:
+                try:
+                    session.abort()
+                except Exception:
+                    pass

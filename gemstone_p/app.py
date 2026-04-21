@@ -157,7 +157,7 @@ def create_app() -> Flask:
     @app.get("/transaction/commit")
     def transaction_commit():
         try:
-            with gs_session.request_session() as session:
+            with gs_session.request_session(read_only=False) as session:
                 session.commit()
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
@@ -166,7 +166,7 @@ def create_app() -> Flask:
     @app.get("/transaction/abort")
     def transaction_abort():
         try:
-            with gs_session.request_session() as session:
+            with gs_session.request_session(read_only=False) as session:
                 session.abort()
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
