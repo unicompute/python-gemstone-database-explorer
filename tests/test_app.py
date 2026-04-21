@@ -10,6 +10,10 @@ def _mock_session():
     session = MagicMock()
     session.eval.return_value = "object"
     session.eval_oop.return_value = 12345
+    session.perform_oop.return_value = 12345
+    session.perform.return_value = "MockObject"
+    session.resolve.return_value = 12345
+    session.int_oop.return_value = 12345
     return session
 
 

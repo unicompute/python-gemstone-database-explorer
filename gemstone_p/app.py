@@ -22,7 +22,7 @@ import os
 from flask import Flask, jsonify, request, render_template
 
 from gemstone_p import session as gs_session
-from gemstone_p.object_view import object_view, eval_in_context, _eval_oop, _escape_st
+from gemstone_p.object_view import object_view, eval_in_context, _escape_st
 
 
 def create_app() -> Flask:
@@ -51,9 +51,9 @@ def create_app() -> Flask:
     def ids():
         try:
             with gs_session.request_session() as session:
-                persistent_root_oop = _eval_oop(session, "UserGlobals")
-                system_oop = _eval_oop(session, "System")
-                globals_oop = _eval_oop(session, "Globals")
+                persistent_root_oop = session.resolve("UserGlobals")
+                system_oop = session.resolve("System")
+                globals_oop = session.resolve("Globals")
         except Exception as exc:
             return jsonify(success=False, error=str(exc)), 500
 
