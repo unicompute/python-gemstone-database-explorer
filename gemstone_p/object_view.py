@@ -7,6 +7,10 @@ by OOP directly) or the gemstone-py batch helpers (_smalltalk_batch) which use
 the correct `Object _objectForOop:` expression internally. We never build
 ad-hoc `ObjectMemory objectWithId:` Smalltalk strings — that method does not
 exist in GemStone and causes a bus error via GCI.
+
+Performance: we use single batched eval() calls wherever possible to minimise
+GCI round-trips. A single eval that serialises all needed data as a delimited
+string is much faster than N individual perform/perform_oop calls.
 """
 
 from __future__ import annotations
@@ -15,8 +19,9 @@ from typing import Any
 
 from gemstone_py import GemStoneSession, OOP_NIL, OOP_TRUE, OOP_FALSE
 from gemstone_py._smalltalk_batch import (
-    fetch_collection_oops,
     object_for_oop_expr,
+    escaped_field_encoder_source,
+    decode_escaped_field,
 )
 
 _LEAF_BASETYPES = {"string", "symbol", "fixnum", "float", "boolean", "nilclass"}
@@ -42,35 +47,11 @@ def _str(value: Any) -> str:
     return str(value)
 
 
-def _class_name(session: GemStoneSession, oop: int) -> str:
-    try:
-        class_oop = session.perform_oop(oop, "class")
-        return _str(session.perform(class_oop, "name"))
-    except Exception:
-        return "Object"
+def _decode(raw: Any) -> str:
+    return decode_escaped_field(_str(raw))
 
 
-def _inspect(session: GemStoneSession, oop: int, limit: int = 200) -> str:
-    if oop == OOP_NIL:
-        return "nil"
-    if oop == OOP_TRUE:
-        return "true"
-    if oop == OOP_FALSE:
-        return "false"
-    try:
-        raw = session.perform(oop, "printString")
-        s = _str(raw)
-        return s[:limit] + ("..." if len(s) > limit else "")
-    except Exception as exc:
-        return f"(error: {exc})"
-
-
-def _basetype(session: GemStoneSession, oop: int) -> str:
-    if oop == OOP_NIL:
-        return "nilclass"
-    if oop == OOP_TRUE or oop == OOP_FALSE:
-        return "boolean"
-    cname = _class_name(session, oop)
+def _basetype_from_cname(cname: str) -> str:
     if cname == "String":
         return "string"
     if cname == "Symbol":
@@ -81,6 +62,8 @@ def _basetype(session: GemStoneSession, oop: int) -> str:
         return "float"
     if cname in ("True", "False"):
         return "boolean"
+    if cname == "UndefinedObject":
+        return "nilclass"
     if cname in _DICT_CLASS_NAMES:
         return "hash"
     if cname in _ARRAY_CLASS_NAMES:
@@ -88,16 +71,84 @@ def _basetype(session: GemStoneSession, oop: int) -> str:
     return "object"
 
 
-def _class_oop(session: GemStoneSession, oop: int) -> int:
+# --------------------------------------------------------------------------- #
+# Batched object metadata fetch                                                #
+# --------------------------------------------------------------------------- #
+
+# Smalltalk source for our field escape block (backslash, newline, pipe)
+_ENCODE_SRC = escaped_field_encoder_source("encode")
+
+# One eval returns 3 pipe-separated fields on one line:
+#   className | printString(truncated) | classOop
+_META_SCRIPT = """\
+| obj encode cname ps classOop |
+obj := {obj_expr}.
+{encode_src}
+cname := [obj class name] on: Error do: [:e | 'Object'].
+ps := [obj printString] on: Error do: [:e | '(error)'].
+ps := ps size > 200
+  ifTrue: [ps copyFrom: 1 to: 200]
+  ifFalse: [ps].
+classOop := [obj class asOop printString] on: Error do: [:e | '20'].
+(encode value: cname), '|', (encode value: ps), '|', classOop
+"""
+
+
+def _fetch_meta(session: GemStoneSession, oop: int) -> tuple[str, str, int]:
+    """Return (class_name, print_string, class_oop) in one eval."""
+    if oop == OOP_NIL:
+        return "UndefinedObject", "nil", OOP_NIL
+    if oop == OOP_TRUE:
+        return "True", "true", OOP_NIL
+    if oop == OOP_FALSE:
+        return "False", "false", OOP_NIL
     try:
-        return session.perform_oop(oop, "class")
-    except Exception:
-        return OOP_NIL
+        script = _META_SCRIPT.format(
+            obj_expr=object_for_oop_expr(oop),
+            encode_src=_ENCODE_SRC,
+        )
+        raw = _str(session.eval(script))
+        parts = raw.split("|", 2)
+        cname = decode_escaped_field(parts[0]) if len(parts) > 0 else "Object"
+        ps    = decode_escaped_field(parts[1]) if len(parts) > 1 else ""
+        class_oop = int(parts[2]) if len(parts) > 2 and parts[2].strip().isdigit() else OOP_NIL
+        return cname, ps, class_oop
+    except Exception as exc:
+        return "Object", f"(error: {exc})", OOP_NIL
 
 
 # --------------------------------------------------------------------------- #
-# Named instance variables (plain objects)                                    #
+# Named instance variables — batched                                           #
 # --------------------------------------------------------------------------- #
+
+# Returns lines of: varName|valueOop|className|printString
+_INST_VARS_SCRIPT = """\
+| obj cls encode stream count lo hi |
+obj := {obj_expr}.
+cls := obj class.
+count := cls instSize.
+lo := {lo}.
+hi := count min: {hi}.
+{encode_src}
+stream := count printString, String lf asString.
+lo to: hi do: [:i |
+  | vname voop vcname vps |
+  vname := [cls instVarNameAt: i] on: Error do: [:e | '@', i printString].
+  voop  := [obj instVarAt: i] on: Error do: [:e | nil].
+  vcname := [voop class name] on: Error do: [:e | 'Object'].
+  vps   := [voop printString] on: Error do: [:e | '(error)'].
+  vps := vps size > 200
+    ifTrue: [vps copyFrom: 1 to: 200]
+    ifFalse: [vps].
+  stream := stream,
+    (encode value: vname), '|',
+    (encode value: voop asOop printString), '|',
+    (encode value: vcname), '|',
+    (encode value: vps), String lf asString
+].
+stream
+"""
+
 
 def _named_inst_vars(
     session: GemStoneSession,
@@ -108,9 +159,17 @@ def _named_inst_vars(
     params: dict,
 ) -> tuple[int, dict]:
     try:
-        class_oop = session.perform_oop(oop, "class")
-        count_raw = session.perform(class_oop, "instSize")
-        count = int(count_raw) if count_raw is not None else 0
+        script = _INST_VARS_SCRIPT.format(
+            obj_expr=object_for_oop_expr(oop),
+            lo=range_from,
+            hi=range_to,
+            encode_src=_ENCODE_SRC,
+        )
+        raw = _str(session.eval(script))
+        lines = raw.splitlines()
+        if not lines:
+            return 0, {}
+        count = int(lines[0]) if lines[0].strip().isdigit() else 0
     except Exception:
         return 0, {}
 
@@ -118,63 +177,71 @@ def _named_inst_vars(
         return 0, {}
 
     result: dict[int, Any] = {}
-    lo = max(1, range_from)
-    hi = min(range_to, count)
-    for i in range(lo, hi + 1):
+    for i, line in enumerate(lines[1:], start=range_from):
+        if not line:
+            continue
+        parts = line.split("|", 3)
+        vname  = decode_escaped_field(parts[0]) if len(parts) > 0 else f"@{i}"
+        voop_s = decode_escaped_field(parts[1]) if len(parts) > 1 else "20"
+        vcname = decode_escaped_field(parts[2]) if len(parts) > 2 else "Object"
+        vps    = decode_escaped_field(parts[3]) if len(parts) > 3 else ""
+
         try:
-            idx_oop = session.int_oop(i)
-            name = _str(session.perform(class_oop, "instVarNameAt:", idx_oop))
-            val_oop = session.perform_oop(oop, "instVarAt:", idx_oop)
-            val_view = object_view(session, val_oop, child_depth, {}, params)
-        except Exception as exc:
-            name = f"@{i}"
-            val_view = {"oop": None, "inspection": f"(error: {exc})", "basetype": "object", "loaded": False}
+            val_oop = int(voop_s)
+        except ValueError:
+            val_oop = OOP_NIL
+
+        vbasetype = _basetype_from_cname(vcname)
+        val_view: dict[str, Any] = {
+            "oop": val_oop,
+            "inspection": vps,
+            "basetype": vbasetype,
+            "loaded": False,
+        }
         result[i] = [
-            {"oop": None, "inspection": name, "basetype": "symbol", "loaded": False},
+            {"oop": None, "inspection": vname, "basetype": "symbol", "loaded": False},
             val_view,
         ]
     return count, result
 
 
 # --------------------------------------------------------------------------- #
-# Dictionary entries                                                           #
+# Dictionary entries — batched                                                 #
 # --------------------------------------------------------------------------- #
 
-def _fetch_dict_oop_pairs(session: GemStoneSession, oop: int) -> list[tuple[int, int]]:
-    """
-    Return all (key_oop, val_oop) pairs for a dictionary-like object.
-
-    Uses a single Smalltalk eval that serialises key and value OOPs as decimal
-    integers (via asOop, which is valid on all GemStone objects) separated by
-    '|', one pair per line.
-    """
-    raw = session.eval(
-        f"| d stream |\n"
-        f"d := {object_for_oop_expr(oop)}.\n"
-        f"stream := ''.\n"
-        f"d associationsDo: [:assoc |\n"
-        f"  stream := stream,\n"
-        f"    assoc key asOop printString, '|',\n"
-        f"    assoc value asOop printString, String lf asString\n"
-        f"].\n"
-        f"stream"
-    )
-    if not raw:
-        return []
-    pairs: list[tuple[int, int]] = []
-    text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        key_s, sep, val_s = line.partition("|")
-        if not sep:
-            continue
-        try:
-            pairs.append((int(key_s), int(val_s)))
-        except ValueError:
-            continue
-    return pairs
+# Returns lines of: keyOop|keyClassName|keyPS|valOop|valClassName|valPS
+_DICT_SCRIPT = """\
+| d encode stream total lo hi i |
+d := {obj_expr}.
+total := d size.
+lo := {lo}.
+hi := total min: {hi}.
+{encode_src}
+stream := total printString, String lf asString.
+i := 0.
+d associationsDo: [:assoc |
+  | koop kcname kps voop vcname vps |
+  i := i + 1.
+  (i >= lo and: [i <= hi]) ifTrue: [
+    koop  := assoc key asOop.
+    kcname := [assoc key class name] on: Error do: [:e | 'Object'].
+    kps   := [assoc key printString] on: Error do: [:e | '(error)'].
+    kps := kps size > 200 ifTrue: [kps copyFrom: 1 to: 200] ifFalse: [kps].
+    voop  := assoc value asOop.
+    vcname := [assoc value class name] on: Error do: [:e | 'Object'].
+    vps   := [assoc value printString] on: Error do: [:e | '(error)'].
+    vps := vps size > 200 ifTrue: [vps copyFrom: 1 to: 200] ifFalse: [vps].
+    stream := stream,
+      koop printString, '|',
+      (encode value: kcname), '|',
+      (encode value: kps), '|',
+      voop printString, '|',
+      (encode value: vcname), '|',
+      (encode value: vps), String lf asString
+  ]
+].
+stream
+"""
 
 
 def _dict_entries(
@@ -186,34 +253,84 @@ def _dict_entries(
     params: dict,
 ) -> tuple[int, dict]:
     try:
-        pairs = _fetch_dict_oop_pairs(session, oop)
+        script = _DICT_SCRIPT.format(
+            obj_expr=object_for_oop_expr(oop),
+            lo=range_from,
+            hi=range_to,
+            encode_src=_ENCODE_SRC,
+        )
+        raw = _str(session.eval(script))
+        lines = raw.splitlines()
+        if not lines:
+            return 0, {}
+        total = int(lines[0]) if lines[0].strip().isdigit() else 0
     except Exception as exc:
         return 0, {1: [
             {"oop": None, "inspection": "(fetch error)", "basetype": "symbol", "loaded": False},
             {"oop": None, "inspection": str(exc), "basetype": "object", "loaded": False},
         ]}
 
-    total = len(pairs)
     if total == 0:
         return 0, {}
 
     result: dict[int, Any] = {}
-    lo = max(1, range_from)
-    hi = min(range_to, total)
-    for i, (key_oop, val_oop) in enumerate(pairs[lo - 1:hi], start=lo):
+    for i, line in enumerate(lines[1:], start=range_from):
+        if not line:
+            continue
+        parts = line.split("|", 5)
         try:
-            key_view = object_view(session, key_oop, 1, {}, params)
-            val_view = object_view(session, val_oop, child_depth, {}, params)
-        except Exception as exc:
-            key_view = {"oop": None, "inspection": f"key_{i}", "basetype": "symbol", "loaded": False}
-            val_view = {"oop": None, "inspection": f"(error: {exc})", "basetype": "object", "loaded": False}
+            koop   = int(parts[0]) if len(parts) > 0 else OOP_NIL
+            kcname = decode_escaped_field(parts[1]) if len(parts) > 1 else "Object"
+            kps    = decode_escaped_field(parts[2]) if len(parts) > 2 else ""
+            voop   = int(parts[3]) if len(parts) > 3 else OOP_NIL
+            vcname = decode_escaped_field(parts[4]) if len(parts) > 4 else "Object"
+            vps    = decode_escaped_field(parts[5]) if len(parts) > 5 else ""
+        except (ValueError, IndexError):
+            continue
+
+        key_view: dict[str, Any] = {
+            "oop": koop,
+            "inspection": kps,
+            "basetype": _basetype_from_cname(kcname),
+            "loaded": False,
+        }
+        val_view: dict[str, Any] = {
+            "oop": voop,
+            "inspection": vps,
+            "basetype": _basetype_from_cname(vcname),
+            "loaded": False,
+        }
         result[i] = [key_view, val_view]
     return total, result
 
 
 # --------------------------------------------------------------------------- #
-# Array / indexed collection entries — fetched via batch helper               #
+# Array / indexed collection entries — batched                                 #
 # --------------------------------------------------------------------------- #
+
+_ARRAY_SCRIPT = """\
+| col encode stream total lo hi |
+col := {obj_expr}.
+total := col size.
+lo := {lo}.
+hi := total min: {hi}.
+{encode_src}
+stream := total printString, String lf asString.
+lo to: hi do: [:i |
+  | voop vcname vps |
+  voop  := [col at: i] on: Error do: [:e | nil].
+  vcname := [voop class name] on: Error do: [:e | 'Object'].
+  vps   := [voop printString] on: Error do: [:e | '(error)'].
+  vps := vps size > 200 ifTrue: [vps copyFrom: 1 to: 200] ifFalse: [vps].
+  stream := stream,
+    i printString, '|',
+    (encode value: vcname), '|',
+    (encode value: voop asOop printString), '|',
+    (encode value: vps), String lf asString
+].
+stream
+"""
+
 
 def _array_entries(
     session: GemStoneSession,
@@ -224,27 +341,48 @@ def _array_entries(
     params: dict,
 ) -> tuple[int, dict]:
     try:
-        all_oops = fetch_collection_oops(session, oop)
+        script = _ARRAY_SCRIPT.format(
+            obj_expr=object_for_oop_expr(oop),
+            lo=range_from,
+            hi=range_to,
+            encode_src=_ENCODE_SRC,
+        )
+        raw = _str(session.eval(script))
+        lines = raw.splitlines()
+        if not lines:
+            return 0, {}
+        total = int(lines[0]) if lines[0].strip().isdigit() else 0
     except Exception as exc:
         return 0, {1: [
             {"oop": None, "inspection": "(fetch error)", "basetype": "symbol", "loaded": False},
             {"oop": None, "inspection": str(exc), "basetype": "object", "loaded": False},
         ]}
 
-    total = len(all_oops)
     if total == 0:
         return 0, {}
 
     result: dict[int, Any] = {}
-    lo = max(1, range_from)
-    hi = min(range_to, total)
-    for i, val_oop in enumerate(all_oops[lo - 1:hi], start=lo):
+    for line in lines[1:]:
+        if not line:
+            continue
+        parts = line.split("|", 3)
         try:
-            val_view = object_view(session, val_oop, child_depth, {}, params)
-        except Exception as exc:
-            val_view = {"oop": None, "inspection": f"(error: {exc})", "basetype": "object", "loaded": False}
-        result[i] = [
-            {"oop": None, "inspection": str(i), "basetype": "fixnum", "loaded": False},
+            idx    = int(parts[0]) if len(parts) > 0 else 0
+            vcname = decode_escaped_field(parts[1]) if len(parts) > 1 else "Object"
+            voop_s = decode_escaped_field(parts[2]) if len(parts) > 2 else "20"
+            vps    = decode_escaped_field(parts[3]) if len(parts) > 3 else ""
+            voop   = int(voop_s)
+        except (ValueError, IndexError):
+            continue
+
+        val_view: dict[str, Any] = {
+            "oop": voop,
+            "inspection": vps,
+            "basetype": _basetype_from_cname(vcname),
+            "loaded": False,
+        }
+        result[idx] = [
+            {"oop": None, "inspection": str(idx), "basetype": "fixnum", "loaded": False},
             val_view,
         ]
     return total, result
@@ -275,10 +413,15 @@ def object_view(
     if params is None:
         params = {}
 
-    obj: dict[str, Any] = {"oop": oop}
-    obj["inspection"] = _inspect(session, oop)
-    basetype = _basetype(session, oop)
-    obj["basetype"] = basetype
+    # Fetch class name, printString, and class OOP in one GCI call.
+    cname, inspection, class_oop = _fetch_meta(session, oop)
+    basetype = _basetype_from_cname(cname)
+
+    obj: dict[str, Any] = {
+        "oop": oop,
+        "inspection": inspection,
+        "basetype": basetype,
+    }
 
     if depth <= 0:
         obj["loaded"] = False
@@ -287,23 +430,29 @@ def object_view(
     obj["loaded"] = True
     obj["exception"] = False
 
-    class_oop = _class_oop(session, oop)
-    obj["classObject"] = object_view(session, class_oop, depth - 1, {}, params)
+    # Class object — one recursive call, depth-1 (stops quickly at depth=0)
+    if class_oop != OOP_NIL:
+        class_cname, class_ps, _ = _fetch_meta(session, class_oop)
+        obj["classObject"] = {
+            "oop": class_oop,
+            "inspection": class_ps,
+            "basetype": _basetype_from_cname(class_cname),
+            "loaded": False,
+        }
+    else:
+        obj["classObject"] = {"oop": None, "inspection": "", "basetype": "object", "loaded": False}
 
-    child_depth = max(1, depth - 1)
     range_from = int(ranges.get("instVars", [1, 20])[0])
     range_to   = int(ranges.get("instVars", [1, 20])[1])
-
-    cname = _class_name(session, oop)
 
     if basetype in _LEAF_BASETYPES:
         count, entries = 0, {}
     elif cname in _DICT_CLASS_NAMES:
-        count, entries = _dict_entries(session, oop, range_from, range_to, child_depth, params)
+        count, entries = _dict_entries(session, oop, range_from, range_to, depth - 1, params)
     elif cname in _ARRAY_CLASS_NAMES:
-        count, entries = _array_entries(session, oop, range_from, range_to, child_depth, params)
+        count, entries = _array_entries(session, oop, range_from, range_to, depth - 1, params)
     else:
-        count, entries = _named_inst_vars(session, oop, range_from, range_to, child_depth, params)
+        count, entries = _named_inst_vars(session, oop, range_from, range_to, depth - 1, params)
 
     obj["instVarsSize"] = count
     obj["instVars"] = entries

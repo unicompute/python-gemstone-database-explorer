@@ -24,6 +24,17 @@ from flask import Flask, jsonify, request, render_template
 from gemstone_p import session as gs_session
 from gemstone_p.object_view import object_view, eval_in_context, _escape_st
 
+# Smalltalk snippet: find AllUsers via several fallback paths, bind to `allUsers`
+_ALL_USERS_EXPR = (
+    "allUsers := [Globals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+    "allUsers isNil ifTrue: [\n"
+    "  allUsers := [UserGlobals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil]\n"
+    "].\n"
+    "allUsers isNil ifTrue: [\n"
+    "  allUsers := [System myUserProfile symbolList objectNamed: #AllUsers] on: Error do: [:e | nil]\n"
+    "]."
+)
+
 
 def create_app() -> Flask:
     app = Flask(
@@ -171,6 +182,275 @@ def create_app() -> Flask:
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True)
+
+    # ------------------------------------------------------------------ #
+    # Symbol List Browser                                                  #
+    # ------------------------------------------------------------------ #
+
+    @app.get("/symbol-list/users")
+    def symlist_users():
+        """Return list of user names from AllUsers (tries multiple lookup paths)."""
+        try:
+            with gs_session.request_session() as session:
+                raw = session.eval(
+                    f"| allUsers stream |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"stream := ''.\n"
+                    f"allUsers isNil ifFalse: [\n"
+                    f"  allUsers do: [:u |\n"
+                    f"    | uid |\n"
+                    f"    uid := [u userId] on: Error do: [:e | u printString].\n"
+                    f"    stream := stream , uid , String lf asString\n"
+                    f"  ]\n"
+                    f"].\n"
+                    f"stream"
+                )
+                text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+                users = [u.strip() for u in text.splitlines() if u.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, users=users)
+
+    @app.get("/symbol-list/dictionaries/<user>")
+    def symlist_dicts(user: str):
+        """Return list of SymbolDictionary names for a given user."""
+        try:
+            with gs_session.request_session() as session:
+                escaped_user = _escape_st(user)
+                raw = session.eval(
+                    f"| allUsers u stream |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
+                    f"].\n"
+                    f"stream := ''.\n"
+                    f"u isNil ifFalse: [\n"
+                    f"  u symbolList do: [:d |\n"
+                    f"    | dname |\n"
+                    f"    dname := [d name] on: Error do: [:e | d printString].\n"
+                    f"    stream := stream , dname , String lf asString\n"
+                    f"  ]\n"
+                    f"].\n"
+                    f"stream"
+                )
+                text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+                dicts = [d.strip() for d in text.splitlines() if d.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, dictionaries=dicts)
+
+    @app.get("/symbol-list/entries/<user>/<dictionary>")
+    def symlist_entries(user: str, dictionary: str):
+        """Return list of entry key names for a user/dictionary pair."""
+        try:
+            with gs_session.request_session() as session:
+                escaped_user = _escape_st(user)
+                escaped_dict = _escape_st(dictionary)
+                raw = session.eval(
+                    f"| allUsers u dict stream |\n"
+                    f"allUsers := [Globals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    f"allUsers isNil ifTrue: [\n"
+                    f"  allUsers := [UserGlobals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil]\n"
+                    f"].\n"
+                    f"allUsers isNil ifTrue: [\n"
+                    f"  allUsers := [System myUserProfile symbolList objectNamed: #AllUsers] on: Error do: [:e | nil]\n"
+                    f"].\n"
+                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
+                    f"].\n"
+                    f"stream := ''.\n"
+                    f"u isNil ifFalse: [\n"
+                    f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
+                    f"  dict isNil ifFalse: [\n"
+                    f"    dict keysDo: [:k |\n"
+                    f"      stream := stream , k asString , String lf asString\n"
+                    f"    ]\n"
+                    f"  ]\n"
+                    f"].\n"
+                    f"stream"
+                )
+                text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+                entries = [e.strip() for e in text.splitlines() if e.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, entries=entries)
+
+    @app.get("/symbol-list/preview/<user>/<dictionary>/<key>")
+    def symlist_preview(user: str, dictionary: str, key: str):
+        """Return a preview of a single entry value."""
+        try:
+            with gs_session.request_session() as session:
+                escaped_user = _escape_st(user)
+                escaped_dict = _escape_st(dictionary)
+                escaped_key = _escape_st(key)
+                raw_oop = session.eval_oop(
+                    f"| allUsers u dict |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
+                    f"].\n"
+                    f"u isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
+                    f"  dict isNil ifTrue: [nil] ifFalse: [\n"
+                    f"    dict at: '{escaped_key}' asSymbol ifAbsent: [nil]\n"
+                    f"  ]\n"
+                    f"]"
+                )
+                from gemstone_py import OOP_NIL
+                if raw_oop == OOP_NIL:
+                    return jsonify(success=True, oop=None, inspection="nil", basetype="nilclass",
+                                   instVars={}, instVarsSize=0, loaded=True, customTabs=[])
+                from gemstone_p.object_view import object_view as _ov
+                view = _ov(session, raw_oop, 2, {}, {})
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, **view)
+
+    @app.post("/symbol-list/add-dictionary")
+    def symlist_add_dict():
+        data = request.get_json(force=True) or {}
+        user = data.get("user", "")
+        name = data.get("name", "")
+        if not user or not name:
+            return jsonify(success=False, exception="user and name required"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                escaped_user = _escape_st(user)
+                escaped_name = _escape_st(name)
+                session.eval(
+                    f"| allUsers u newDict |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
+                    f"].\n"
+                    f"u isNil ifFalse: [\n"
+                    f"  newDict := SymbolDictionary new.\n"
+                    f"  newDict name: '{escaped_name}' asSymbol.\n"
+                    f"  u symbolList add: newDict\n"
+                    f"]"
+                )
+                session.commit()
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.post("/symbol-list/remove-dictionary")
+    def symlist_remove_dict():
+        data = request.get_json(force=True) or {}
+        user = data.get("user", "")
+        name = data.get("name", "")
+        if not user or not name:
+            return jsonify(success=False, exception="user and name required"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                escaped_user = _escape_st(user)
+                escaped_name = _escape_st(name)
+                session.eval(
+                    f"| allUsers u |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
+                    f"].\n"
+                    f"u isNil ifFalse: [\n"
+                    f"  u symbolList removeKey: '{escaped_name}' asSymbol ifAbsent: []\n"
+                    f"]"
+                )
+                session.commit()
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.post("/symbol-list/add-entry")
+    def symlist_add_entry():
+        data = request.get_json(force=True) or {}
+        user = data.get("user", "")
+        dictionary = data.get("dictionary", "")
+        key = data.get("key", "")
+        value_expr = data.get("value", "nil")
+        if not user or not dictionary or not key:
+            return jsonify(success=False, exception="user, dictionary and key required"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                escaped_user = _escape_st(user)
+                escaped_dict = _escape_st(dictionary)
+                escaped_key = _escape_st(key)
+                escaped_val = _escape_st(value_expr)
+                session.eval(
+                    f"| allUsers u dict val |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
+                    f"].\n"
+                    f"u isNil ifFalse: [\n"
+                    f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
+                    f"  dict isNil ifFalse: [\n"
+                    f"    val := [{escaped_val}] on: Error do: [:e | e].\n"
+                    f"    dict at: '{escaped_key}' asSymbol put: val\n"
+                    f"  ]\n"
+                    f"]"
+                )
+                session.commit()
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.post("/symbol-list/remove-entry")
+    def symlist_remove_entry():
+        data = request.get_json(force=True) or {}
+        user = data.get("user", "")
+        dictionary = data.get("dictionary", "")
+        key = data.get("key", "")
+        if not user or not dictionary or not key:
+            return jsonify(success=False, exception="user, dictionary and key required"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                escaped_user = _escape_st(user)
+                escaped_dict = _escape_st(dictionary)
+                escaped_key = _escape_st(key)
+                session.eval(
+                    f"| allUsers u dict |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
+                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
+                    f"].\n"
+                    f"u isNil ifFalse: [\n"
+                    f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
+                    f"  dict isNil ifFalse: [\n"
+                    f"    dict removeKey: '{escaped_key}' asSymbol ifAbsent: []\n"
+                    f"  ]\n"
+                    f"]"
+                )
+                session.commit()
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.get("/symbol-list/debug")
+    def symlist_debug():
+        """Diagnostic: what does AllUsers resolve to?"""
+        try:
+            with gs_session.request_session() as session:
+                raw = session.eval(
+                    f"| allUsers result |\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"allUsers isNil\n"
+                    f"  ifTrue: [ result := 'AllUsers not found in Globals, UserGlobals, or myUserProfile symbolList' ]\n"
+                    f"  ifFalse: [\n"
+                    f"    | stream |\n"
+                    f"    stream := 'Found AllUsers: ', allUsers class name, ' size=', allUsers size printString, String lf asString.\n"
+                    f"    allUsers do: [:u |\n"
+                    f"      | uid |\n"
+                    f"      uid := [u userId] on: Error do: [:e | '(no userId: ', e messageText, ')'].\n"
+                    f"      stream := stream , '  user: ' , uid , String lf asString\n"
+                    f"    ].\n"
+                    f"    result := stream\n"
+                    f"  ].\n"
+                    f"result"
+                )
+                text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, debug=text)
 
     # ------------------------------------------------------------------ #
     # Version / health                                                     #
