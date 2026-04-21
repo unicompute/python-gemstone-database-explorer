@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gemstone-p"
+version = "0.1.0"
+description = "GemStone Database Explorer — Python/Flask port of maglev-database-explorer-gem"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0",
+    "gemstone-py",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-flask>=1.3",
+]
+
+[project.scripts]
+gemstone-p = "gemstone_p.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gemstone_p*"]
