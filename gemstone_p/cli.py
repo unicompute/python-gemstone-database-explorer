@@ -1,4 +1,4 @@
-"""CLI entry point — `gemstone-p` command."""
+"""CLI entry point — `python-gemstone-database-explorer` command."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from gemstone_p.app import create_app
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        prog="gemstone-p",
+        prog="python-gemstone-database-explorer",
         description="GemStone Database Explorer",
     )
     parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
