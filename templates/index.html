@@ -20,13 +20,14 @@
     #topbar {
       background: #181825;
       border-bottom: 1px solid #313244;
-      padding: 8px 16px;
+      padding: 6px 16px;
       display: flex;
       align-items: center;
       gap: 12px;
       flex-shrink: 0;
     }
     #topbar h1 { font-size: 14px; font-weight: 600; color: #cba6f7; }
+    #topbar .version { font-size: 11px; color: #45475a; }
     #topbar .sep { flex: 1; }
     #status-dot {
       width: 8px; height: 8px; border-radius: 50%;
@@ -36,30 +37,25 @@
     #status-txt { font-size: 11px; color: #a6adc8; }
 
     /* ── main layout ─────────────────────────────────────────────────── */
-    #main {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+    #main { display: flex; flex: 1; overflow: hidden; }
 
     /* ── sidebar ─────────────────────────────────────────────────────── */
     #sidebar {
-      width: 260px;
-      min-width: 160px;
-      max-width: 420px;
+      width: 220px;
+      min-width: 140px;
       background: #181825;
       border-right: 1px solid #313244;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      resize: horizontal;
+      flex-shrink: 0;
     }
     #sidebar h2 {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: #a6adc8;
+      color: #6c7086;
       padding: 8px 12px 4px;
     }
     #roots-list { list-style: none; overflow-y: auto; flex: 1; }
@@ -70,25 +66,146 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-size: 12px;
     }
     #roots-list li:hover { background: #313244; }
     #roots-list li.active { border-left-color: #cba6f7; color: #cba6f7; }
 
     /* ── content area ────────────────────────────────────────────────── */
-    #content {
-      flex: 1;
+    #content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── nav tabs ────────────────────────────────────────────────────── */
+    #nav-tabs {
       display: flex;
-      flex-direction: column;
-      overflow: hidden;
+      border-bottom: 1px solid #313244;
+      background: #181825;
+      flex-shrink: 0;
+    }
+    .nav-tab {
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #a6adc8;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      user-select: none;
+    }
+    .nav-tab:hover { color: #cdd6f4; }
+    .nav-tab.active { color: #cba6f7; border-bottom-color: #cba6f7; }
+
+    /* ── breadcrumb ──────────────────────────────────────────────────── */
+    #breadcrumb {
+      padding: 5px 14px;
+      font-size: 11px;
+      color: #6c7086;
+      border-bottom: 1px solid #313244;
+      background: #1e1e2e;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      min-height: 26px;
+    }
+    #breadcrumb span.crumb { cursor: pointer; color: #89b4fa; }
+    #breadcrumb span.crumb:hover { text-decoration: underline; }
+    #breadcrumb span.crumb.current { color: #cdd6f4; cursor: default; text-decoration: none; }
+    #breadcrumb .sep { color: #45475a; }
+
+    /* ── object tab: split pane ──────────────────────────────────────── */
+    #object-tab {
+      flex: 1; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    #object-split {
+      flex: 1; overflow: hidden;
+      display: flex; flex-direction: row;
     }
 
-    /* ── object pane ─────────────────────────────────────────────────── */
+    /* left: object pane */
     #object-pane {
       flex: 1;
       overflow-y: auto;
-      padding: 12px 16px;
+      padding: 10px 14px;
+      min-width: 0;
     }
 
+    /* right: method browser */
+    #method-browser {
+      width: 340px;
+      min-width: 200px;
+      border-left: 1px solid #313244;
+      display: flex;
+      flex-direction: column;
+      background: #181825;
+      flex-shrink: 0;
+    }
+    #method-browser-header {
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #a6adc8;
+      border-bottom: 1px solid #313244;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #24273a;
+      flex-shrink: 0;
+    }
+    #method-browser-header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #method-browser-close {
+      background: none; border: none; color: #6c7086;
+      cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px;
+    }
+    #method-browser-close:hover { color: #f38ba8; }
+    #method-browser-split {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #method-categories {
+      width: 130px;
+      border-right: 1px solid #313244;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    #method-selectors {
+      flex: 1;
+      overflow-y: auto;
+      border-right: 1px solid #313244;
+    }
+    .method-cat, .method-sel {
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .method-cat:hover, .method-sel:hover { background: #313244; }
+    .method-cat.active { background: #45475a; color: #cba6f7; }
+    .method-sel.active { background: #45475a; color: #89dceb; }
+    #method-source {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #method-source textarea {
+      flex: 1;
+      background: #1e1e2e;
+      color: #a6e3a1;
+      border: none;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 6px 8px;
+      resize: none;
+      outline: none;
+    }
+    #method-browser.hidden { display: none; }
+
+    /* ── object card ─────────────────────────────────────────────────── */
     .obj-card {
       background: #181825;
       border: 1px solid #313244;
@@ -98,59 +215,77 @@
     }
     .obj-card-header {
       background: #24273a;
-      padding: 6px 12px;
+      padding: 6px 10px;
       display: flex;
       align-items: center;
       gap: 8px;
-      cursor: pointer;
     }
-    .obj-card-header .oop { color: #6c7086; font-size: 11px; margin-left: auto; }
+    .obj-card-header .oop { color: #6c7086; font-size: 10px; font-family: monospace; }
     .obj-card-header .basetype {
       background: #313244;
       border-radius: 3px;
       padding: 1px 5px;
       font-size: 10px;
       color: #a6adc8;
+      flex-shrink: 0;
     }
+    .obj-card-header .class-name {
+      color: #cba6f7;
+      font-size: 11px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .obj-card-header .class-name:hover { text-decoration: underline; }
     .obj-card-header .inspection {
       font-family: monospace;
+      font-size: 12px;
       color: #89dceb;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      max-width: 500px;
+      flex: 1;
     }
-    .obj-card-body { padding: 8px 12px; }
+    .obj-card-body { padding: 0; }
 
     table.inst-vars { border-collapse: collapse; width: 100%; }
     table.inst-vars th {
       text-align: left;
-      font-size: 11px;
-      color: #a6adc8;
-      padding: 2px 8px 4px 0;
+      font-size: 10px;
+      color: #6c7086;
+      padding: 3px 8px;
       border-bottom: 1px solid #313244;
+      background: #1e1e2e;
+      text-transform: uppercase;
+      letter-spacing: .04em;
     }
     table.inst-vars td {
-      padding: 3px 8px 3px 0;
+      padding: 3px 8px;
       vertical-align: top;
       border-bottom: 1px solid #1e1e2e;
+      font-size: 12px;
     }
-    table.inst-vars td:first-child { color: #f38ba8; font-family: monospace; min-width: 120px; }
-    table.inst-vars td:last-child { font-family: monospace; color: #a6e3a1; }
+    table.inst-vars td.col-key { color: #f5c2e7; font-family: monospace; min-width: 100px; max-width: 180px; }
+    table.inst-vars td.col-val { font-family: monospace; color: #a6e3a1; }
+    table.inst-vars tr:hover td { background: #1e1e2e; }
     .link-oop { color: #89b4fa; text-decoration: none; cursor: pointer; }
     .link-oop:hover { text-decoration: underline; }
+
+    /* more-entries row */
+    .more-row { font-size: 11px; color: #6c7086; padding: 4px 8px; }
+    .more-row a { color: #89b4fa; cursor: pointer; }
+    .more-row a:hover { text-decoration: underline; }
 
     /* ── eval panel ──────────────────────────────────────────────────── */
     #eval-panel {
       border-top: 1px solid #313244;
       background: #181825;
-      padding: 8px 12px;
+      padding: 7px 12px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
       flex-shrink: 0;
     }
-    #eval-panel label { font-size: 11px; color: #a6adc8; }
+    #eval-panel label { font-size: 10px; color: #6c7086; text-transform: uppercase; letter-spacing: .05em; }
     #eval-code {
       font-family: monospace;
       font-size: 12px;
@@ -158,18 +293,11 @@
       color: #cdd6f4;
       border: 1px solid #313244;
       border-radius: 4px;
-      padding: 6px 8px;
+      padding: 5px 8px;
       resize: vertical;
-      min-height: 60px;
+      min-height: 52px;
     }
     #eval-controls { display: flex; align-items: center; gap: 8px; }
-    #eval-controls select {
-      background: #313244;
-      color: #cdd6f4;
-      border: 1px solid #45475a;
-      border-radius: 4px;
-      padding: 3px 6px;
-    }
     button.btn {
       background: #cba6f7;
       color: #1e1e2e;
@@ -191,44 +319,18 @@
       font-size: 12px;
     }
     button.btn-ghost:hover { background: #313244; }
-    #eval-result {
+    #eval-result-wrap {
       font-family: monospace;
       font-size: 11px;
-      color: #a6e3a1;
-      max-height: 80px;
-      overflow-y: auto;
     }
+    #eval-result { color: #a6e3a1; }
     #eval-result.error { color: #f38ba8; }
 
-    /* ── breadcrumb ──────────────────────────────────────────────────── */
-    #breadcrumb {
-      padding: 6px 16px;
-      font-size: 11px;
-      color: #6c7086;
-      border-bottom: 1px solid #313244;
-      display: flex;
-      gap: 4px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    #breadcrumb span { cursor: pointer; }
-    #breadcrumb span:hover { color: #89b4fa; }
-    #breadcrumb .sep { color: #45475a; }
-
-    /* ── spinner ─────────────────────────────────────────────────────── */
-    .spinner {
-      display: inline-block;
-      width: 14px; height: 14px;
-      border: 2px solid #45475a;
-      border-top-color: #cba6f7;
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-      vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* eval result card (shown inline when navigable) */
+    #eval-result-card { margin-top: 6px; }
 
     /* ── transaction bar ─────────────────────────────────────────────── */
-    #txbar {
+    .txbar {
       background: #181825;
       border-top: 1px solid #313244;
       padding: 4px 12px;
@@ -237,27 +339,19 @@
       align-items: center;
       flex-shrink: 0;
     }
-    #txbar span { font-size: 11px; color: #a6adc8; }
+    .txbar span { font-size: 11px; color: #6c7086; }
 
-    /* ── nav tabs ────────────────────────────────────────────────────── */
-    #nav-tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid #313244;
-      background: #181825;
-      flex-shrink: 0;
+    /* ── spinner ─────────────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid #45475a;
+      border-top-color: #cba6f7;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
     }
-    .nav-tab {
-      padding: 6px 16px;
-      font-size: 12px;
-      font-weight: 500;
-      color: #a6adc8;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-    }
-    .nav-tab:hover { color: #cdd6f4; }
-    .nav-tab.active { color: #cba6f7; border-bottom-color: #cba6f7; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── symbol list browser ─────────────────────────────────────────── */
     #sl-user-row {
@@ -279,200 +373,125 @@
       padding: 4px 8px;
       font-size: 13px;
     }
-
     .sl-section-label {
-      font-size: 13px;
-      color: #cdd6f4;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #6c7086;
       padding: 5px 12px 3px;
       flex-shrink: 0;
       background: #1e1e2e;
     }
-
     #sl-dict-entries-row {
       display: flex;
-      height: 260px;
+      height: 240px;
       flex-shrink: 0;
       border-bottom: 1px solid #313244;
     }
     #sl-dicts-col {
-      display: flex;
-      flex-direction: column;
-      width: 200px;
-      min-width: 120px;
+      display: flex; flex-direction: column;
+      width: 200px; min-width: 120px;
       border-right: 1px solid #313244;
-      overflow: hidden;
-      flex-shrink: 0;
+      overflow: hidden; flex-shrink: 0;
     }
-    #sl-dicts-col-header {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
+    #sl-dicts-col-header, #sl-entries-col-header {
+      display: flex; align-items: center; justify-content: flex-end;
       padding: 2px 6px;
       background: #181825;
       border-bottom: 1px solid #313244;
       flex-shrink: 0;
     }
-    #sl-entries-col {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-    }
-    #sl-entries-col-header {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding: 2px 6px;
-      background: #181825;
-      border-bottom: 1px solid #313244;
-      flex-shrink: 0;
-    }
-
-    .sl-list {
-      list-style: none;
-      overflow-y: auto;
-      flex: 1;
-    }
+    #sl-entries-col { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .sl-list { list-style: none; overflow-y: auto; flex: 1; }
     .sl-list li {
-      padding: 4px 12px;
+      padding: 4px 10px;
       cursor: pointer;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      font-size: 13px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 4px;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 4px;
     }
     .sl-list li:hover { background: #2a2a3e; }
-    .sl-list li.active { background: #3a3a5a; color: #cdd6f4; }
+    .sl-list li.active { background: #313244; color: #cba6f7; }
     .sl-list li .sl-del-btn {
-      background: none;
-      border: none;
-      color: #6c7086;
-      cursor: pointer;
-      font-size: 13px;
-      padding: 0;
-      flex-shrink: 0;
-      display: none;
+      background: none; border: none; color: #6c7086; cursor: pointer;
+      font-size: 13px; padding: 0; flex-shrink: 0; display: none;
     }
     .sl-list li:hover .sl-del-btn { display: inline; }
     .sl-list li .sl-del-btn:hover { color: #f38ba8; }
     .sl-add-btn {
-      background: none;
-      border: none;
-      color: #a6adc8;
-      font-size: 15px;
-      cursor: pointer;
-      line-height: 1;
-      padding: 0 3px;
+      background: none; border: none; color: #a6adc8;
+      font-size: 15px; cursor: pointer; line-height: 1; padding: 0 3px;
     }
     .sl-add-btn:hover { color: #cba6f7; }
-
     #sl-selection-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      display: flex; align-items: center; gap: 10px;
       padding: 5px 12px;
       border-bottom: 1px solid #313244;
       flex-shrink: 0;
       background: #1e1e2e;
     }
-    #sl-selection-row .sl-sel-label { font-size: 13px; color: #cdd6f4; }
+    #sl-selection-row .sl-sel-label { font-size: 12px; color: #6c7086; }
     #sl-selection-val {
-      font-size: 13px;
-      color: #cdd6f4;
-      background: #24273a;
-      border-radius: 4px;
-      padding: 3px 10px;
-      min-width: 80px;
+      font-size: 13px; color: #cdd6f4;
+      background: #24273a; border-radius: 4px;
+      padding: 2px 10px; min-width: 80px;
     }
-
+    #sl-inspect-btn {
+      margin-left: auto;
+      font-size: 11px;
+    }
     #sl-kv-section {
-      flex-shrink: 0;
-      max-height: 220px;
-      display: flex;
-      flex-direction: column;
+      flex-shrink: 0; max-height: 200px;
+      display: flex; flex-direction: column;
       border-bottom: 1px solid #313244;
     }
-    #sl-kv-table-wrap {
-      overflow-y: auto;
-      flex: 1;
-    }
-    table#sl-kv-table {
-      border-collapse: collapse;
-      width: 100%;
-    }
+    #sl-kv-table-wrap { overflow-y: auto; flex: 1; }
+    table#sl-kv-table { border-collapse: collapse; width: 100%; }
     table#sl-kv-table th {
-      text-align: left;
-      font-size: 12px;
-      color: #a6adc8;
-      padding: 4px 12px;
-      background: #181825;
+      text-align: left; font-size: 10px; color: #6c7086;
+      padding: 3px 12px; background: #181825;
       border-bottom: 1px solid #313244;
       position: sticky; top: 0;
+      text-transform: uppercase; letter-spacing: .04em;
     }
     table#sl-kv-table td {
-      padding: 3px 12px;
-      font-size: 13px;
+      padding: 3px 12px; font-size: 12px;
       font-family: monospace;
       border-bottom: 1px solid #1e1e2e;
     }
-    table#sl-kv-table td:first-child { color: #cdd6f4; }
-    table#sl-kv-table td:last-child  { color: #cdd6f4; }
-
-    #sl-printstring-section {
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-      border-bottom: 1px solid #313244;
-    }
+    table#sl-kv-table td:first-child { color: #f5c2e7; }
+    table#sl-kv-table td:last-child  { color: #a6e3a1; }
+    #sl-printstring-section { display: flex; flex-direction: column; flex-shrink: 0; }
     #sl-printstring-box {
-      font-family: monospace;
-      font-size: 13px;
-      color: #cdd6f4;
-      background: #24273a;
-      margin: 0 12px 8px;
+      font-family: monospace; font-size: 12px; color: #cdd6f4;
+      background: #24273a; margin: 0 12px 8px;
       padding: 8px 10px;
-      border: 1px solid #313244;
-      border-radius: 4px;
-      min-height: 52px;
-      word-break: break-all;
-      white-space: pre-wrap;
+      border: 1px solid #313244; border-radius: 4px;
+      min-height: 44px; word-break: break-all; white-space: pre-wrap;
     }
 
-    /* ── modal dialog ────────────────────────────────────────────────── */
+    /* ── modal ───────────────────────────────────────────────────────── */
     #modal-overlay {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.6);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.55);
+      z-index: 100; align-items: center; justify-content: center;
     }
     #modal-overlay.visible { display: flex; }
     #modal-box {
-      background: #24273a;
-      border: 1px solid #45475a;
-      border-radius: 8px;
-      padding: 20px 24px;
-      min-width: 320px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      background: #24273a; border: 1px solid #45475a;
+      border-radius: 8px; padding: 20px 24px;
+      min-width: 340px; display: flex; flex-direction: column; gap: 10px;
     }
     #modal-box h2 { font-size: 13px; font-weight: 600; color: #cba6f7; }
     #modal-box label { font-size: 11px; color: #a6adc8; }
     #modal-box input, #modal-box textarea {
-      font-family: monospace;
-      font-size: 12px;
-      background: #1e1e2e;
-      color: #cdd6f4;
-      border: 1px solid #45475a;
-      border-radius: 4px;
-      padding: 5px 8px;
-      width: 100%;
+      font-family: monospace; font-size: 12px;
+      background: #1e1e2e; color: #cdd6f4;
+      border: 1px solid #45475a; border-radius: 4px;
+      padding: 5px 8px; width: 100%;
     }
     #modal-box textarea { resize: vertical; min-height: 60px; }
     #modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
@@ -482,12 +501,14 @@
 
 <div id="topbar">
   <h1>GemStone Database Explorer</h1>
+  <span class="version" id="gs-version"></span>
   <div class="sep"></div>
   <span id="status-dot"></span>
   <span id="status-txt">connecting…</span>
 </div>
 
 <div id="main">
+  <!-- sidebar: root objects (shown only on Object Browser tab) -->
   <div id="sidebar" style="display:none">
     <h2>Roots</h2>
     <ul id="roots-list"></ul>
@@ -499,41 +520,64 @@
       <div class="nav-tab active" data-tab="symlist">Symbol List</div>
     </div>
 
-    <!-- Object Browser tab -->
+    <!-- ── Object Browser tab ─────────────────────────────────────── -->
     <div id="object-tab" style="display:none;flex-direction:column;flex:1;overflow:hidden">
       <div id="breadcrumb"></div>
-      <div id="object-pane"><p style="color:#6c7086;padding:20px">Select a root object to begin.</p></div>
+
+      <div id="object-split">
+        <!-- left: object pane -->
+        <div id="object-pane">
+          <p style="color:#6c7086;padding:20px">Select a root object from the sidebar to begin.</p>
+        </div>
+
+        <!-- right: method browser (hidden until class clicked) -->
+        <div id="method-browser" class="hidden">
+          <div id="method-browser-header">
+            <span id="method-browser-class">Methods</span>
+            <button id="method-browser-close" title="Close">✕</button>
+          </div>
+          <div id="method-browser-split">
+            <div id="method-categories"></div>
+            <div id="method-source">
+              <div id="method-selectors-wrap" style="flex:1;overflow-y:auto;border-bottom:1px solid #313244">
+                <div id="method-selectors"></div>
+              </div>
+              <textarea id="method-source-code" readonly placeholder="Select a method…"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- eval panel -->
       <div id="eval-panel">
         <label>Evaluate in context of current object</label>
-        <textarea id="eval-code" placeholder="nil printString"></textarea>
+        <textarea id="eval-code" placeholder="self printString"></textarea>
         <div id="eval-controls">
           <select id="eval-lang">
             <option value="smalltalk">Smalltalk</option>
           </select>
           <button class="btn" id="eval-btn">Evaluate</button>
-          <span id="eval-result"></span>
+          <span id="eval-result-wrap"><span id="eval-result"></span></span>
         </div>
+        <div id="eval-result-card"></div>
       </div>
-      <div id="txbar">
+
+      <div class="txbar">
         <span>Transaction:</span>
         <button class="btn-ghost" id="tx-commit-btn">Commit</button>
         <button class="btn-ghost" id="tx-abort-btn">Abort</button>
       </div>
     </div>
 
-    <!-- Symbol List Browser tab -->
+    <!-- ── Symbol List Browser tab ───────────────────────────────── -->
     <div id="symlist-tab" style="display:flex;flex-direction:column;flex:1;overflow-y:auto;overflow-x:hidden">
-
-      <!-- "Symbol List for [dropdown]" -->
       <div id="sl-user-row">
         <label>Symbol List for</label>
         <select id="sl-user-select"><option value="">— loading —</option></select>
       </div>
 
-      <!-- Dictionaries label -->
       <div class="sl-section-label">Dictionaries</div>
 
-      <!-- Two-column: dict list | entries list -->
       <div id="sl-dict-entries-row">
         <div id="sl-dicts-col">
           <div id="sl-dicts-col-header">
@@ -549,13 +593,12 @@
         </div>
       </div>
 
-      <!-- Selection row -->
       <div id="sl-selection-row">
         <span class="sl-sel-label">Selection</span>
         <span id="sl-selection-val"></span>
+        <button class="btn-ghost hidden" id="sl-inspect-btn" title="Inspect in Object Browser">Inspect ›</button>
       </div>
 
-      <!-- Keys / Values section -->
       <div class="sl-section-label">Keys / Values</div>
       <div id="sl-kv-section">
         <div id="sl-kv-table-wrap">
@@ -566,15 +609,13 @@
         </div>
       </div>
 
-      <!-- PrintString section -->
       <div class="sl-section-label">PrintString</div>
       <div id="sl-printstring-section">
         <div id="sl-printstring-box"></div>
       </div>
 
-      <!-- Transaction bar -->
-      <div class="txbar" style="background:#181825;padding:4px 12px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-top:1px solid #313244">
-        <span style="font-size:11px;color:#a6adc8">Transaction:</span>
+      <div class="txbar" style="border-top:1px solid #313244;margin-top:auto">
+        <span>Transaction:</span>
         <button class="btn-ghost" id="sl-commit-btn">Commit</button>
         <button class="btn-ghost" id="sl-abort-btn">Abort</button>
       </div>
@@ -598,9 +639,16 @@
 'use strict';
 
 // ── state ────────────────────────────────────────────────────────────────────
-let roots = {};           // { label: oop }
+let roots = {};
 let currentOop = null;
-let history = [];         // [{label, oop}]
+let currentClassOop = null;   // class of the currently displayed object
+let history = [];
+
+// method browser state
+let mbData = {};              // { category: [selector, …] }
+let mbCat = null;
+let mbSel = null;
+let mbClassOop = null;
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -613,17 +661,22 @@ const evalCode = $('eval-code');
 const evalLang = $('eval-lang');
 const evalBtn = $('eval-btn');
 const evalResult = $('eval-result');
+const evalResultCard = $('eval-result-card');
+const methodBrowser = $('method-browser');
 
 function setStatus(ok, msg) {
   statusDot.className = ok ? '' : 'error';
   statusTxt.textContent = msg;
 }
 
-// ── API calls ─────────────────────────────────────────────────────────────────
-async function api(url) {
-  const r = await fetch(url);
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(url, opts) {
+  const r = await fetch(url, opts);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
+}
+async function apiPost(url, body) {
+  return api(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
 }
 
 // ── init ──────────────────────────────────────────────────────────────────────
@@ -631,15 +684,19 @@ async function init() {
   try {
     const data = await api('/ids');
     roots = {
-      'UserGlobals (Persistent Root)': data.persistentRootId,
-      'Globals': data.globalsId,
-      'System': data.gemStoneSystemId,
+      'UserGlobals': data.persistentRootId,
+      'Globals':     data.globalsId,
+      'System':      data.gemStoneSystemId,
     };
     setStatus(true, 'connected');
     renderRoots();
   } catch (e) {
     setStatus(false, 'connection failed: ' + e.message);
   }
+  // fetch version string asynchronously, non-blocking
+  api('/version').then(d => {
+    if (d.success) $('gs-version').textContent = 'GemStone ' + d.stone;
+  }).catch(() => {});
 }
 
 function renderRoots() {
@@ -661,11 +718,15 @@ async function loadObject(oop, label) {
   currentOop = oop;
   updateActiveRoot(oop);
   renderBreadcrumb();
+  evalResultCard.innerHTML = '';
+  evalResult.textContent = '';
+  evalResult.className = '';
 
   objectPane.innerHTML = '<span class="spinner"></span> Loading…';
   try {
     const data = await api(`/object/index/${oop}?depth=2`);
     if (!data.success) throw new Error(data.exception || 'unknown error');
+    currentClassOop = data.result.classObject?.oop || null;
     renderObject(data.result);
   } catch (e) {
     objectPane.innerHTML = `<p style="color:#f38ba8;padding:16px">Error: ${escHtml(e.message)}</p>`;
@@ -673,9 +734,9 @@ async function loadObject(oop, label) {
 }
 
 function updateActiveRoot(oop) {
-  for (const li of rootsList.querySelectorAll('li')) {
-    li.classList.toggle('active', parseInt(li.dataset.oop) === oop);
-  }
+  rootsList.querySelectorAll('li').forEach(li =>
+    li.classList.toggle('active', parseInt(li.dataset.oop) === oop)
+  );
 }
 
 function renderBreadcrumb() {
@@ -683,11 +744,11 @@ function renderBreadcrumb() {
   history.forEach((item, i) => {
     if (i > 0) {
       const sep = document.createElement('span');
-      sep.className = 'sep';
-      sep.textContent = '›';
+      sep.className = 'sep'; sep.textContent = ' › ';
       breadcrumb.appendChild(sep);
     }
     const span = document.createElement('span');
+    span.className = 'crumb' + (i === history.length - 1 ? ' current' : '');
     span.textContent = item.label || `#${item.oop}`;
     if (i < history.length - 1) {
       span.addEventListener('click', () => {
@@ -699,26 +760,24 @@ function renderBreadcrumb() {
   });
 }
 
-// Build a navigable link or plain text cell for a value view
-function makeValueCell(valView, labelForHistory) {
+// ── render object ─────────────────────────────────────────────────────────────
+function makeValueCell(valView, label) {
   const td = document.createElement('td');
+  td.className = 'col-val';
   if (!valView) { td.textContent = 'nil'; return td; }
-
   const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valView.basetype);
   const text = valView.inspection || (valView.oop != null ? `oop:${valView.oop}` : 'nil');
-
   if (!isLeaf && valView.oop != null) {
     const a = document.createElement('a');
     a.className = 'link-oop';
     a.textContent = text;
     a.addEventListener('click', () => {
-      history.push({label: labelForHistory || text, oop: valView.oop});
-      loadObject(valView.oop, labelForHistory || text);
+      history.push({label: label || text, oop: valView.oop});
+      loadObject(valView.oop, label || text);
     });
     td.appendChild(a);
   } else {
     td.textContent = text;
-    td.style.color = '#a6e3a1';
   }
   return td;
 }
@@ -726,7 +785,7 @@ function makeValueCell(valView, labelForHistory) {
 function renderObject(obj) {
   const div = document.createElement('div');
 
-  // ── header card ──────────────────────────────────────────────────────────
+  // header card
   const card = document.createElement('div');
   card.className = 'obj-card';
 
@@ -737,6 +796,16 @@ function renderObject(obj) {
   bt.className = 'basetype';
   bt.textContent = obj.basetype || 'object';
 
+  // Class name — clickable to open method browser
+  const classLink = document.createElement('span');
+  classLink.className = 'class-name';
+  const className = obj.classObject?.inspection || '';
+  classLink.textContent = className;
+  if (className && obj.classObject?.oop) {
+    classLink.title = 'Browse methods';
+    classLink.addEventListener('click', () => openMethodBrowser(obj.classObject.oop, className));
+  }
+
   const ins = document.createElement('span');
   ins.className = 'inspection';
   ins.textContent = obj.inspection || '';
@@ -745,25 +814,18 @@ function renderObject(obj) {
   oopSpan.className = 'oop';
   oopSpan.textContent = `oop: ${obj.oop}`;
 
-  hdr.appendChild(bt);
-  hdr.appendChild(ins);
-  hdr.appendChild(oopSpan);
+  hdr.append(bt, classLink, ins, oopSpan);
   card.appendChild(hdr);
 
-  // ── entries table ────────────────────────────────────────────────────────
+  // entries table
   const entries = obj.instVars || {};
-  const entryCount = Object.keys(entries).length;
-  const isDictLike = ['hash'].includes(obj.basetype);
-  const isArrayLike = ['array'].includes(obj.basetype);
+  const entryKeys = Object.keys(entries);
+  const isDictLike = obj.basetype === 'hash';
+  const isArrayLike = obj.basetype === 'array';
 
-  if (obj.loaded && entryCount > 0) {
-    const body = document.createElement('div');
-    body.className = 'obj-card-body';
-
+  if (obj.loaded && entryKeys.length > 0) {
     const tbl = document.createElement('table');
     tbl.className = 'inst-vars';
-
-    // Choose column headers based on collection type
     if (isDictLike) {
       tbl.innerHTML = '<thead><tr><th>Key</th><th>Value</th></tr></thead>';
     } else if (isArrayLike) {
@@ -771,18 +833,17 @@ function renderObject(obj) {
     } else {
       tbl.innerHTML = '<thead><tr><th>Variable</th><th>Value</th></tr></thead>';
     }
-
     const tbody = document.createElement('tbody');
 
     for (const [idx, pair] of Object.entries(entries)) {
       const [nameOrKeyView, valView] = pair;
       const tr = document.createElement('tr');
 
-      // Key / name cell
       const tdKey = document.createElement('td');
+      tdKey.className = 'col-key';
       const keyText = nameOrKeyView.inspection || `@${idx}`;
-      // Dict keys that are navigable objects get a link too
-      if (isDictLike && nameOrKeyView.oop != null && !['string','symbol','fixnum','float','boolean','nilclass'].includes(nameOrKeyView.basetype)) {
+      const keyIsLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(nameOrKeyView.basetype);
+      if (isDictLike && nameOrKeyView.oop != null && !keyIsLeaf) {
         const a = document.createElement('a');
         a.className = 'link-oop';
         a.textContent = keyText;
@@ -795,63 +856,129 @@ function renderObject(obj) {
         tdKey.textContent = keyText;
       }
 
-      // Value cell
       const tdVal = makeValueCell(valView, keyText);
-
-      tr.appendChild(tdKey);
-      tr.appendChild(tdVal);
+      tr.append(tdKey, tdVal);
       tbody.appendChild(tr);
     }
-
     tbl.appendChild(tbody);
+    card.appendChild(tbl);
 
-    // Show count if there are more entries than displayed
-    if (obj.instVarsSize > entryCount) {
-      const more = document.createElement('div');
-      more.style.cssText = 'padding:4px 0;font-size:11px;color:#6c7086';
-      more.textContent = `Showing ${entryCount} of ${obj.instVarsSize} entries`;
-      body.appendChild(tbl);
-      body.appendChild(more);
-    } else {
-      body.appendChild(tbl);
+    // "more entries" row
+    if (obj.instVarsSize > entryKeys.length) {
+      const moreDiv = document.createElement('div');
+      moreDiv.className = 'more-row';
+      moreDiv.textContent = `Showing ${entryKeys.length} of ${obj.instVarsSize} entries`;
+      card.appendChild(moreDiv);
     }
-
-    card.appendChild(body);
-  } else if (obj.loaded) {
-    const body = document.createElement('div');
-    body.className = 'obj-card-body';
-    body.style.color = '#6c7086';
-    body.textContent = '(no entries)';
-    card.appendChild(body);
+  } else if (obj.loaded && obj.basetype === 'object') {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:6px 8px;color:#6c7086;font-size:11px';
+    empty.textContent = '(no named instance variables)';
+    card.appendChild(empty);
   }
 
   div.appendChild(card);
 
-  // ── class link ───────────────────────────────────────────────────────────
-  if (obj.classObject && obj.classObject.oop) {
-    const classDiv = document.createElement('div');
-    classDiv.style.cssText = 'margin-left:16px;margin-top:6px;font-size:11px';
+  // class object link (below card)
+  if (obj.classObject?.oop) {
+    const classRow = document.createElement('div');
+    classRow.style.cssText = 'margin:0 0 8px 4px;font-size:11px;display:flex;gap:6px;align-items:center';
 
-    const classLbl = document.createElement('span');
-    classLbl.style.color = '#a6adc8';
-    classLbl.textContent = 'Class: ';
-    classDiv.appendChild(classLbl);
+    const lbl = document.createElement('span');
+    lbl.style.color = '#6c7086';
+    lbl.textContent = 'Class:';
 
-    const a = document.createElement('a');
-    a.className = 'link-oop';
-    a.textContent = obj.classObject.inspection || `oop:${obj.classObject.oop}`;
-    a.addEventListener('click', () => {
-      const label = obj.classObject.inspection || 'class';
-      history.push({label, oop: obj.classObject.oop});
-      loadObject(obj.classObject.oop, label);
+    const aClass = document.createElement('a');
+    aClass.className = 'link-oop';
+    aClass.textContent = obj.classObject.inspection || `oop:${obj.classObject.oop}`;
+    aClass.title = 'Navigate to class object';
+    aClass.addEventListener('click', () => {
+      const lbl2 = obj.classObject.inspection || 'class';
+      history.push({label: lbl2, oop: obj.classObject.oop});
+      loadObject(obj.classObject.oop, lbl2);
     });
-    classDiv.appendChild(a);
-    div.appendChild(classDiv);
+
+    const aMethods = document.createElement('a');
+    aMethods.className = 'link-oop';
+    aMethods.style.color = '#cba6f7';
+    aMethods.textContent = 'Browse methods ›';
+    aMethods.addEventListener('click', () => openMethodBrowser(obj.classObject.oop, obj.classObject.inspection || 'class'));
+
+    classRow.append(lbl, aClass, aMethods);
+    div.appendChild(classRow);
   }
 
   objectPane.innerHTML = '';
   objectPane.appendChild(div);
 }
+
+// ── method browser ────────────────────────────────────────────────────────────
+async function openMethodBrowser(classOop, className) {
+  methodBrowser.classList.remove('hidden');
+  $('method-browser-class').textContent = className + ' methods';
+  $('method-categories').innerHTML = '<div class="method-cat" style="color:#6c7086"><span class="spinner"></span></div>';
+  $('method-selectors').innerHTML = '';
+  $('method-source-code').value = '';
+  mbData = {}; mbCat = null; mbSel = null; mbClassOop = classOop;
+
+  try {
+    const d = await api(`/code/selectors/${classOop}`);
+    if (!d.success) throw new Error(d.exception);
+    mbData = d.result || {};
+    renderMethodCategories();
+  } catch (e) {
+    $('method-categories').innerHTML = `<div class="method-cat" style="color:#f38ba8">${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderMethodCategories() {
+  const cats = Object.keys(mbData).sort();
+  const div = $('method-categories');
+  div.innerHTML = '';
+  for (const cat of cats) {
+    const el = document.createElement('div');
+    el.className = 'method-cat';
+    el.textContent = cat || '(uncategorized)';
+    el.title = `${(mbData[cat] || []).length} methods`;
+    el.addEventListener('click', () => {
+      div.querySelectorAll('.method-cat').forEach(e => e.classList.remove('active'));
+      el.classList.add('active');
+      mbCat = cat;
+      renderMethodSelectors(cat);
+    });
+    div.appendChild(el);
+  }
+  // auto-select first category
+  if (cats.length > 0) div.querySelector('.method-cat')?.click();
+}
+
+function renderMethodSelectors(cat) {
+  const sels = (mbData[cat] || []).slice().sort();
+  const div = $('method-selectors');
+  div.innerHTML = '';
+  for (const sel of sels) {
+    const el = document.createElement('div');
+    el.className = 'method-sel';
+    el.textContent = sel;
+    el.addEventListener('click', async () => {
+      div.querySelectorAll('.method-sel').forEach(e => e.classList.remove('active'));
+      el.classList.add('active');
+      mbSel = sel;
+      $('method-source-code').value = 'Loading…';
+      try {
+        const d = await api(`/code/code/${mbClassOop}?selector=${encodeURIComponent(sel)}`);
+        $('method-source-code').value = d.success ? (d.result || '') : ('Error: ' + d.exception);
+      } catch (err) {
+        $('method-source-code').value = 'Error: ' + err.message;
+      }
+    });
+    div.appendChild(el);
+  }
+}
+
+$('method-browser-close').addEventListener('click', () => {
+  methodBrowser.classList.add('hidden');
+});
 
 // ── evaluation ────────────────────────────────────────────────────────────────
 evalBtn.addEventListener('click', async () => {
@@ -861,6 +988,7 @@ evalBtn.addEventListener('click', async () => {
 
   evalResult.textContent = '';
   evalResult.className = '';
+  evalResultCard.innerHTML = '';
   const spinner = document.createElement('span');
   spinner.className = 'spinner';
   evalResult.appendChild(spinner);
@@ -878,13 +1006,23 @@ evalBtn.addEventListener('click', async () => {
     const [isExc, resView] = data.result;
     if (isExc) {
       evalResult.className = 'error';
-      evalResult.textContent = 'Exception: ' + (resView.inspection || 'unknown');
+      evalResult.textContent = '⚑ ' + (resView.inspection || 'Exception');
     } else {
+      // show inline result
+      const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(resView.basetype);
       evalResult.textContent = resView.inspection || 'nil';
-      // navigate into result
-      if (resView.oop) {
-        history.push({label: resView.inspection || 'result', oop: resView.oop});
-        loadObject(resView.oop, resView.inspection || 'result');
+      if (!isLeaf && resView.oop) {
+        // render a mini card and add "Navigate" link
+        const navBtn = document.createElement('a');
+        navBtn.className = 'link-oop';
+        navBtn.style.cssText = 'margin-left:10px;font-size:11px';
+        navBtn.textContent = 'Navigate →';
+        navBtn.addEventListener('click', () => {
+          const lbl = resView.inspection || 'result';
+          history.push({label: lbl, oop: resView.oop});
+          loadObject(resView.oop, lbl);
+        });
+        evalResult.appendChild(navBtn);
       }
     }
   } catch (e) {
@@ -896,35 +1034,21 @@ evalBtn.addEventListener('click', async () => {
 
 // ── transaction ───────────────────────────────────────────────────────────────
 $('tx-commit-btn').addEventListener('click', async () => {
-  try {
-    const d = await api('/transaction/commit');
-    setStatus(d.success, d.success ? 'committed' : ('commit failed: ' + d.exception));
-  } catch (e) {
-    setStatus(false, 'commit failed: ' + e.message);
-  }
+  try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
+  catch (e) { setStatus(false, 'commit failed: ' + e.message); }
 });
-
 $('tx-abort-btn').addEventListener('click', async () => {
   try {
     const d = await api('/transaction/abort');
-    setStatus(d.success, d.success ? 'aborted' : ('abort failed: ' + d.exception));
-    if (d.success && currentOop) loadObject(currentOop, history[history.length - 1]?.label);
-  } catch (e) {
-    setStatus(false, 'abort failed: ' + e.message);
-  }
+    setStatus(d.success, d.success ? 'aborted' : 'abort failed: ' + d.exception);
+    if (d.success && currentOop) loadObject(currentOop, history[history.length-1]?.label);
+  } catch (e) { setStatus(false, 'abort failed: ' + e.message); }
 });
 
 // ── utils ─────────────────────────────────────────────────────────────────────
 function escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-
-// ── start ─────────────────────────────────────────────────────────────────────
-async function startup() {
-  await init();
-  await slLoadUsers();
-}
-startup();
 
 // ── tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -932,48 +1056,35 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     const name = tab.dataset.tab;
-    $('object-tab').style.display = name === 'object' ? 'flex' : 'none';
-    $('symlist-tab').style.display = name === 'symlist' ? 'flex' : 'none';
-    $('sidebar').style.display = name === 'object' ? 'flex' : 'none';
+    $('object-tab').style.display  = name === 'object'  ? 'flex' : 'none';
+    $('symlist-tab').style.display  = name === 'symlist' ? 'flex' : 'none';
+    $('sidebar').style.display      = name === 'object'  ? 'flex' : 'none';
   });
 });
 
-// ── symbol list state ─────────────────────────────────────────────────────────
-let slUser = null;
-let slDict = null;
-let slKey  = null;
-
-// ── symbol list API helpers ───────────────────────────────────────────────────
-async function slApi(url, opts) {
-  const r = await fetch(url, opts);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+// ── startup ───────────────────────────────────────────────────────────────────
+async function startup() {
+  await init();
+  await slLoadUsers();
 }
+startup();
 
-async function slPost(url, body) {
-  return slApi(url, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
-}
+// ═════════════════════════════════════════════════════════════════════════════
+// SYMBOL LIST BROWSER
+// ═════════════════════════════════════════════════════════════════════════════
 
-function slSetStatus(msg, isErr) {
-  setStatus(!isErr, msg);
-}
+let slUser = null, slDict = null, slKey = null, slKeyOop = null;
 
-// ── load users into dropdown ──────────────────────────────────────────────────
 async function slLoadUsers() {
   const sel = $('sl-user-select');
   sel.innerHTML = '<option value="">— loading —</option>';
   try {
-    const d = await slApi('/symbol-list/users');
+    const d = await api('/symbol-list/users');
     if (!d.success) throw new Error(d.exception);
     sel.innerHTML = '';
     for (const u of d.users) {
       const opt = document.createElement('option');
-      opt.value = u;
-      opt.textContent = u;
+      opt.value = opt.textContent = u;
       sel.appendChild(opt);
     }
     if (d.users.length > 0) {
@@ -989,20 +1100,18 @@ async function slLoadUsers() {
 
 $('sl-user-select').addEventListener('change', async () => {
   slUser = $('sl-user-select').value;
-  slDict = null;
-  slKey = null;
+  slDict = slKey = slKeyOop = null;
   $('sl-dicts').innerHTML = '';
   $('sl-entries').innerHTML = '';
   slClearKV();
   if (slUser) await slLoadDicts(slUser);
 });
 
-// ── load dicts ────────────────────────────────────────────────────────────────
 async function slLoadDicts(user) {
   const ul = $('sl-dicts');
   ul.innerHTML = '<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
   try {
-    const d = await slApi(`/symbol-list/dictionaries/${encodeURIComponent(user)}`);
+    const d = await api(`/symbol-list/dictionaries/${encodeURIComponent(user)}`);
     if (!d.success) throw new Error(d.exception);
     ul.innerHTML = '';
     let firstLi = null;
@@ -1011,7 +1120,6 @@ async function slLoadDicts(user) {
       ul.appendChild(li);
       if (!firstLi) firstLi = {li, name};
     }
-    // Auto-select first dictionary so entries column is populated immediately
     if (firstLi) slSelectDict(firstLi.name, firstLi.li);
   } catch (e) {
     ul.innerHTML = `<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;
@@ -1020,49 +1128,42 @@ async function slLoadDicts(user) {
 
 function slDictItem(name) {
   const li = document.createElement('li');
-  const nameSpan = document.createElement('span');
-  nameSpan.textContent = name;
-  nameSpan.style.cssText = 'overflow:hidden;text-overflow:ellipsis;flex:1';
-  li.appendChild(nameSpan);
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'sl-del-btn';
-  delBtn.title = 'Remove dictionary';
-  delBtn.textContent = '✕';
-  delBtn.addEventListener('click', async e => {
+  const ns = document.createElement('span');
+  ns.textContent = name;
+  ns.style.cssText = 'overflow:hidden;text-overflow:ellipsis;flex:1';
+  li.appendChild(ns);
+  const del = document.createElement('button');
+  del.className = 'sl-del-btn'; del.title = 'Remove'; del.textContent = '✕';
+  del.addEventListener('click', async e => {
     e.stopPropagation();
     if (!confirm(`Remove dictionary "${name}"?`)) return;
     try {
-      const r = await slPost('/symbol-list/remove-dictionary', {user: slUser, name});
+      const r = await apiPost('/symbol-list/remove-dictionary', {user: slUser, name});
       if (!r.success) throw new Error(r.exception);
       li.remove();
       if (slDict === name) { slDict = null; $('sl-entries').innerHTML = ''; slClearKV(); }
-    } catch (err) { slSetStatus('Error: ' + err.message, true); }
+    } catch (err) { setStatus(false, 'Error: ' + err.message); }
   });
-  li.appendChild(delBtn);
+  li.appendChild(del);
   li.addEventListener('click', () => slSelectDict(name, li));
   return li;
 }
 
-// ── select dict ───────────────────────────────────────────────────────────────
 async function slSelectDict(name, liEl) {
-  slDict = name;
-  slKey = null;
-  slClearKV();
+  slDict = name; slKey = slKeyOop = null; slClearKV();
   document.querySelectorAll('#sl-dicts li').forEach(l => l.classList.remove('active'));
   liEl.classList.add('active');
   await slLoadEntries(slUser, name);
 }
 
-// ── load entries ──────────────────────────────────────────────────────────────
 async function slLoadEntries(user, dict) {
   const ul = $('sl-entries');
   ul.innerHTML = '<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
   try {
-    const d = await slApi(`/symbol-list/entries/${encodeURIComponent(user)}/${encodeURIComponent(dict)}`);
+    const d = await api(`/symbol-list/entries/${encodeURIComponent(user)}/${encodeURIComponent(dict)}`);
     if (!d.success) throw new Error(d.exception);
     ul.innerHTML = '';
-    const sorted = d.entries.slice().sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+    const sorted = d.entries.slice().sort((a, b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
     for (const key of sorted) ul.appendChild(slEntryItem(key));
   } catch (e) {
     ul.innerHTML = `<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;
@@ -1071,45 +1172,43 @@ async function slLoadEntries(user, dict) {
 
 function slEntryItem(key) {
   const li = document.createElement('li');
-  const nameSpan = document.createElement('span');
-  nameSpan.textContent = key;
-  nameSpan.style.cssText = 'overflow:hidden;text-overflow:ellipsis;flex:1';
-  li.appendChild(nameSpan);
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'sl-del-btn';
-  delBtn.title = 'Remove entry';
-  delBtn.textContent = '✕';
-  delBtn.addEventListener('click', async e => {
+  const ns = document.createElement('span');
+  ns.textContent = key;
+  ns.style.cssText = 'overflow:hidden;text-overflow:ellipsis;flex:1';
+  li.appendChild(ns);
+  const del = document.createElement('button');
+  del.className = 'sl-del-btn'; del.title = 'Remove'; del.textContent = '✕';
+  del.addEventListener('click', async e => {
     e.stopPropagation();
     if (!confirm(`Remove entry "${key}"?`)) return;
     try {
-      const r = await slPost('/symbol-list/remove-entry', {user: slUser, dictionary: slDict, key});
+      const r = await apiPost('/symbol-list/remove-entry', {user: slUser, dictionary: slDict, key});
       if (!r.success) throw new Error(r.exception);
       li.remove();
-      if (slKey === key) { slKey = null; slClearKV(); }
-    } catch (err) { slSetStatus('Error: ' + err.message, true); }
+      if (slKey === key) { slKey = slKeyOop = null; slClearKV(); }
+    } catch (err) { setStatus(false, 'Error: ' + err.message); }
   });
-  li.appendChild(delBtn);
+  li.appendChild(del);
   li.addEventListener('click', () => slSelectEntry(key, li));
   return li;
 }
 
-// ── select entry → populate Keys/Values + PrintString ────────────────────────
 async function slSelectEntry(key, liEl) {
-  slKey = key;
+  slKey = key; slKeyOop = null;
   document.querySelectorAll('#sl-entries li').forEach(l => l.classList.remove('active'));
   liEl.classList.add('active');
-
   $('sl-selection-val').textContent = key;
+  $('sl-inspect-btn').classList.add('hidden');
   slClearKV();
   $('sl-kv-tbody').innerHTML = '<tr><td colspan="2" style="color:#6c7086"><span class="spinner"></span> Loading…</td></tr>';
 
   try {
-    const d = await slApi(
+    const d = await api(
       `/symbol-list/preview/${encodeURIComponent(slUser)}/${encodeURIComponent(slDict)}/${encodeURIComponent(key)}`
     );
     if (!d.success) throw new Error(d.exception);
+    slKeyOop = d.oop || null;
+    if (slKeyOop) $('sl-inspect-btn').classList.remove('hidden');
     slRenderKV(d);
   } catch (e) {
     $('sl-kv-tbody').innerHTML = `<tr><td colspan="2" style="color:#f38ba8">${escHtml(e.message)}</td></tr>`;
@@ -1120,8 +1219,6 @@ async function slSelectEntry(key, liEl) {
 function slRenderKV(view) {
   const tbody = $('sl-kv-tbody');
   tbody.innerHTML = '';
-
-  // PrintString box
   $('sl-printstring-box').textContent = view.inspection || 'nil';
 
   const entries = view.instVars || {};
@@ -1154,8 +1251,7 @@ function slRenderKV(view) {
       tdVal.textContent = valView.inspection || 'nil';
     }
 
-    tr.appendChild(tdKey);
-    tr.appendChild(tdVal);
+    tr.append(tdKey, tdVal);
     tbody.appendChild(tr);
   }
 
@@ -1168,19 +1264,29 @@ function slRenderKV(view) {
 
 function slClearKV() {
   $('sl-selection-val').textContent = '';
+  $('sl-inspect-btn').classList.add('hidden');
   $('sl-kv-tbody').innerHTML = '';
   $('sl-printstring-box').textContent = '';
 }
 
+// ── Inspect button: switch to Object Browser and navigate to selected entry ───
+$('sl-inspect-btn').addEventListener('click', () => {
+  if (!slKeyOop) return;
+  document.querySelector('.nav-tab[data-tab="object"]').click();
+  const lbl = slKey || 'object';
+  history = [{label: lbl, oop: slKeyOop}];
+  loadObject(slKeyOop, lbl);
+});
+
 // ── add dict modal ────────────────────────────────────────────────────────────
 $('sl-add-dict-btn').addEventListener('click', () => {
-  if (!slUser) { slSetStatus('Select a user first', true); return; }
+  if (!slUser) { setStatus(false, 'Select a user first'); return; }
   openModal('Add Dictionary', [
-    {label: 'Dictionary name', id: 'modal-dict-name', type: 'input', placeholder: 'MyDictionary'},
+    {label:'Dictionary name', id:'modal-dict-name', type:'input', placeholder:'MyDictionary'},
   ], async fields => {
     const name = fields['modal-dict-name'].trim();
     if (!name) return;
-    const r = await slPost('/symbol-list/add-dictionary', {user: slUser, name});
+    const r = await apiPost('/symbol-list/add-dictionary', {user: slUser, name});
     if (!r.success) throw new Error(r.exception);
     await slLoadDicts(slUser);
   });
@@ -1188,32 +1294,29 @@ $('sl-add-dict-btn').addEventListener('click', () => {
 
 // ── add entry modal ───────────────────────────────────────────────────────────
 $('sl-add-entry-btn').addEventListener('click', () => {
-  if (!slUser || !slDict) { slSetStatus('Select a dictionary first', true); return; }
+  if (!slUser || !slDict) { setStatus(false, 'Select a dictionary first'); return; }
   openModal('Add Entry', [
-    {label: 'Key (Symbol name)', id: 'modal-entry-key', type: 'input', placeholder: 'myKey'},
-    {label: 'Value (Smalltalk expression)', id: 'modal-entry-val', type: 'textarea', placeholder: 'nil'},
+    {label:'Key (Symbol name)', id:'modal-entry-key', type:'input', placeholder:'myKey'},
+    {label:'Value (Smalltalk expression)', id:'modal-entry-val', type:'textarea', placeholder:'nil'},
   ], async fields => {
     const key = fields['modal-entry-key'].trim();
     const value = fields['modal-entry-val'].trim() || 'nil';
     if (!key) return;
-    const r = await slPost('/symbol-list/add-entry', {user: slUser, dictionary: slDict, key, value});
+    const r = await apiPost('/symbol-list/add-entry', {user: slUser, dictionary: slDict, key, value});
     if (!r.success) throw new Error(r.exception);
     await slLoadEntries(slUser, slDict);
   });
 });
 
-// ── transaction buttons in symlist tab ────────────────────────────────────────
+// ── symlist transaction ───────────────────────────────────────────────────────
 $('sl-commit-btn').addEventListener('click', async () => {
-  try {
-    const d = await slApi('/transaction/commit');
-    setStatus(d.success, d.success ? 'committed' : ('commit failed: ' + d.exception));
-  } catch (e) { setStatus(false, 'commit failed: ' + e.message); }
+  try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
+  catch (e) { setStatus(false, 'commit failed: ' + e.message); }
 });
-
 $('sl-abort-btn').addEventListener('click', async () => {
   try {
-    const d = await slApi('/transaction/abort');
-    setStatus(d.success, d.success ? 'aborted' : ('abort failed: ' + d.exception));
+    const d = await api('/transaction/abort');
+    setStatus(d.success, d.success ? 'aborted' : 'abort failed: ' + d.exception);
     if (d.success && slUser) await slLoadDicts(slUser);
   } catch (e) { setStatus(false, 'abort failed: ' + e.message); }
 });
@@ -1226,18 +1329,11 @@ function openModal(title, fields, onOk) {
   for (const f of fields) {
     const lbl = document.createElement('label');
     lbl.textContent = f.label;
-    lbl.style.display = 'block';
-    lbl.style.marginBottom = '2px';
+    lbl.style.cssText = 'display:block;margin-bottom:2px';
     fieldsDiv.appendChild(lbl);
-    let el;
-    if (f.type === 'textarea') {
-      el = document.createElement('textarea');
-      el.placeholder = f.placeholder || '';
-    } else {
-      el = document.createElement('input');
-      el.type = 'text';
-      el.placeholder = f.placeholder || '';
-    }
+    const el = f.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
+    if (f.type !== 'textarea') el.type = 'text';
+    el.placeholder = f.placeholder || '';
     el.id = f.id;
     el.style.marginBottom = '8px';
     fieldsDiv.appendChild(el);
@@ -1250,12 +1346,8 @@ function openModal(title, fields, onOk) {
   $('modal-ok').onclick = async () => {
     const vals = {};
     for (const f of fields) vals[f.id] = document.getElementById(f.id).value;
-    try {
-      await onOk(vals);
-      cleanup();
-    } catch (e) {
-      slSetStatus('Error: ' + e.message, true);
-    }
+    try { await onOk(vals); cleanup(); }
+    catch (e) { setStatus(false, 'Error: ' + e.message); }
   };
 }
 </script>
