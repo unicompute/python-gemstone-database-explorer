@@ -127,8 +127,38 @@
     #object-pane {
       flex: 1;
       overflow-y: auto;
-      padding: 10px 14px;
+      padding: 0;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* inspector tabs strip */
+    #inspector-tabs {
+      display: flex;
+      border-bottom: 1px solid #313244;
+      background: #181825;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .inspector-tab {
+      padding: 5px 12px;
+      font-size: 11px;
+      color: #a6adc8;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .inspector-tab:hover { color: #cdd6f4; }
+    .inspector-tab.active { color: #89dceb; border-bottom-color: #89dceb; }
+
+    /* inspector content area */
+    #inspector-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 10px;
     }
 
     /* right: method browser */
@@ -275,6 +305,34 @@
     .more-row a { color: #89b4fa; cursor: pointer; }
     .more-row a:hover { text-decoration: underline; }
 
+    /* hierarchy list */
+    .hierarchy-list { list-style: none; padding: 8px 0; }
+    .hierarchy-list li {
+      padding: 3px 10px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #cba6f7;
+      position: relative;
+    }
+    .hierarchy-list li::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: #45475a;
+    }
+    .hierarchy-list li:first-child::before { background: #89dceb; }
+
+    /* instances list */
+    .instances-list { list-style: none; padding: 4px 0; }
+    .instances-list li {
+      padding: 3px 10px;
+      font-size: 12px;
+      font-family: monospace;
+      cursor: pointer;
+    }
+    .instances-list li:hover { background: #313244; }
+
     /* ── eval panel ──────────────────────────────────────────────────── */
     #eval-panel {
       border-top: 1px solid #313244;
@@ -333,13 +391,26 @@
     .txbar {
       background: #181825;
       border-top: 1px solid #313244;
-      padding: 4px 12px;
+      padding: 5px 10px;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       flex-shrink: 0;
     }
-    .txbar span { font-size: 11px; color: #6c7086; }
+    .txbar span { font-size: 11px; color: #6c7086; margin-right: 2px; }
+    /* orange MagLev-style transaction buttons */
+    button.btn-tx {
+      background: #e08020;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button.btn-tx:hover { background: #c86c10; }
+    button.btn-tx:disabled { background: #45475a; color: #6c7086; cursor: default; }
 
     /* ── spinner ─────────────────────────────────────────────────────── */
     .spinner {
@@ -352,6 +423,69 @@
       vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── workspace tab ───────────────────────────────────────────────── */
+    #workspace-tab {
+      flex: 1; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    #ws-history {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .ws-entry { margin-bottom: 8px; }
+    .ws-entry .ws-code {
+      color: #cdd6f4;
+      white-space: pre-wrap;
+      word-break: break-all;
+      padding: 2px 0;
+    }
+    .ws-entry .ws-result {
+      background: #2a5f2a;
+      color: #a6e3a1;
+      padding: 3px 8px;
+      border-radius: 3px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-top: 2px;
+    }
+    .ws-entry .ws-result.error {
+      background: #5f2a2a;
+      color: #f38ba8;
+    }
+    .ws-entry .ws-nav {
+      font-size: 11px;
+      color: #89b4fa;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+    .ws-entry .ws-nav:hover { text-decoration: underline; }
+    #ws-input-row {
+      border-top: 1px solid #313244;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      background: #181825;
+      padding: 6px 10px;
+      gap: 5px;
+    }
+    #ws-code-area {
+      font-family: monospace;
+      font-size: 12px;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      border: 1px solid #313244;
+      border-radius: 4px;
+      padding: 5px 8px;
+      resize: vertical;
+      min-height: 56px;
+      outline: none;
+    }
+    #ws-controls { display: flex; gap: 6px; align-items: center; }
+    #ws-controls .ws-hint { font-size: 10px; color: #45475a; margin-left: auto; }
 
     /* ── symbol list browser ─────────────────────────────────────────── */
     #sl-user-row {
@@ -495,6 +629,9 @@
     }
     #modal-box textarea { resize: vertical; min-height: 60px; }
     #modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* misc */
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -517,6 +654,7 @@
   <div id="content">
     <div id="nav-tabs">
       <div class="nav-tab" data-tab="object">Object Browser</div>
+      <div class="nav-tab" data-tab="workspace">Workspace</div>
       <div class="nav-tab active" data-tab="symlist">Symbol List</div>
     </div>
 
@@ -525,9 +663,19 @@
       <div id="breadcrumb"></div>
 
       <div id="object-split">
-        <!-- left: object pane -->
+        <!-- left: object pane with inspector tabs -->
         <div id="object-pane">
-          <p style="color:#6c7086;padding:20px">Select a root object from the sidebar to begin.</p>
+          <!-- inspector tab strip -->
+          <div id="inspector-tabs" style="display:none">
+            <div class="inspector-tab active" data-itab="instvars">Instance Variables</div>
+            <div class="inspector-tab" data-itab="constants">Constants</div>
+            <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
+            <div class="inspector-tab" data-itab="instances">Instances</div>
+          </div>
+          <!-- inspector content -->
+          <div id="inspector-content">
+            <p style="color:#6c7086;padding:20px">Select a root object from the sidebar to begin.</p>
+          </div>
         </div>
 
         <!-- right: method browser (hidden until class clicked) -->
@@ -564,8 +712,26 @@
 
       <div class="txbar">
         <span>Transaction:</span>
-        <button class="btn-ghost" id="tx-commit-btn">Commit</button>
-        <button class="btn-ghost" id="tx-abort-btn">Abort</button>
+        <button class="btn-tx" id="tx-abort-btn">Abort Transaction</button>
+        <button class="btn-tx" id="tx-commit-btn">Commit Transaction</button>
+      </div>
+    </div>
+
+    <!-- ── Workspace tab ──────────────────────────────────────────── -->
+    <div id="workspace-tab" style="display:none">
+      <div id="ws-history"></div>
+      <div id="ws-input-row">
+        <textarea id="ws-code-area" placeholder="Smalltalk expression… (Ctrl+Enter to evaluate)"></textarea>
+        <div id="ws-controls">
+          <button class="btn" id="ws-eval-btn">Do it</button>
+          <button class="btn-ghost" id="ws-clear-btn">Clear</button>
+          <span class="ws-hint">Ctrl+Enter</span>
+        </div>
+      </div>
+      <div class="txbar">
+        <span>Transaction:</span>
+        <button class="btn-tx" id="ws-abort-btn">Abort Transaction</button>
+        <button class="btn-tx" id="ws-commit-btn">Commit Transaction</button>
       </div>
     </div>
 
@@ -616,8 +782,8 @@
 
       <div class="txbar" style="border-top:1px solid #313244;margin-top:auto">
         <span>Transaction:</span>
-        <button class="btn-ghost" id="sl-commit-btn">Commit</button>
-        <button class="btn-ghost" id="sl-abort-btn">Abort</button>
+        <button class="btn-tx" id="sl-abort-btn">Abort Transaction</button>
+        <button class="btn-tx" id="sl-commit-btn">Commit Transaction</button>
       </div>
     </div>
   </div>
@@ -641,11 +807,14 @@
 // ── state ────────────────────────────────────────────────────────────────────
 let roots = {};
 let currentOop = null;
-let currentClassOop = null;   // class of the currently displayed object
+let currentObjData = null;  // full object view data
 let history = [];
 
+// inspector tab state
+let currentInspectorTab = 'instvars';
+
 // method browser state
-let mbData = {};              // { category: [selector, …] }
+let mbData = {};
 let mbCat = null;
 let mbSel = null;
 let mbClassOop = null;
@@ -656,6 +825,7 @@ const statusDot = $('status-dot');
 const statusTxt = $('status-txt');
 const rootsList = $('roots-list');
 const objectPane = $('object-pane');
+const inspectorContent = $('inspector-content');
 const breadcrumb = $('breadcrumb');
 const evalCode = $('eval-code');
 const evalLang = $('eval-lang');
@@ -693,7 +863,6 @@ async function init() {
   } catch (e) {
     setStatus(false, 'connection failed: ' + e.message);
   }
-  // fetch version string asynchronously, non-blocking
   api('/version').then(d => {
     if (d.success) $('gs-version').textContent = 'GemStone ' + d.stone;
   }).catch(() => {});
@@ -716,20 +885,23 @@ function renderRoots() {
 // ── object loading ────────────────────────────────────────────────────────────
 async function loadObject(oop, label) {
   currentOop = oop;
+  currentObjData = null;
   updateActiveRoot(oop);
   renderBreadcrumb();
   evalResultCard.innerHTML = '';
   evalResult.textContent = '';
   evalResult.className = '';
 
-  objectPane.innerHTML = '<span class="spinner"></span> Loading…';
+  inspectorContent.innerHTML = '<span class="spinner"></span> Loading…';
+  $('inspector-tabs').style.display = 'none';
   try {
     const data = await api(`/object/index/${oop}?depth=2`);
     if (!data.success) throw new Error(data.exception || 'unknown error');
-    currentClassOop = data.result.classObject?.oop || null;
-    renderObject(data.result);
+    currentObjData = data.result;
+    $('inspector-tabs').style.display = 'flex';
+    showInspectorTab(currentInspectorTab);
   } catch (e) {
-    objectPane.innerHTML = `<p style="color:#f38ba8;padding:16px">Error: ${escHtml(e.message)}</p>`;
+    inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:16px">Error: ${escHtml(e.message)}</p>`;
   }
 }
 
@@ -760,7 +932,109 @@ function renderBreadcrumb() {
   });
 }
 
-// ── render object ─────────────────────────────────────────────────────────────
+// ── inspector tab switching ───────────────────────────────────────────────────
+document.querySelectorAll('.inspector-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentInspectorTab = tab.dataset.itab;
+    showInspectorTab(currentInspectorTab);
+  });
+});
+
+async function showInspectorTab(tab) {
+  if (!currentObjData) return;
+  const obj = currentObjData;
+  inspectorContent.innerHTML = '';
+
+  if (tab === 'instvars') {
+    inspectorContent.appendChild(renderObjectCard(obj));
+    return;
+  }
+  if (tab === 'constants') {
+    inspectorContent.innerHTML = '<span class="spinner"></span>';
+    try {
+      const d = await api(`/object/constants/${currentOop}`);
+      inspectorContent.innerHTML = '';
+      if (!d.success) throw new Error(d.exception);
+      if (!d.constants.length) {
+        inspectorContent.innerHTML = '<p style="color:#6c7086;padding:12px">(no class-side constants)</p>';
+        return;
+      }
+      const tbl = document.createElement('table');
+      tbl.className = 'inst-vars';
+      tbl.innerHTML = '<thead><tr><th>Name</th><th>Value</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      for (const {key, value} of d.constants) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="col-key">${escHtml(key)}</td><td class="col-val">${escHtml(value)}</td>`;
+        tbody.appendChild(tr);
+      }
+      tbl.appendChild(tbody);
+      inspectorContent.appendChild(tbl);
+    } catch (e) {
+      inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:12px">Error: ${escHtml(e.message)}</p>`;
+    }
+    return;
+  }
+  if (tab === 'hierarchy') {
+    inspectorContent.innerHTML = '<span class="spinner"></span>';
+    try {
+      const d = await api(`/object/hierarchy/${currentOop}`);
+      inspectorContent.innerHTML = '';
+      if (!d.success) throw new Error(d.exception);
+      const ul = document.createElement('ul');
+      ul.className = 'hierarchy-list';
+      for (const cls of d.hierarchy) {
+        const li = document.createElement('li');
+        li.textContent = cls;
+        ul.appendChild(li);
+      }
+      inspectorContent.appendChild(ul);
+    } catch (e) {
+      inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:12px">Error: ${escHtml(e.message)}</p>`;
+    }
+    return;
+  }
+  if (tab === 'instances') {
+    inspectorContent.innerHTML = '<span class="spinner"></span>';
+    try {
+      const d = await api(`/object/instances/${currentOop}`);
+      inspectorContent.innerHTML = '';
+      if (!d.success) throw new Error(d.exception);
+      if (!d.instances.length) {
+        inspectorContent.innerHTML = '<p style="color:#6c7086;padding:12px">(no instances found)</p>';
+        return;
+      }
+      const ul = document.createElement('ul');
+      ul.className = 'instances-list';
+      for (const inst of d.instances) {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.className = 'link-oop';
+        a.textContent = inst.printString || `oop:${inst.oop}`;
+        a.addEventListener('click', () => {
+          history.push({label: inst.printString || `oop:${inst.oop}`, oop: inst.oop});
+          loadObject(inst.oop, inst.printString || `oop:${inst.oop}`);
+        });
+        li.appendChild(a);
+        ul.appendChild(li);
+      }
+      if (d.instances.length >= d.limit) {
+        const note = document.createElement('li');
+        note.style.cssText = 'color:#6c7086;font-size:11px;cursor:default';
+        note.textContent = `Showing first ${d.limit} instances`;
+        ul.appendChild(note);
+      }
+      inspectorContent.appendChild(ul);
+    } catch (e) {
+      inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:12px">Error: ${escHtml(e.message)}</p>`;
+    }
+    return;
+  }
+}
+
+// ── render object card (instance variables view) ──────────────────────────────
 function makeValueCell(valView, label) {
   const td = document.createElement('td');
   td.className = 'col-val';
@@ -782,10 +1056,10 @@ function makeValueCell(valView, label) {
   return td;
 }
 
-function renderObject(obj) {
+function renderObjectCard(obj) {
   const div = document.createElement('div');
+  div.style.padding = '10px 14px';
 
-  // header card
   const card = document.createElement('div');
   card.className = 'obj-card';
 
@@ -796,7 +1070,6 @@ function renderObject(obj) {
   bt.className = 'basetype';
   bt.textContent = obj.basetype || 'object';
 
-  // Class name — clickable to open method browser
   const classLink = document.createElement('span');
   classLink.className = 'class-name';
   const className = obj.classObject?.inspection || '';
@@ -817,7 +1090,6 @@ function renderObject(obj) {
   hdr.append(bt, classLink, ins, oopSpan);
   card.appendChild(hdr);
 
-  // entries table
   const entries = obj.instVars || {};
   const entryKeys = Object.keys(entries);
   const isDictLike = obj.basetype === 'hash';
@@ -863,7 +1135,6 @@ function renderObject(obj) {
     tbl.appendChild(tbody);
     card.appendChild(tbl);
 
-    // "more entries" row
     if (obj.instVarsSize > entryKeys.length) {
       const moreDiv = document.createElement('div');
       moreDiv.className = 'more-row';
@@ -879,7 +1150,6 @@ function renderObject(obj) {
 
   div.appendChild(card);
 
-  // class object link (below card)
   if (obj.classObject?.oop) {
     const classRow = document.createElement('div');
     classRow.style.cssText = 'margin:0 0 8px 4px;font-size:11px;display:flex;gap:6px;align-items:center';
@@ -908,8 +1178,7 @@ function renderObject(obj) {
     div.appendChild(classRow);
   }
 
-  objectPane.innerHTML = '';
-  objectPane.appendChild(div);
+  return div;
 }
 
 // ── method browser ────────────────────────────────────────────────────────────
@@ -948,7 +1217,6 @@ function renderMethodCategories() {
     });
     div.appendChild(el);
   }
-  // auto-select first category
   if (cats.length > 0) div.querySelector('.method-cat')?.click();
 }
 
@@ -980,8 +1248,11 @@ $('method-browser-close').addEventListener('click', () => {
   methodBrowser.classList.add('hidden');
 });
 
-// ── evaluation ────────────────────────────────────────────────────────────────
-evalBtn.addEventListener('click', async () => {
+// ── evaluation (object browser) ───────────────────────────────────────────────
+evalBtn.addEventListener('click', doEval);
+evalCode.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') doEval(); });
+
+async function doEval() {
   if (!currentOop) return;
   const code = evalCode.value.trim();
   if (!code) return;
@@ -1008,11 +1279,9 @@ evalBtn.addEventListener('click', async () => {
       evalResult.className = 'error';
       evalResult.textContent = '⚑ ' + (resView.inspection || 'Exception');
     } else {
-      // show inline result
       const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(resView.basetype);
       evalResult.textContent = resView.inspection || 'nil';
       if (!isLeaf && resView.oop) {
-        // render a mini card and add "Navigate" link
         const navBtn = document.createElement('a');
         navBtn.className = 'link-oop';
         navBtn.style.cssText = 'margin-left:10px;font-size:11px';
@@ -1030,9 +1299,9 @@ evalBtn.addEventListener('click', async () => {
     evalResult.className = 'error';
     evalResult.textContent = 'Error: ' + e.message;
   }
-});
+}
 
-// ── transaction ───────────────────────────────────────────────────────────────
+// ── transaction (object browser) ──────────────────────────────────────────────
 $('tx-commit-btn').addEventListener('click', async () => {
   try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
   catch (e) { setStatus(false, 'commit failed: ' + e.message); }
@@ -1043,6 +1312,85 @@ $('tx-abort-btn').addEventListener('click', async () => {
     setStatus(d.success, d.success ? 'aborted' : 'abort failed: ' + d.exception);
     if (d.success && currentOop) loadObject(currentOop, history[history.length-1]?.label);
   } catch (e) { setStatus(false, 'abort failed: ' + e.message); }
+});
+
+// ── workspace ─────────────────────────────────────────────────────────────────
+const wsHistory = $('ws-history');
+const wsCodeArea = $('ws-code-area');
+
+$('ws-eval-btn').addEventListener('click', wsDoIt);
+$('ws-clear-btn').addEventListener('click', () => { wsHistory.innerHTML = ''; });
+wsCodeArea.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') wsDoIt(); });
+
+async function wsDoIt() {
+  const code = wsCodeArea.value.trim();
+  if (!code) return;
+
+  const entry = document.createElement('div');
+  entry.className = 'ws-entry';
+
+  const codeEl = document.createElement('div');
+  codeEl.className = 'ws-code';
+  codeEl.textContent = code;
+  entry.appendChild(codeEl);
+
+  const resultEl = document.createElement('div');
+  resultEl.className = 'ws-result';
+  resultEl.textContent = '…';
+  entry.appendChild(resultEl);
+  wsHistory.appendChild(entry);
+  wsHistory.scrollTop = wsHistory.scrollHeight;
+
+  // evaluate in Globals context (use System oop if available, else use /object/evaluate with Globals)
+  const globalsOop = roots['Globals'] || roots['UserGlobals'];
+  if (!globalsOop) {
+    resultEl.className = 'ws-result error';
+    resultEl.textContent = 'Not connected';
+    return;
+  }
+
+  try {
+    const url = `/object/evaluate/${globalsOop}?code=${encodeURIComponent(code)}&language=smalltalk&depth=1`;
+    const data = await api(url);
+    if (!data.success) {
+      resultEl.className = 'ws-result error';
+      resultEl.textContent = 'Error: ' + (data.exception || 'unknown');
+      return;
+    }
+    const [isExc, resView] = data.result;
+    if (isExc) {
+      resultEl.className = 'ws-result error';
+      resultEl.textContent = '⚑ ' + (resView.inspection || 'Exception');
+    } else {
+      const text = resView.inspection || 'nil';
+      resultEl.textContent = '=> ' + text;
+      const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(resView.basetype);
+      if (!isLeaf && resView.oop) {
+        const nav = document.createElement('span');
+        nav.className = 'ws-nav';
+        nav.textContent = 'navigate →';
+        nav.addEventListener('click', () => {
+          document.querySelector('.nav-tab[data-tab="object"]').click();
+          history = [{label: text, oop: resView.oop}];
+          loadObject(resView.oop, text);
+        });
+        resultEl.appendChild(nav);
+      }
+    }
+  } catch (e) {
+    resultEl.className = 'ws-result error';
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+  wsHistory.scrollTop = wsHistory.scrollHeight;
+}
+
+$('ws-commit-btn').addEventListener('click', async () => {
+  try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
+  catch (e) { setStatus(false, 'commit failed: ' + e.message); }
+});
+$('ws-abort-btn').addEventListener('click', async () => {
+  try { const d = await api('/transaction/abort'); setStatus(d.success, d.success ? 'aborted' : 'abort failed: ' + d.exception); }
+  catch (e) { setStatus(false, 'abort failed: ' + e.message); }
 });
 
 // ── utils ─────────────────────────────────────────────────────────────────────
@@ -1056,9 +1404,10 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     const name = tab.dataset.tab;
-    $('object-tab').style.display  = name === 'object'  ? 'flex' : 'none';
-    $('symlist-tab').style.display  = name === 'symlist' ? 'flex' : 'none';
-    $('sidebar').style.display      = name === 'object'  ? 'flex' : 'none';
+    $('object-tab').style.display    = name === 'object'    ? 'flex' : 'none';
+    $('workspace-tab').style.display  = name === 'workspace' ? 'flex' : 'none';
+    $('symlist-tab').style.display    = name === 'symlist'   ? 'flex' : 'none';
+    $('sidebar').style.display        = name === 'object'    ? 'flex' : 'none';
   });
 });
 
@@ -1269,7 +1618,6 @@ function slClearKV() {
   $('sl-printstring-box').textContent = '';
 }
 
-// ── Inspect button: switch to Object Browser and navigate to selected entry ───
 $('sl-inspect-btn').addEventListener('click', () => {
   if (!slKeyOop) return;
   document.querySelector('.nav-tab[data-tab="object"]').click();
@@ -1292,7 +1640,6 @@ $('sl-add-dict-btn').addEventListener('click', () => {
   });
 });
 
-// ── add entry modal ───────────────────────────────────────────────────────────
 $('sl-add-entry-btn').addEventListener('click', () => {
   if (!slUser || !slDict) { setStatus(false, 'Select a dictionary first'); return; }
   openModal('Add Entry', [
@@ -1308,7 +1655,6 @@ $('sl-add-entry-btn').addEventListener('click', () => {
   });
 });
 
-// ── symlist transaction ───────────────────────────────────────────────────────
 $('sl-commit-btn').addEventListener('click', async () => {
   try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
   catch (e) { setStatus(false, 'commit failed: ' + e.message); }

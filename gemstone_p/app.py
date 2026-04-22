@@ -453,6 +453,103 @@ def create_app() -> Flask:
         return jsonify(success=True, debug=text)
 
     # ------------------------------------------------------------------ #
+    # Inspector tabs                                                       #
+    # ------------------------------------------------------------------ #
+
+    @app.get("/object/constants/<int:oop>")
+    def object_constants(oop: int):
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    f"| obj result |\n"
+                    f"obj := ObjectMemory objectForOop: {oop}.\n"
+                    f"result := ''.\n"
+                    f"[obj class classPool do: [:assoc |\n"
+                    f"  result := result , assoc key asString , '|' , assoc value printString , String lf asString\n"
+                    f"]] on: Error do: [:e | result := result , '(error: ' , e messageText , ')'].\n"
+                    f"result"
+                )
+                pairs = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        k, _, v = line.partition('|')
+                        pairs.append({"key": k, "value": v})
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, constants=pairs)
+
+    @app.get("/object/hierarchy/<int:oop>")
+    def object_hierarchy(oop: int):
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    f"| obj cls result |\n"
+                    f"obj := ObjectMemory objectForOop: {oop}.\n"
+                    f"cls := obj class.\n"
+                    f"result := ''.\n"
+                    f"[cls notNil] whileTrue: [\n"
+                    f"  result := result , cls name , String lf asString.\n"
+                    f"  cls := cls superclass\n"
+                    f"].\n"
+                    f"result"
+                )
+                classes = [c for c in str(raw).splitlines() if c.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, hierarchy=classes)
+
+    @app.get("/object/included-modules/<int:oop>")
+    def object_included_modules(oop: int):
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    f"| obj result |\n"
+                    f"obj := ObjectMemory objectForOop: {oop}.\n"
+                    f"result := ''.\n"
+                    f"[obj class withAllSuperclasses do: [:cls |\n"
+                    f"  cls instVarNames do: [:v | v]."
+                    f"]] on: Error do: [:e | ].\n"
+                    f"result"
+                )
+                modules: list[str] = []
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, modules=modules)
+
+    @app.get("/object/instances/<int:oop>")
+    def object_instances(oop: int):
+        limit = int(request.args.get("limit", 50))
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    f"| obj result col |\n"
+                    f"obj := ObjectMemory objectForOop: {oop}.\n"
+                    f"result := ''.\n"
+                    f"[col := obj class allInstances.\n"
+                    f" col size > {limit} ifTrue: [col := col copyFrom: 1 to: {limit}].\n"
+                    f" col do: [:inst |\n"
+                    f"   result := result , inst oop printString , '|' , inst printString , String lf asString\n"
+                    f" ]\n"
+                    f"] on: Error do: [:e | result := '(error: ' , e messageText , ')'].\n"
+                    f"result"
+                )
+                instances = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        oop_s, _, ps = line.partition('|')
+                        try:
+                            instances.append({"oop": int(oop_s), "printString": ps})
+                        except ValueError:
+                            pass
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, instances=instances, limit=limit)
+
+    # ------------------------------------------------------------------ #
     # Version / health                                                     #
     # ------------------------------------------------------------------ #
 
