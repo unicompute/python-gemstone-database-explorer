@@ -138,6 +138,7 @@
     .win-btn-min:hover { background: #f2cdcd; }
     .win-body {
       flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -737,11 +738,28 @@ function setStatus(ok, msg) {
 // ── windowing system ──────────────────────────────────────────────────────────
 let winCount = 0;
 
+// Track cascade position independently from winCount so minimised/closed windows don't displace new ones
+let cascadeX = 30, cascadeY = 30;
+const CASCADE_STEP = 36, CASCADE_MAX_X = 400, CASCADE_MAX_Y = 300;
+
 function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
   const id = 'win-' + (++winCount);
   const w = width, h = height;
-  const lx = x !== undefined ? x : Math.max(20, Math.min(window.innerWidth  - w - 20, 60 + winCount * 28));
-  const ly = y !== undefined ? y : Math.max(20, Math.min(window.innerHeight - h - 64, 40 + winCount * 28));
+  let lx, ly;
+  if (x !== undefined && y !== undefined) {
+    lx = x; ly = y;
+  } else if (x !== undefined) {
+    lx = x; ly = cascadeY;
+  } else if (y !== undefined) {
+    ly = y; lx = cascadeX;
+  } else {
+    lx = cascadeX; ly = cascadeY;
+    cascadeX += CASCADE_STEP; cascadeY += CASCADE_STEP;
+    if (cascadeX > CASCADE_MAX_X || cascadeY > CASCADE_MAX_Y) { cascadeX = 30; cascadeY = 30; }
+  }
+  // clamp to viewport
+  lx = Math.max(0, Math.min(lx, Math.max(0, window.innerWidth  - w - 10)));
+  ly = Math.max(0, Math.min(ly, Math.max(0, window.innerHeight - h - 42)));
 
   const win = document.createElement('div');
   win.className = 'win';
@@ -1081,8 +1099,9 @@ function openObjectBrowser(initialOop, initialLabel, px, py) {
   let mbData = {}, mbClassOop = null;
   let instPage = 0;
 
+  body.style.minHeight = '0';
   body.innerHTML = `
-    <div style="display:flex;flex:1;overflow:hidden">
+    <div style="display:flex;flex:1;min-height:0;overflow:hidden">
       <div class="win-sidebar">
         <h2>Roots</h2>
         <ul class="sidebar-list" id="${id}-roots"></ul>
@@ -1574,9 +1593,12 @@ function openObjectBrowser(initialOop, initialLabel, px, py) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function openWorkspace() {
   const {win, body, id} = createWindow({title:'Workspace', width:520, height:440, taskbarLabel:'Workspace'});
+  // The outer div must be display:flex;flex-direction:column so ws-history can flex:1
+  // and ws-input-row / txbar stay at the bottom.
+  body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;min-height:0';
   body.innerHTML = `
-    <div class="ws-history" id="${id}-wsh"></div>
-    <div class="ws-input-row">
+    <div class="ws-history" id="${id}-wsh" style="flex:1;min-height:0;overflow-y:auto;padding:6px 10px;font-family:monospace;font-size:12px"></div>
+    <div class="ws-input-row" style="flex-shrink:0">
       <textarea class="ws-code-area" id="${id}-wsc" placeholder="Smalltalk expression… (Ctrl+Enter)"></textarea>
       <div class="ws-controls">
         <button class="btn" id="${id}-doit">Do it</button>
@@ -1584,7 +1606,7 @@ function openWorkspace() {
         <span class="ws-hint">Ctrl+Enter</span>
       </div>
     </div>
-    <div class="txbar">
+    <div class="txbar" style="flex-shrink:0">
       <span>Transaction:</span>
       <button class="btn-tx" id="${id}-abort">Abort</button>
       <button class="btn-tx" id="${id}-commit">Commit</button>
@@ -1643,16 +1665,17 @@ function openWorkspace() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function openWebBrowser(initialUrl) {
   const {win, body, id} = createWindow({title:'Web Browser', width:700, height:520, taskbarLabel:'Web Browser'});
-  const defaultUrl = initialUrl || (window.location.protocol + '//' + window.location.hostname + ':' + (parseInt(window.location.port||80) + 1) + '/');
+  const defaultUrl = initialUrl || 'https://pandas.pydata.org';
+  body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;min-height:0';
   body.innerHTML = `
-    <div class="wb-urlbar">
+    <div class="wb-urlbar" style="flex-shrink:0">
       <label>URL</label>
       <input class="wb-url-input" id="${id}-url" type="text" value="${escHtml(defaultUrl)}">
       <button class="btn-ghost" id="${id}-go">Go</button>
       <button class="btn-ghost" id="${id}-reload">↺</button>
     </div>
-    <div class="wb-iframe-wrap">
-      <iframe id="${id}-iframe" src="${escHtml(defaultUrl)}" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+    <div class="wb-iframe-wrap" style="flex:1;min-height:0;overflow:hidden">
+      <iframe id="${id}-iframe" src="${escHtml(defaultUrl)}" style="width:100%;height:100%;border:none;background:#fff"></iframe>
     </div>
   `;
   const urlInput = body.querySelector(`#${id}-url`);
@@ -2054,8 +2077,14 @@ function openModal(title, fields, onOk) {
 // ── startup ───────────────────────────────────────────────────────────────────
 async function startup() {
   await init();
+  // Open Object Browser on the left side
+  cascadeX = 20; cascadeY = 20;
   openObjectBrowser();
+  // Open Symbol List to the right, non-overlapping
+  cascadeX = 760; cascadeY = 20;
   openSymbolList();
+  // Reset cascade for user-opened windows
+  cascadeX = 60; cascadeY = 60;
   setTimeout(startThreadPoller, 5000);
 }
 startup();
