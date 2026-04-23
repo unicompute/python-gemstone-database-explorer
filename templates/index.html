@@ -9,132 +9,213 @@
     body {
       font-family: system-ui, -apple-system, sans-serif;
       font-size: 13px;
-      background: #1e1e2e;
+      background: #11111b;
       color: #cdd6f4;
-      display: flex;
-      flex-direction: column;
       height: 100vh;
+      overflow: hidden;
+      position: relative;
     }
 
-    /* ── top bar ─────────────────────────────────────────────────────── */
-    #topbar {
+    /* ── desktop ──────────────────────────────────────────────────────── */
+    #desktop {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    /* ── taskbar ──────────────────────────────────────────────────────── */
+    #taskbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 32px;
       background: #181825;
-      border-bottom: 1px solid #313244;
-      padding: 6px 16px;
+      border-top: 1px solid #313244;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 4px;
+      padding: 0 8px;
+      z-index: 9999;
       flex-shrink: 0;
     }
-    #topbar h1 { font-size: 14px; font-weight: 600; color: #cba6f7; }
-    #topbar .version { font-size: 11px; color: #45475a; }
-    #topbar .sep { flex: 1; }
+    #taskbar-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #cba6f7;
+      margin-right: 8px;
+      white-space: nowrap;
+    }
+    #taskbar-version { font-size: 10px; color: #45475a; margin-right: 8px; }
+    #taskbar-sep { flex: 1; }
+    .taskbar-btn {
+      padding: 2px 10px;
+      font-size: 11px;
+      background: #313244;
+      border: 1px solid #45475a;
+      color: #cdd6f4;
+      border-radius: 3px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .taskbar-btn:hover { background: #45475a; }
+    .taskbar-btn.active { background: #45475a; border-color: #cba6f7; color: #cba6f7; }
     #status-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: #a6e3a1; display: inline-block;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #a6e3a1; display: inline-block; flex-shrink: 0;
     }
     #status-dot.error { background: #f38ba8; }
-    #status-txt { font-size: 11px; color: #a6adc8; }
+    #status-txt { font-size: 10px; color: #a6adc8; white-space: nowrap; }
+    #halted-threads-bar {
+      display: flex; gap: 4px; align-items: center;
+    }
+    .thread-pill {
+      padding: 1px 8px;
+      font-size: 10px;
+      background: #f38ba8;
+      color: #1e1e2e;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .thread-pill:hover { background: #eba0ac; }
 
-    /* ── main layout ─────────────────────────────────────────────────── */
-    #main { display: flex; flex: 1; overflow: hidden; }
-
-    /* ── sidebar ─────────────────────────────────────────────────────── */
-    #sidebar {
-      width: 220px;
-      min-width: 140px;
+    /* ── floating window ─────────────────────────────────────────────── */
+    .win {
+      position: absolute;
+      background: #1e1e2e;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0,0,0,.6);
+      min-width: 320px;
+      min-height: 180px;
+      overflow: hidden;
+    }
+    .win.focused { border-color: #cba6f7; }
+    .win-titlebar {
       background: #181825;
-      border-right: 1px solid #313244;
+      padding: 0 8px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: move;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .win-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #a6adc8;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .win-btn {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-size: 9px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .win-btn-close { background: #f38ba8; color: #1e1e2e; }
+    .win-btn-close:hover { background: #eba0ac; }
+    .win-btn-min { background: #f9e2af; color: #1e1e2e; }
+    .win-btn-min:hover { background: #f2cdcd; }
+    .win-body {
+      flex: 1;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      flex-shrink: 0;
     }
-    #sidebar h2 {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: #6c7086;
-      padding: 8px 12px 4px;
+    /* resize handle */
+    .win-resize {
+      position: absolute;
+      right: 0; bottom: 0;
+      width: 14px; height: 14px;
+      cursor: se-resize;
+      z-index: 10;
     }
-    #roots-list { list-style: none; overflow-y: auto; flex: 1; }
-    #roots-list li {
-      padding: 5px 12px;
-      cursor: pointer;
-      border-left: 3px solid transparent;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: 12px;
+    .win-resize::after {
+      content: '';
+      position: absolute;
+      right: 3px; bottom: 3px;
+      width: 6px; height: 6px;
+      border-right: 2px solid #45475a;
+      border-bottom: 2px solid #45475a;
     }
-    #roots-list li:hover { background: #313244; }
-    #roots-list li.active { border-left-color: #cba6f7; color: #cba6f7; }
 
-    /* ── content area ────────────────────────────────────────────────── */
-    #content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-    /* ── nav tabs ────────────────────────────────────────────────────── */
-    #nav-tabs {
+    /* ── tab strip ───────────────────────────────────────────────────── */
+    .tab-strip {
       display: flex;
       border-bottom: 1px solid #313244;
       background: #181825;
       flex-shrink: 0;
+      overflow-x: auto;
     }
-    .nav-tab {
-      padding: 6px 16px;
-      font-size: 12px;
-      font-weight: 500;
+    .tab-item {
+      padding: 5px 12px;
+      font-size: 11px;
       color: #a6adc8;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       margin-bottom: -1px;
+      white-space: nowrap;
       user-select: none;
     }
-    .nav-tab:hover { color: #cdd6f4; }
-    .nav-tab.active { color: #cba6f7; border-bottom-color: #cba6f7; }
+    .tab-item:hover { color: #cdd6f4; }
+    .tab-item.active { color: #89dceb; border-bottom-color: #89dceb; }
 
     /* ── breadcrumb ──────────────────────────────────────────────────── */
-    #breadcrumb {
-      padding: 5px 14px;
-      font-size: 11px;
+    .breadcrumb {
+      padding: 4px 10px;
+      font-size: 10px;
       color: #6c7086;
-      border-bottom: 1px solid #313244;
-      background: #1e1e2e;
+      border-bottom: 1px solid #1e1e2e;
+      background: #181825;
       display: flex;
-      gap: 4px;
+      gap: 3px;
       align-items: center;
       flex-wrap: wrap;
       flex-shrink: 0;
-      min-height: 26px;
+      min-height: 22px;
     }
-    #breadcrumb span.crumb { cursor: pointer; color: #89b4fa; }
-    #breadcrumb span.crumb:hover { text-decoration: underline; }
-    #breadcrumb span.crumb.current { color: #cdd6f4; cursor: default; text-decoration: none; }
-    #breadcrumb .sep { color: #45475a; }
+    .breadcrumb .crumb { cursor: pointer; color: #89b4fa; }
+    .breadcrumb .crumb:hover { text-decoration: underline; }
+    .breadcrumb .crumb.cur { color: #cdd6f4; cursor: default; }
+    .breadcrumb .sep { color: #45475a; }
 
-    /* ── object tab: split pane ──────────────────────────────────────── */
-    #object-tab {
-      flex: 1; overflow: hidden;
-      display: flex; flex-direction: column;
-    }
-    #object-split {
-      flex: 1; overflow: hidden;
-      display: flex; flex-direction: row;
-    }
-
-    /* left: object pane */
-    #object-pane {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0;
-      min-width: 0;
+    /* ── sidebar ─────────────────────────────────────────────────────── */
+    .win-sidebar {
+      width: 180px;
+      border-right: 1px solid #313244;
+      background: #181825;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
     }
+    .win-sidebar h2 {
+      font-size: 9px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: #6c7086;
+      padding: 6px 10px 3px;
+    }
+    .sidebar-list { list-style: none; overflow-y: auto; flex: 1; }
+    .sidebar-list li {
+      padding: 4px 10px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sidebar-list li:hover { background: #313244; }
+    .sidebar-list li.active { border-left-color: #cba6f7; color: #cba6f7; }
 
-    /* inspector tabs strip */
-    #inspector-tabs {
+    /* ── object inspector ────────────────────────────────────────────── */
+    .inspector-strip {
       display: flex;
       border-bottom: 1px solid #313244;
       background: #181825;
@@ -142,651 +223,328 @@
       overflow-x: auto;
     }
     .inspector-tab {
-      padding: 5px 12px;
-      font-size: 11px;
-      color: #a6adc8;
+      padding: 4px 10px;
+      font-size: 10px;
+      color: #6c7086;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       margin-bottom: -1px;
       white-space: nowrap;
-      user-select: none;
     }
-    .inspector-tab:hover { color: #cdd6f4; }
+    .inspector-tab:hover { color: #a6adc8; }
     .inspector-tab.active { color: #89dceb; border-bottom-color: #89dceb; }
 
-    /* inspector content area */
-    #inspector-content {
+    .inspector-body {
       flex: 1;
       overflow-y: auto;
-      padding: 8px 10px;
-    }
-
-    /* right: method browser */
-    #method-browser {
-      width: 340px;
-      min-width: 200px;
-      border-left: 1px solid #313244;
-      display: flex;
-      flex-direction: column;
-      background: #181825;
-      flex-shrink: 0;
-    }
-    #method-browser-header {
-      padding: 5px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      color: #a6adc8;
-      border-bottom: 1px solid #313244;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: #24273a;
-      flex-shrink: 0;
-    }
-    #method-browser-header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #method-browser-close {
-      background: none; border: none; color: #6c7086;
-      cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px;
-    }
-    #method-browser-close:hover { color: #f38ba8; }
-    #method-browser-split {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
-    #method-categories {
-      width: 130px;
-      border-right: 1px solid #313244;
-      overflow-y: auto;
-      flex-shrink: 0;
-    }
-    #method-selectors {
-      flex: 1;
-      overflow-y: auto;
-      border-right: 1px solid #313244;
-    }
-    .method-cat, .method-sel {
-      padding: 4px 8px;
-      font-size: 11px;
-      cursor: pointer;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .method-cat:hover, .method-sel:hover { background: #313244; }
-    .method-cat.active { background: #45475a; color: #cba6f7; }
-    .method-sel.active { background: #45475a; color: #89dceb; }
-    #method-source {
-      flex: 1;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    #method-source textarea {
-      flex: 1;
-      background: #1e1e2e;
-      color: #a6e3a1;
-      border: none;
-      font-family: monospace;
-      font-size: 11px;
       padding: 6px 8px;
-      resize: none;
-      outline: none;
     }
-    #method-browser.hidden { display: none; }
 
-    /* ── object card ─────────────────────────────────────────────────── */
-    .obj-card {
-      background: #181825;
-      border: 1px solid #313244;
-      border-radius: 6px;
-      margin-bottom: 10px;
-      overflow: hidden;
+    /* ── table ───────────────────────────────────────────────────────── */
+    table.dbtable { border-collapse: collapse; width: 100%; }
+    table.dbtable th {
+      text-align: left; font-size: 9px; color: #6c7086;
+      padding: 2px 6px; border-bottom: 1px solid #313244;
+      background: #181825; text-transform: uppercase; letter-spacing: .04em;
     }
-    .obj-card-header {
-      background: #24273a;
-      padding: 6px 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    table.dbtable td {
+      padding: 2px 6px; vertical-align: top;
+      border-bottom: 1px solid #1e1e2e; font-size: 11px;
     }
-    .obj-card-header .oop { color: #6c7086; font-size: 10px; font-family: monospace; }
-    .obj-card-header .basetype {
-      background: #313244;
-      border-radius: 3px;
-      padding: 1px 5px;
-      font-size: 10px;
-      color: #a6adc8;
-      flex-shrink: 0;
-    }
-    .obj-card-header .class-name {
-      color: #cba6f7;
-      font-size: 11px;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-    .obj-card-header .class-name:hover { text-decoration: underline; }
-    .obj-card-header .inspection {
-      font-family: monospace;
-      font-size: 12px;
-      color: #89dceb;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      flex: 1;
-    }
-    .obj-card-body { padding: 0; }
-
-    table.inst-vars { border-collapse: collapse; width: 100%; }
-    table.inst-vars th {
-      text-align: left;
-      font-size: 10px;
-      color: #6c7086;
-      padding: 3px 8px;
-      border-bottom: 1px solid #313244;
-      background: #1e1e2e;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-    table.inst-vars td {
-      padding: 3px 8px;
-      vertical-align: top;
-      border-bottom: 1px solid #1e1e2e;
-      font-size: 12px;
-    }
-    table.inst-vars td.col-key { color: #f5c2e7; font-family: monospace; min-width: 100px; max-width: 180px; }
-    table.inst-vars td.col-val { font-family: monospace; color: #a6e3a1; }
-    table.inst-vars tr:hover td { background: #1e1e2e; }
-    .link-oop { color: #89b4fa; text-decoration: none; cursor: pointer; }
+    table.dbtable td.col-key { color: #f5c2e7; font-family: monospace; min-width: 80px; max-width: 160px; }
+    table.dbtable td.col-val { font-family: monospace; color: #a6e3a1; }
+    table.dbtable tr:hover td { background: #181825; }
+    .link-oop { color: #89b4fa; cursor: pointer; text-decoration: none; }
     .link-oop:hover { text-decoration: underline; }
+    .more-row { font-size: 10px; color: #6c7086; padding: 3px 6px; }
 
-    /* more-entries row */
-    .more-row { font-size: 11px; color: #6c7086; padding: 4px 8px; }
-    .more-row a { color: #89b4fa; cursor: pointer; }
-    .more-row a:hover { text-decoration: underline; }
-
-    /* hierarchy list */
-    .hierarchy-list { list-style: none; padding: 8px 0; }
+    /* ── hierarchy ───────────────────────────────────────────────────── */
+    .hierarchy-list { list-style: none; padding: 6px 0; }
     .hierarchy-list li {
-      padding: 3px 10px;
-      font-family: monospace;
-      font-size: 12px;
-      color: #cba6f7;
-      position: relative;
+      padding: 2px 8px; font-family: monospace; font-size: 11px;
+      color: #cba6f7; border-left: 3px solid #45475a; margin-left: 8px;
+      margin-bottom: 2px;
     }
-    .hierarchy-list li::before {
-      content: '';
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 3px;
-      background: #45475a;
-    }
-    .hierarchy-list li:first-child::before { background: #89dceb; }
+    .hierarchy-list li:first-child { border-left-color: #89dceb; }
 
-    /* instances list */
+    /* ── instances ───────────────────────────────────────────────────── */
     .instances-list { list-style: none; padding: 4px 0; }
     .instances-list li {
-      padding: 3px 10px;
-      font-size: 12px;
-      font-family: monospace;
-      cursor: pointer;
+      padding: 2px 8px; font-size: 11px; font-family: monospace; cursor: pointer;
     }
     .instances-list li:hover { background: #313244; }
 
     /* ── eval panel ──────────────────────────────────────────────────── */
-    #eval-panel {
+    .eval-panel {
       border-top: 1px solid #313244;
       background: #181825;
-      padding: 7px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
+      padding: 5px 8px;
+      display: flex; flex-direction: column; gap: 4px;
       flex-shrink: 0;
     }
-    #eval-panel label { font-size: 10px; color: #6c7086; text-transform: uppercase; letter-spacing: .05em; }
-    #eval-code {
-      font-family: monospace;
-      font-size: 12px;
-      background: #1e1e2e;
-      color: #cdd6f4;
-      border: 1px solid #313244;
-      border-radius: 4px;
-      padding: 5px 8px;
-      resize: vertical;
-      min-height: 52px;
+    .eval-panel label { font-size: 9px; color: #6c7086; text-transform: uppercase; letter-spacing: .05em; }
+    .eval-code {
+      font-family: monospace; font-size: 11px;
+      background: #1e1e2e; color: #cdd6f4;
+      border: 1px solid #313244; border-radius: 3px;
+      padding: 4px 6px; resize: vertical; min-height: 44px; outline: none;
     }
-    #eval-controls { display: flex; align-items: center; gap: 8px; }
+    .eval-controls { display: flex; align-items: center; gap: 6px; }
+    .eval-result-wrap { font-family: monospace; font-size: 10px; }
+    .eval-result { color: #a6e3a1; }
+    .eval-result.error { color: #f38ba8; }
+
+    /* ── buttons ─────────────────────────────────────────────────────── */
     button.btn {
-      background: #cba6f7;
-      color: #1e1e2e;
-      border: none;
-      border-radius: 4px;
-      padding: 4px 12px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 12px;
+      background: #cba6f7; color: #1e1e2e;
+      border: none; border-radius: 3px;
+      padding: 3px 10px; font-weight: 700; cursor: pointer; font-size: 11px;
     }
     button.btn:hover { background: #b4befe; }
     button.btn-ghost {
-      background: transparent;
-      border: 1px solid #45475a;
-      color: #cdd6f4;
-      border-radius: 4px;
-      padding: 3px 10px;
-      cursor: pointer;
-      font-size: 12px;
+      background: transparent; border: 1px solid #45475a; color: #cdd6f4;
+      border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 11px;
     }
     button.btn-ghost:hover { background: #313244; }
-    #eval-result-wrap {
-      font-family: monospace;
-      font-size: 11px;
-    }
-    #eval-result { color: #a6e3a1; }
-    #eval-result.error { color: #f38ba8; }
-
-    /* eval result card (shown inline when navigable) */
-    #eval-result-card { margin-top: 6px; }
-
-    /* ── transaction bar ─────────────────────────────────────────────── */
-    .txbar {
-      background: #181825;
-      border-top: 1px solid #313244;
-      padding: 5px 10px;
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      flex-shrink: 0;
-    }
-    .txbar span { font-size: 11px; color: #6c7086; margin-right: 2px; }
-    /* orange MagLev-style transaction buttons */
     button.btn-tx {
-      background: #e08020;
-      color: #fff;
-      border: none;
-      border-radius: 3px;
-      padding: 4px 14px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 12px;
+      background: #e08020; color: #fff;
+      border: none; border-radius: 3px;
+      padding: 3px 12px; font-weight: 700; cursor: pointer; font-size: 11px;
     }
-    button.btn-tx:hover { background: #c86c10; }
-    button.btn-tx:disabled { background: #45475a; color: #6c7086; cursor: default; }
-
-    /* ── spinner ─────────────────────────────────────────────────────── */
-    .spinner {
-      display: inline-block;
-      width: 12px; height: 12px;
-      border: 2px solid #45475a;
-      border-top-color: #cba6f7;
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-      vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── workspace tab ───────────────────────────────────────────────── */
-    #workspace-tab {
-      flex: 1; overflow: hidden;
-      display: flex; flex-direction: column;
-    }
-    #ws-history {
+    button.btn-tx:hover { background: #c06010; }
+    button.btn-dbg {
+      background: #1e6fba; color: #fff;
+      border: none; border-radius: 3px;
+      padding: 4px 14px; font-weight: 700; cursor: pointer; font-size: 12px;
       flex: 1;
-      overflow-y: auto;
-      padding: 8px 12px;
-      font-family: monospace;
-      font-size: 12px;
     }
-    .ws-entry { margin-bottom: 8px; }
-    .ws-entry .ws-code {
-      color: #cdd6f4;
-      white-space: pre-wrap;
-      word-break: break-all;
-      padding: 2px 0;
+    button.btn-dbg:hover { background: #1559a0; }
+
+    /* ── txbar ───────────────────────────────────────────────────────── */
+    .txbar {
+      background: #181825; border-top: 1px solid #313244;
+      padding: 4px 8px; display: flex; gap: 5px; align-items: center; flex-shrink: 0;
     }
-    .ws-entry .ws-result {
-      background: #2a5f2a;
-      color: #a6e3a1;
-      padding: 3px 8px;
-      border-radius: 3px;
-      white-space: pre-wrap;
-      word-break: break-all;
-      margin-top: 2px;
+    .txbar span { font-size: 10px; color: #6c7086; }
+
+    /* ── workspace ───────────────────────────────────────────────────── */
+    .ws-history {
+      flex: 1; overflow-y: auto; padding: 6px 10px;
+      font-family: monospace; font-size: 12px;
     }
-    .ws-entry .ws-result.error {
-      background: #5f2a2a;
-      color: #f38ba8;
+    .ws-entry { margin-bottom: 6px; }
+    .ws-code { color: #cdd6f4; white-space: pre-wrap; word-break: break-all; }
+    .ws-result {
+      background: #2a5f2a; color: #a6e3a1;
+      padding: 2px 7px; border-radius: 3px;
+      white-space: pre-wrap; word-break: break-all; margin-top: 2px;
     }
-    .ws-entry .ws-nav {
-      font-size: 11px;
-      color: #89b4fa;
-      cursor: pointer;
-      margin-left: 6px;
+    .ws-result.error { background: #5f2a2a; color: #f38ba8; }
+    .ws-nav { font-size: 10px; color: #89b4fa; cursor: pointer; margin-left: 6px; }
+    .ws-nav:hover { text-decoration: underline; }
+    .ws-input-row {
+      border-top: 1px solid #313244; display: flex;
+      flex-direction: column; flex-shrink: 0;
+      background: #181825; padding: 5px 8px; gap: 4px;
     }
-    .ws-entry .ws-nav:hover { text-decoration: underline; }
-    #ws-input-row {
-      border-top: 1px solid #313244;
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-      background: #181825;
-      padding: 6px 10px;
-      gap: 5px;
+    .ws-code-area {
+      font-family: monospace; font-size: 12px;
+      background: #1e1e2e; color: #cdd6f4;
+      border: 1px solid #313244; border-radius: 3px;
+      padding: 4px 6px; resize: vertical; min-height: 52px; outline: none;
     }
-    #ws-code-area {
-      font-family: monospace;
-      font-size: 12px;
-      background: #1e1e2e;
-      color: #cdd6f4;
-      border: 1px solid #313244;
-      border-radius: 4px;
-      padding: 5px 8px;
-      resize: vertical;
-      min-height: 56px;
-      outline: none;
+    .ws-controls { display: flex; gap: 5px; align-items: center; }
+    .ws-hint { font-size: 9px; color: #45475a; margin-left: auto; }
+
+    /* ── method browser ──────────────────────────────────────────────── */
+    .mb-header {
+      padding: 4px 8px; font-size: 10px; font-weight: 700; color: #a6adc8;
+      border-bottom: 1px solid #313244; background: #24273a;
+      display: flex; align-items: center; gap: 5px; flex-shrink: 0;
     }
-    #ws-controls { display: flex; gap: 6px; align-items: center; }
-    #ws-controls .ws-hint { font-size: 10px; color: #45475a; margin-left: auto; }
+    .mb-header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mb-close {
+      background: none; border: none; color: #6c7086;
+      cursor: pointer; font-size: 13px; padding: 0 2px;
+    }
+    .mb-close:hover { color: #f38ba8; }
+    .mb-split { display: flex; flex: 1; overflow: hidden; }
+    .mb-cats {
+      width: 120px; border-right: 1px solid #313244;
+      overflow-y: auto; flex-shrink: 0;
+    }
+    .mb-sels { flex: 1; overflow-y: auto; border-right: 1px solid #313244; }
+    .mb-src { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .mb-src textarea {
+      flex: 1; background: #1e1e2e; color: #a6e3a1;
+      border: none; font-family: monospace; font-size: 11px;
+      padding: 5px 6px; resize: none; outline: none;
+    }
+    .mb-cat, .mb-sel {
+      padding: 3px 7px; font-size: 10px; cursor: pointer;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mb-cat:hover, .mb-sel:hover { background: #313244; }
+    .mb-cat.active { background: #45475a; color: #cba6f7; }
+    .mb-sel.active { background: #45475a; color: #89dceb; }
+
+    /* ── debugger ────────────────────────────────────────────────────── */
+    .dbg-split {
+      display: flex; flex-direction: column; flex: 1; overflow: hidden;
+    }
+    .dbg-frames-pane {
+      flex: 1; overflow-y: auto; border-bottom: 1px solid #313244;
+      min-height: 80px;
+    }
+    .dbg-frame-item {
+      padding: 3px 8px; font-size: 11px; font-family: monospace;
+      cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      border-left: 3px solid transparent;
+    }
+    .dbg-frame-item:hover { background: #313244; }
+    .dbg-frame-item.active {
+      background: #1e4f9f; border-left-color: #89b4fa; color: #cdd6f4;
+    }
+    .dbg-action-bar {
+      display: flex; flex-shrink: 0; border-bottom: 1px solid #313244;
+    }
+    .dbg-source-pane {
+      flex: 1; overflow: hidden; display: flex; flex-direction: column;
+    }
+    .dbg-source-pane textarea {
+      flex: 1; background: #181825; color: #cdd6f4;
+      font-family: monospace; font-size: 11px;
+      border: none; padding: 6px 8px; resize: none; outline: none;
+    }
+    .dbg-var-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 8px; border-top: 1px solid #313244;
+      background: #181825; flex-shrink: 0;
+    }
+    .dbg-var-row select {
+      background: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a;
+      border-radius: 3px; font-size: 11px; padding: 2px 5px; flex: 1;
+    }
+    .dbg-var-val { font-size: 11px; font-family: monospace; color: #a6e3a1; }
+    .dbg-tls-list { list-style: none; padding: 4px 0; }
+    .dbg-tls-list li { padding: 2px 8px; font-size: 11px; font-family: monospace; }
+    .dbg-tls-list li span:first-child { color: #f5c2e7; }
+    .dbg-tls-list li span:last-child { color: #a6e3a1; margin-left: 6px; }
 
     /* ── symbol list browser ─────────────────────────────────────────── */
-    #sl-user-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 7px 12px;
-      border-bottom: 1px solid #313244;
-      flex-shrink: 0;
-      background: #1e1e2e;
+    .sl-two-col { display: flex; flex: 1; overflow: hidden; }
+    .sl-col { display: flex; flex-direction: column; overflow: hidden; }
+    .sl-col-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 2px 6px; background: #181825; border-bottom: 1px solid #313244; flex-shrink: 0;
     }
-    #sl-user-row label { font-size: 13px; color: #cdd6f4; white-space: nowrap; }
-    #sl-user-select {
-      flex: 1;
-      background: #24273a;
-      color: #cdd6f4;
-      border: 1px solid #45475a;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 13px;
+    .sl-col-label { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #6c7086; }
+    .sl-add-btn {
+      background: none; border: none; color: #a6adc8;
+      font-size: 14px; cursor: pointer; padding: 0 2px;
     }
-    .sl-section-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      color: #6c7086;
-      padding: 5px 12px 3px;
-      flex-shrink: 0;
-      background: #1e1e2e;
-    }
-    #sl-dict-entries-row {
-      display: flex;
-      height: 240px;
-      flex-shrink: 0;
-      border-bottom: 1px solid #313244;
-    }
-    #sl-dicts-col {
-      display: flex; flex-direction: column;
-      width: 200px; min-width: 120px;
-      border-right: 1px solid #313244;
-      overflow: hidden; flex-shrink: 0;
-    }
-    #sl-dicts-col-header, #sl-entries-col-header {
-      display: flex; align-items: center; justify-content: flex-end;
-      padding: 2px 6px;
-      background: #181825;
-      border-bottom: 1px solid #313244;
-      flex-shrink: 0;
-    }
-    #sl-entries-col { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .sl-add-btn:hover { color: #cba6f7; }
     .sl-list { list-style: none; overflow-y: auto; flex: 1; }
     .sl-list li {
-      padding: 4px 10px;
-      cursor: pointer;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: 12px;
-      display: flex; align-items: center; justify-content: space-between; gap: 4px;
+      padding: 3px 8px; cursor: pointer; font-size: 11px;
+      display: flex; align-items: center; gap: 3px;
+      white-space: nowrap; overflow: hidden;
     }
     .sl-list li:hover { background: #2a2a3e; }
     .sl-list li.active { background: #313244; color: #cba6f7; }
-    .sl-list li .sl-del-btn {
-      background: none; border: none; color: #6c7086; cursor: pointer;
-      font-size: 13px; padding: 0; flex-shrink: 0; display: none;
+    .sl-list li span.sl-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .sl-del { background: none; border: none; color: #6c7086; cursor: pointer; font-size: 12px; padding: 0; display: none; }
+    .sl-list li:hover .sl-del { display: inline; }
+    .sl-del:hover { color: #f38ba8; }
+    .sl-sel-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 8px; border-bottom: 1px solid #313244;
+      background: #1e1e2e; flex-shrink: 0;
     }
-    .sl-list li:hover .sl-del-btn { display: inline; }
-    .sl-list li .sl-del-btn:hover { color: #f38ba8; }
-    .sl-add-btn {
-      background: none; border: none; color: #a6adc8;
-      font-size: 15px; cursor: pointer; line-height: 1; padding: 0 3px;
+    .sl-sel-label { font-size: 10px; color: #6c7086; }
+    .sl-sel-val { font-size: 12px; background: #24273a; border-radius: 3px; padding: 1px 8px; }
+    .sl-preview { display: flex; flex-direction: column; border-top: 1px solid #313244; flex-shrink: 0; }
+    .sl-printstring {
+      font-family: monospace; font-size: 11px; color: #cdd6f4;
+      background: #24273a; margin: 4px 8px;
+      padding: 5px 8px; border: 1px solid #313244; border-radius: 3px;
+      min-height: 34px; word-break: break-all; white-space: pre-wrap;
     }
-    .sl-add-btn:hover { color: #cba6f7; }
-    #sl-selection-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 5px 12px;
-      border-bottom: 1px solid #313244;
-      flex-shrink: 0;
-      background: #1e1e2e;
+
+    /* ── spinner ─────────────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block; width: 11px; height: 11px;
+      border: 2px solid #45475a; border-top-color: #cba6f7;
+      border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle;
     }
-    #sl-selection-row .sl-sel-label { font-size: 12px; color: #6c7086; }
-    #sl-selection-val {
-      font-size: 13px; color: #cdd6f4;
-      background: #24273a; border-radius: 4px;
-      padding: 2px 10px; min-width: 80px;
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── obj-card ────────────────────────────────────────────────────── */
+    .obj-card { background: #181825; border: 1px solid #313244; border-radius: 5px; margin-bottom: 8px; overflow: hidden; }
+    .obj-card-hdr {
+      background: #24273a; padding: 4px 8px;
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
     }
-    #sl-inspect-btn {
-      margin-left: auto;
-      font-size: 11px;
+    .obj-card-hdr .basetype {
+      background: #313244; border-radius: 3px; padding: 1px 4px;
+      font-size: 9px; color: #a6adc8; flex-shrink: 0;
     }
-    #sl-kv-section {
-      flex-shrink: 0; max-height: 200px;
-      display: flex; flex-direction: column;
-      border-bottom: 1px solid #313244;
+    .obj-card-hdr .class-name {
+      color: #cba6f7; font-size: 10px; cursor: pointer; flex-shrink: 0;
     }
-    #sl-kv-table-wrap { overflow-y: auto; flex: 1; }
-    table#sl-kv-table { border-collapse: collapse; width: 100%; }
-    table#sl-kv-table th {
-      text-align: left; font-size: 10px; color: #6c7086;
-      padding: 3px 12px; background: #181825;
-      border-bottom: 1px solid #313244;
-      position: sticky; top: 0;
-      text-transform: uppercase; letter-spacing: .04em;
+    .obj-card-hdr .class-name:hover { text-decoration: underline; }
+    .obj-card-hdr .inspection {
+      font-family: monospace; font-size: 11px; color: #89dceb;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
     }
-    table#sl-kv-table td {
-      padding: 3px 12px; font-size: 12px;
-      font-family: monospace;
-      border-bottom: 1px solid #1e1e2e;
+    .obj-card-hdr .oop { color: #6c7086; font-size: 9px; font-family: monospace; }
+    .class-row {
+      margin: 0 0 6px 4px; font-size: 10px;
+      display: flex; gap: 5px; align-items: center;
     }
-    table#sl-kv-table td:first-child { color: #f5c2e7; }
-    table#sl-kv-table td:last-child  { color: #a6e3a1; }
-    #sl-printstring-section { display: flex; flex-direction: column; flex-shrink: 0; }
-    #sl-printstring-box {
-      font-family: monospace; font-size: 12px; color: #cdd6f4;
-      background: #24273a; margin: 0 12px 8px;
-      padding: 8px 10px;
-      border: 1px solid #313244; border-radius: 4px;
-      min-height: 44px; word-break: break-all; white-space: pre-wrap;
-    }
+    .class-row span { color: #6c7086; }
 
     /* ── modal ───────────────────────────────────────────────────────── */
     #modal-overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.55);
-      z-index: 100; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.6); z-index: 99999;
+      align-items: center; justify-content: center;
     }
     #modal-overlay.visible { display: flex; }
     #modal-box {
-      background: #24273a; border: 1px solid #45475a;
-      border-radius: 8px; padding: 20px 24px;
-      min-width: 340px; display: flex; flex-direction: column; gap: 10px;
+      background: #24273a; border: 1px solid #45475a; border-radius: 7px;
+      padding: 16px 20px; min-width: 320px;
+      display: flex; flex-direction: column; gap: 8px;
     }
-    #modal-box h2 { font-size: 13px; font-weight: 600; color: #cba6f7; }
-    #modal-box label { font-size: 11px; color: #a6adc8; }
+    #modal-box h2 { font-size: 12px; font-weight: 700; color: #cba6f7; }
+    #modal-box label { font-size: 10px; color: #a6adc8; }
     #modal-box input, #modal-box textarea {
-      font-family: monospace; font-size: 12px;
+      font-family: monospace; font-size: 11px;
       background: #1e1e2e; color: #cdd6f4;
-      border: 1px solid #45475a; border-radius: 4px;
-      padding: 5px 8px; width: 100%;
+      border: 1px solid #45475a; border-radius: 3px;
+      padding: 4px 6px; width: 100%;
     }
-    #modal-box textarea { resize: vertical; min-height: 60px; }
-    #modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+    #modal-box textarea { resize: vertical; min-height: 52px; }
+    #modal-footer { display: flex; gap: 6px; justify-content: flex-end; }
 
-    /* misc */
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
-<div id="topbar">
-  <h1>GemStone Database Explorer</h1>
-  <span class="version" id="gs-version"></span>
-  <div class="sep"></div>
+<div id="desktop"></div>
+
+<!-- Taskbar -->
+<div id="taskbar">
+  <span id="taskbar-title">GemStone DB Explorer</span>
+  <span id="taskbar-version" id="gs-version"></span>
+  <button class="taskbar-btn" onclick="openObjectBrowser()">Object Browser</button>
+  <button class="taskbar-btn" onclick="openWorkspace()">Workspace</button>
+  <button class="taskbar-btn" onclick="openSymbolList()">Symbol List</button>
+  <div id="halted-threads-bar"></div>
+  <div id="taskbar-sep"></div>
   <span id="status-dot"></span>
   <span id="status-txt">connecting…</span>
-</div>
-
-<div id="main">
-  <!-- sidebar: root objects (shown only on Object Browser tab) -->
-  <div id="sidebar" style="display:none">
-    <h2>Roots</h2>
-    <ul id="roots-list"></ul>
-  </div>
-
-  <div id="content">
-    <div id="nav-tabs">
-      <div class="nav-tab" data-tab="object">Object Browser</div>
-      <div class="nav-tab" data-tab="workspace">Workspace</div>
-      <div class="nav-tab active" data-tab="symlist">Symbol List</div>
-    </div>
-
-    <!-- ── Object Browser tab ─────────────────────────────────────── -->
-    <div id="object-tab" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-      <div id="breadcrumb"></div>
-
-      <div id="object-split">
-        <!-- left: object pane with inspector tabs -->
-        <div id="object-pane">
-          <!-- inspector tab strip -->
-          <div id="inspector-tabs" style="display:none">
-            <div class="inspector-tab active" data-itab="instvars">Instance Variables</div>
-            <div class="inspector-tab" data-itab="constants">Constants</div>
-            <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
-            <div class="inspector-tab" data-itab="instances">Instances</div>
-          </div>
-          <!-- inspector content -->
-          <div id="inspector-content">
-            <p style="color:#6c7086;padding:20px">Select a root object from the sidebar to begin.</p>
-          </div>
-        </div>
-
-        <!-- right: method browser (hidden until class clicked) -->
-        <div id="method-browser" class="hidden">
-          <div id="method-browser-header">
-            <span id="method-browser-class">Methods</span>
-            <button id="method-browser-close" title="Close">✕</button>
-          </div>
-          <div id="method-browser-split">
-            <div id="method-categories"></div>
-            <div id="method-source">
-              <div id="method-selectors-wrap" style="flex:1;overflow-y:auto;border-bottom:1px solid #313244">
-                <div id="method-selectors"></div>
-              </div>
-              <textarea id="method-source-code" readonly placeholder="Select a method…"></textarea>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- eval panel -->
-      <div id="eval-panel">
-        <label>Evaluate in context of current object</label>
-        <textarea id="eval-code" placeholder="self printString"></textarea>
-        <div id="eval-controls">
-          <select id="eval-lang">
-            <option value="smalltalk">Smalltalk</option>
-          </select>
-          <button class="btn" id="eval-btn">Evaluate</button>
-          <span id="eval-result-wrap"><span id="eval-result"></span></span>
-        </div>
-        <div id="eval-result-card"></div>
-      </div>
-
-      <div class="txbar">
-        <span>Transaction:</span>
-        <button class="btn-tx" id="tx-abort-btn">Abort Transaction</button>
-        <button class="btn-tx" id="tx-commit-btn">Commit Transaction</button>
-      </div>
-    </div>
-
-    <!-- ── Workspace tab ──────────────────────────────────────────── -->
-    <div id="workspace-tab" style="display:none">
-      <div id="ws-history"></div>
-      <div id="ws-input-row">
-        <textarea id="ws-code-area" placeholder="Smalltalk expression… (Ctrl+Enter to evaluate)"></textarea>
-        <div id="ws-controls">
-          <button class="btn" id="ws-eval-btn">Do it</button>
-          <button class="btn-ghost" id="ws-clear-btn">Clear</button>
-          <span class="ws-hint">Ctrl+Enter</span>
-        </div>
-      </div>
-      <div class="txbar">
-        <span>Transaction:</span>
-        <button class="btn-tx" id="ws-abort-btn">Abort Transaction</button>
-        <button class="btn-tx" id="ws-commit-btn">Commit Transaction</button>
-      </div>
-    </div>
-
-    <!-- ── Symbol List Browser tab ───────────────────────────────── -->
-    <div id="symlist-tab" style="display:flex;flex-direction:column;flex:1;overflow-y:auto;overflow-x:hidden">
-      <div id="sl-user-row">
-        <label>Symbol List for</label>
-        <select id="sl-user-select"><option value="">— loading —</option></select>
-      </div>
-
-      <div class="sl-section-label">Dictionaries</div>
-
-      <div id="sl-dict-entries-row">
-        <div id="sl-dicts-col">
-          <div id="sl-dicts-col-header">
-            <button class="sl-add-btn" id="sl-add-dict-btn" title="Add dictionary">+</button>
-          </div>
-          <ul class="sl-list" id="sl-dicts"></ul>
-        </div>
-        <div id="sl-entries-col">
-          <div id="sl-entries-col-header">
-            <button class="sl-add-btn" id="sl-add-entry-btn" title="Add entry">+</button>
-          </div>
-          <ul class="sl-list" id="sl-entries"></ul>
-        </div>
-      </div>
-
-      <div id="sl-selection-row">
-        <span class="sl-sel-label">Selection</span>
-        <span id="sl-selection-val"></span>
-        <button class="btn-ghost hidden" id="sl-inspect-btn" title="Inspect in Object Browser">Inspect ›</button>
-      </div>
-
-      <div class="sl-section-label">Keys / Values</div>
-      <div id="sl-kv-section">
-        <div id="sl-kv-table-wrap">
-          <table id="sl-kv-table">
-            <thead><tr><th>Key / Index</th><th>Value</th></tr></thead>
-            <tbody id="sl-kv-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="sl-section-label">PrintString</div>
-      <div id="sl-printstring-section">
-        <div id="sl-printstring-box"></div>
-      </div>
-
-      <div class="txbar" style="border-top:1px solid #313244;margin-top:auto">
-        <span>Transaction:</span>
-        <button class="btn-tx" id="sl-abort-btn">Abort Transaction</button>
-        <button class="btn-tx" id="sl-commit-btn">Commit Transaction</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- Modal -->
@@ -804,50 +562,147 @@
 <script>
 'use strict';
 
-// ── state ────────────────────────────────────────────────────────────────────
-let roots = {};
-let currentOop = null;
-let currentObjData = null;  // full object view data
-let history = [];
+// ── utilities ─────────────────────────────────────────────────────────────────
+const desktop = document.getElementById('desktop');
+let zTop = 100;
 
-// inspector tab state
-let currentInspectorTab = 'instvars';
-
-// method browser state
-let mbData = {};
-let mbCat = null;
-let mbSel = null;
-let mbClassOop = null;
-
-// ── DOM helpers ───────────────────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
-const statusDot = $('status-dot');
-const statusTxt = $('status-txt');
-const rootsList = $('roots-list');
-const objectPane = $('object-pane');
-const inspectorContent = $('inspector-content');
-const breadcrumb = $('breadcrumb');
-const evalCode = $('eval-code');
-const evalLang = $('eval-lang');
-const evalBtn = $('eval-btn');
-const evalResult = $('eval-result');
-const evalResultCard = $('eval-result-card');
-const methodBrowser = $('method-browser');
-
-function setStatus(ok, msg) {
-  statusDot.className = ok ? '' : 'error';
-  statusTxt.textContent = msg;
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
 async function api(url, opts) {
   const r = await fetch(url, opts);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
 async function apiPost(url, body) {
-  return api(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  return api(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
 }
+
+function setStatus(ok, msg) {
+  document.getElementById('status-dot').className = ok ? '' : 'error';
+  document.getElementById('status-txt').textContent = msg;
+}
+
+// ── windowing system ──────────────────────────────────────────────────────────
+let winCount = 0;
+
+function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
+  const id = 'win-' + (++winCount);
+  const w = width, h = height;
+  const lx = x !== undefined ? x : Math.max(20, Math.min(window.innerWidth  - w - 20, 60 + winCount * 28));
+  const ly = y !== undefined ? y : Math.max(20, Math.min(window.innerHeight - h - 52, 40 + winCount * 28));
+
+  const win = document.createElement('div');
+  win.className = 'win';
+  win.id = id;
+  win.style.cssText = `left:${lx}px;top:${ly}px;width:${w}px;height:${h}px;z-index:${++zTop}`;
+
+  win.innerHTML = `
+    <div class="win-titlebar" data-win="${id}">
+      <button class="win-btn win-btn-close" title="Close">✕</button>
+      <button class="win-btn win-btn-min" title="Minimise">–</button>
+      <span class="win-title">${escHtml(title)}</span>
+    </div>
+    <div class="win-body"></div>
+    <div class="win-resize" data-win="${id}"></div>
+  `;
+
+  desktop.appendChild(win);
+  makeDraggable(win);
+  makeResizable(win);
+  focusWin(win);
+
+  win.querySelector('.win-btn-close').addEventListener('click', () => closeWindow(win, id));
+  win.querySelector('.win-btn-min').addEventListener('click', () => toggleMinimise(win, id));
+
+  // taskbar button
+  const tbBtn = document.createElement('button');
+  tbBtn.className = 'taskbar-btn';
+  tbBtn.textContent = taskbarLabel || title.slice(0,20);
+  tbBtn.id = 'tb-' + id;
+  tbBtn.addEventListener('click', () => {
+    if (win.dataset.minimised === '1') { toggleMinimise(win, id); }
+    focusWin(win);
+  });
+  document.getElementById('halted-threads-bar').before(tbBtn);
+
+  win.addEventListener('mousedown', () => focusWin(win));
+
+  return {win, body: win.querySelector('.win-body'), id};
+}
+
+function focusWin(win) {
+  document.querySelectorAll('.win').forEach(w => w.classList.remove('focused'));
+  win.classList.add('focused');
+  win.style.zIndex = ++zTop;
+  document.querySelectorAll('.taskbar-btn').forEach(b => b.classList.remove('active'));
+  const tb = document.getElementById('tb-' + win.id);
+  if (tb) tb.classList.add('active');
+}
+
+function closeWindow(win, id) {
+  win.remove();
+  const tb = document.getElementById('tb-' + id);
+  if (tb) tb.remove();
+}
+
+function toggleMinimise(win, id) {
+  const body = win.querySelector('.win-body');
+  const res  = win.querySelector('.win-resize');
+  if (win.dataset.minimised === '1') {
+    win.dataset.minimised = '0';
+    body.style.display = '';
+    if (res) res.style.display = '';
+    win.style.height = win.dataset.savedH || '480px';
+  } else {
+    win.dataset.minimised = '1';
+    win.dataset.savedH = win.style.height;
+    body.style.display = 'none';
+    if (res) res.style.display = 'none';
+    win.style.height = '28px';
+  }
+}
+
+function makeDraggable(win) {
+  const bar = win.querySelector('.win-titlebar');
+  let ox, oy, startX, startY;
+  bar.addEventListener('mousedown', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    focusWin(win);
+    startX = e.clientX; startY = e.clientY;
+    ox = win.offsetLeft; oy = win.offsetTop;
+    const move = e2 => {
+      win.style.left = Math.max(0, ox + e2.clientX - startX) + 'px';
+      win.style.top  = Math.max(0, oy + e2.clientY - startY) + 'px';
+    };
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+function makeResizable(win) {
+  const handle = win.querySelector('.win-resize');
+  if (!handle) return;
+  let startX, startY, startW, startH;
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault(); e.stopPropagation();
+    startX = e.clientX; startY = e.clientY;
+    startW = win.offsetWidth; startH = win.offsetHeight;
+    const move = e2 => {
+      win.style.width  = Math.max(320, startW + e2.clientX - startX) + 'px';
+      win.style.height = Math.max(180, startH + e2.clientY - startY) + 'px';
+    };
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+// ── global state ──────────────────────────────────────────────────────────────
+let roots = {};
 
 // ── init ──────────────────────────────────────────────────────────────────────
 async function init() {
@@ -859,843 +714,807 @@ async function init() {
       'System':      data.gemStoneSystemId,
     };
     setStatus(true, 'connected');
-    renderRoots();
   } catch (e) {
-    setStatus(false, 'connection failed: ' + e.message);
+    setStatus(false, 'failed: ' + e.message);
   }
   api('/version').then(d => {
-    if (d.success) $('gs-version').textContent = 'GemStone ' + d.stone;
+    if (d.success) {
+      document.getElementById('taskbar-version').textContent = 'GemStone ' + d.stone;
+    }
   }).catch(() => {});
+  startThreadPoller();
 }
 
-function renderRoots() {
-  rootsList.innerHTML = '';
+// ── halted thread poller ──────────────────────────────────────────────────────
+let threadPollTimer = null;
+function startThreadPoller() {
+  clearInterval(threadPollTimer);
+  threadPollTimer = setInterval(async () => {
+    try {
+      const d = await api('/debug/threads');
+      const bar = document.getElementById('halted-threads-bar');
+      bar.innerHTML = '';
+      if (d.success && d.threads.length) {
+        const lbl = document.createElement('span');
+        lbl.style.cssText = 'font-size:10px;color:#f38ba8;margin-right:3px';
+        lbl.textContent = 'Halted:';
+        bar.appendChild(lbl);
+        for (const t of d.threads) {
+          const pill = document.createElement('span');
+          pill.className = 'thread-pill';
+          pill.textContent = t.printString.slice(0, 30);
+          pill.title = t.printString;
+          pill.addEventListener('click', () => openDebugger(t.oop, t.printString));
+          bar.appendChild(pill);
+        }
+      }
+    } catch (_) {}
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OBJECT BROWSER WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openObjectBrowser(initialOop, initialLabel) {
+  const {win, body, id} = createWindow({title:'Object Browser', width:700, height:520, taskbarLabel:'Objects'});
+
+  // state
+  let currentOop = null;
+  let currentObjData = null;
+  let history = [];
+  let currentItab = 'instvars';
+  let mbData = {}, mbClassOop = null;
+
+  body.innerHTML = `
+    <div style="display:flex;flex:1;overflow:hidden">
+      <div class="win-sidebar">
+        <h2>Roots</h2>
+        <ul class="sidebar-list" id="${id}-roots"></ul>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div class="breadcrumb" id="${id}-bc"></div>
+        <div style="display:flex;flex:1;overflow:hidden">
+          <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <div class="inspector-strip" id="${id}-itabs" style="display:none">
+              <div class="inspector-tab active" data-itab="instvars">Instance Variables</div>
+              <div class="inspector-tab" data-itab="constants">Constants</div>
+              <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
+              <div class="inspector-tab" data-itab="instances">Instances</div>
+            </div>
+            <div class="inspector-body" id="${id}-ibody">
+              <p style="color:#6c7086;padding:12px">Select a root object to begin.</p>
+            </div>
+          </div>
+          <!-- method browser -->
+          <div id="${id}-mb" class="hidden" style="width:280px;border-left:1px solid #313244;display:flex;flex-direction:column;background:#181825;flex-shrink:0">
+            <div class="mb-header">
+              <span id="${id}-mb-class">Methods</span>
+              <button class="mb-close" id="${id}-mb-close">✕</button>
+            </div>
+            <div class="mb-split">
+              <div class="mb-cats" id="${id}-mb-cats"></div>
+              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                <div class="mb-sels" id="${id}-mb-sels"></div>
+                <div class="mb-src">
+                  <textarea id="${id}-mb-src" readonly placeholder="Select a method…"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="eval-panel">
+          <label>Evaluate</label>
+          <textarea class="eval-code" id="${id}-eval-code" placeholder="self printString"></textarea>
+          <div class="eval-controls">
+            <button class="btn" id="${id}-eval-btn">Evaluate</button>
+            <span class="eval-result-wrap"><span class="eval-result" id="${id}-eval-res"></span></span>
+          </div>
+        </div>
+        <div class="txbar">
+          <span>Transaction:</span>
+          <button class="btn-tx" id="${id}-abort">Abort Transaction</button>
+          <button class="btn-tx" id="${id}-commit">Commit Transaction</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // populate roots sidebar
+  const rootsUl = body.querySelector(`#${id}-roots`);
   for (const [label, oop] of Object.entries(roots)) {
     const li = document.createElement('li');
     li.textContent = label;
     li.dataset.oop = oop;
-    li.addEventListener('click', () => {
-      history = [{label, oop}];
-      loadObject(oop, label);
-    });
-    rootsList.appendChild(li);
+    li.addEventListener('click', () => { history = [{label, oop}]; loadObj(oop, label); });
+    rootsUl.appendChild(li);
   }
-}
 
-// ── object loading ────────────────────────────────────────────────────────────
-async function loadObject(oop, label) {
-  currentOop = oop;
-  currentObjData = null;
-  updateActiveRoot(oop);
-  renderBreadcrumb();
-  evalResultCard.innerHTML = '';
-  evalResult.textContent = '';
-  evalResult.className = '';
-
-  inspectorContent.innerHTML = '<span class="spinner"></span> Loading…';
-  $('inspector-tabs').style.display = 'none';
-  try {
-    const data = await api(`/object/index/${oop}?depth=2`);
-    if (!data.success) throw new Error(data.exception || 'unknown error');
-    currentObjData = data.result;
-    $('inspector-tabs').style.display = 'flex';
-    showInspectorTab(currentInspectorTab);
-  } catch (e) {
-    inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:16px">Error: ${escHtml(e.message)}</p>`;
-  }
-}
-
-function updateActiveRoot(oop) {
-  rootsList.querySelectorAll('li').forEach(li =>
-    li.classList.toggle('active', parseInt(li.dataset.oop) === oop)
-  );
-}
-
-function renderBreadcrumb() {
-  breadcrumb.innerHTML = '';
-  history.forEach((item, i) => {
-    if (i > 0) {
-      const sep = document.createElement('span');
-      sep.className = 'sep'; sep.textContent = ' › ';
-      breadcrumb.appendChild(sep);
-    }
-    const span = document.createElement('span');
-    span.className = 'crumb' + (i === history.length - 1 ? ' current' : '');
-    span.textContent = item.label || `#${item.oop}`;
-    if (i < history.length - 1) {
-      span.addEventListener('click', () => {
-        history = history.slice(0, i + 1);
-        loadObject(item.oop, item.label);
-      });
-    }
-    breadcrumb.appendChild(span);
-  });
-}
-
-// ── inspector tab switching ───────────────────────────────────────────────────
-document.querySelectorAll('.inspector-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
+  // inspector tab switching
+  body.querySelector(`#${id}-itabs`).addEventListener('click', e => {
+    const tab = e.target.closest('.inspector-tab');
+    if (!tab) return;
+    body.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    currentInspectorTab = tab.dataset.itab;
-    showInspectorTab(currentInspectorTab);
+    currentItab = tab.dataset.itab;
+    showItab();
   });
-});
 
-async function showInspectorTab(tab) {
-  if (!currentObjData) return;
-  const obj = currentObjData;
-  inspectorContent.innerHTML = '';
+  // method browser close
+  body.querySelector(`#${id}-mb-close`).addEventListener('click', () => {
+    body.querySelector(`#${id}-mb`).classList.add('hidden');
+  });
 
-  if (tab === 'instvars') {
-    inspectorContent.appendChild(renderObjectCard(obj));
-    return;
-  }
-  if (tab === 'constants') {
-    inspectorContent.innerHTML = '<span class="spinner"></span>';
+  // eval
+  const evalCode = body.querySelector(`#${id}-eval-code`);
+  const evalRes  = body.querySelector(`#${id}-eval-res`);
+  body.querySelector(`#${id}-eval-btn`).addEventListener('click', doEval);
+  evalCode.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') doEval(); });
+
+  // tx
+  body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
+    try { const d = await api('/transaction/abort'); setStatus(d.success, d.success ? 'aborted' : d.exception); if (d.success && currentOop) loadObj(currentOop, history[history.length-1]?.label); }
+    catch(e) { setStatus(false, e.message); }
+  });
+  body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
+    try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : d.exception); }
+    catch(e) { setStatus(false, e.message); }
+  });
+
+  async function loadObj(oop, label) {
+    currentOop = oop;
+    currentObjData = null;
+    renderBc();
+    body.querySelectorAll(`#${id}-roots li`).forEach(li => li.classList.toggle('active', parseInt(li.dataset.oop) === oop));
+    const ibody = body.querySelector(`#${id}-ibody`);
+    ibody.innerHTML = '<span class="spinner"></span>';
+    body.querySelector(`#${id}-itabs`).style.display = 'none';
+    evalRes.textContent = '';
     try {
-      const d = await api(`/object/constants/${currentOop}`);
-      inspectorContent.innerHTML = '';
+      const d = await api(`/object/index/${oop}?depth=2`);
       if (!d.success) throw new Error(d.exception);
-      if (!d.constants.length) {
-        inspectorContent.innerHTML = '<p style="color:#6c7086;padding:12px">(no class-side constants)</p>';
-        return;
-      }
-      const tbl = document.createElement('table');
-      tbl.className = 'inst-vars';
-      tbl.innerHTML = '<thead><tr><th>Name</th><th>Value</th></tr></thead>';
-      const tbody = document.createElement('tbody');
-      for (const {key, value} of d.constants) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="col-key">${escHtml(key)}</td><td class="col-val">${escHtml(value)}</td>`;
-        tbody.appendChild(tr);
-      }
-      tbl.appendChild(tbody);
-      inspectorContent.appendChild(tbl);
-    } catch (e) {
-      inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:12px">Error: ${escHtml(e.message)}</p>`;
+      currentObjData = d.result;
+      body.querySelector(`#${id}-itabs`).style.display = 'flex';
+      showItab();
+    } catch(e) {
+      ibody.innerHTML = `<p style="color:#f38ba8;padding:10px">Error: ${escHtml(e.message)}</p>`;
     }
-    return;
   }
-  if (tab === 'hierarchy') {
-    inspectorContent.innerHTML = '<span class="spinner"></span>';
-    try {
-      const d = await api(`/object/hierarchy/${currentOop}`);
-      inspectorContent.innerHTML = '';
-      if (!d.success) throw new Error(d.exception);
-      const ul = document.createElement('ul');
-      ul.className = 'hierarchy-list';
-      for (const cls of d.hierarchy) {
-        const li = document.createElement('li');
-        li.textContent = cls;
-        ul.appendChild(li);
-      }
-      inspectorContent.appendChild(ul);
-    } catch (e) {
-      inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:12px">Error: ${escHtml(e.message)}</p>`;
-    }
-    return;
-  }
-  if (tab === 'instances') {
-    inspectorContent.innerHTML = '<span class="spinner"></span>';
-    try {
-      const d = await api(`/object/instances/${currentOop}`);
-      inspectorContent.innerHTML = '';
-      if (!d.success) throw new Error(d.exception);
-      if (!d.instances.length) {
-        inspectorContent.innerHTML = '<p style="color:#6c7086;padding:12px">(no instances found)</p>';
-        return;
-      }
-      const ul = document.createElement('ul');
-      ul.className = 'instances-list';
-      for (const inst of d.instances) {
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.className = 'link-oop';
-        a.textContent = inst.printString || `oop:${inst.oop}`;
-        a.addEventListener('click', () => {
-          history.push({label: inst.printString || `oop:${inst.oop}`, oop: inst.oop});
-          loadObject(inst.oop, inst.printString || `oop:${inst.oop}`);
-        });
-        li.appendChild(a);
-        ul.appendChild(li);
-      }
-      if (d.instances.length >= d.limit) {
-        const note = document.createElement('li');
-        note.style.cssText = 'color:#6c7086;font-size:11px;cursor:default';
-        note.textContent = `Showing first ${d.limit} instances`;
-        ul.appendChild(note);
-      }
-      inspectorContent.appendChild(ul);
-    } catch (e) {
-      inspectorContent.innerHTML = `<p style="color:#f38ba8;padding:12px">Error: ${escHtml(e.message)}</p>`;
-    }
-    return;
-  }
-}
 
-// ── render object card (instance variables view) ──────────────────────────────
-function makeValueCell(valView, label) {
-  const td = document.createElement('td');
-  td.className = 'col-val';
-  if (!valView) { td.textContent = 'nil'; return td; }
-  const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valView.basetype);
-  const text = valView.inspection || (valView.oop != null ? `oop:${valView.oop}` : 'nil');
-  if (!isLeaf && valView.oop != null) {
-    const a = document.createElement('a');
-    a.className = 'link-oop';
-    a.textContent = text;
-    a.addEventListener('click', () => {
-      history.push({label: label || text, oop: valView.oop});
-      loadObject(valView.oop, label || text);
+  function renderBc() {
+    const bc = body.querySelector(`#${id}-bc`);
+    bc.innerHTML = '';
+    history.forEach((item, i) => {
+      if (i > 0) { const s = document.createElement('span'); s.className = 'sep'; s.textContent = ' › '; bc.appendChild(s); }
+      const sp = document.createElement('span');
+      sp.className = 'crumb' + (i === history.length-1 ? ' cur' : '');
+      sp.textContent = item.label || `#${item.oop}`;
+      if (i < history.length-1) sp.addEventListener('click', () => { history = history.slice(0, i+1); loadObj(item.oop, item.label); });
+      bc.appendChild(sp);
     });
-    td.appendChild(a);
-  } else {
-    td.textContent = text;
-  }
-  return td;
-}
-
-function renderObjectCard(obj) {
-  const div = document.createElement('div');
-  div.style.padding = '10px 14px';
-
-  const card = document.createElement('div');
-  card.className = 'obj-card';
-
-  const hdr = document.createElement('div');
-  hdr.className = 'obj-card-header';
-
-  const bt = document.createElement('span');
-  bt.className = 'basetype';
-  bt.textContent = obj.basetype || 'object';
-
-  const classLink = document.createElement('span');
-  classLink.className = 'class-name';
-  const className = obj.classObject?.inspection || '';
-  classLink.textContent = className;
-  if (className && obj.classObject?.oop) {
-    classLink.title = 'Browse methods';
-    classLink.addEventListener('click', () => openMethodBrowser(obj.classObject.oop, className));
   }
 
-  const ins = document.createElement('span');
-  ins.className = 'inspection';
-  ins.textContent = obj.inspection || '';
-
-  const oopSpan = document.createElement('span');
-  oopSpan.className = 'oop';
-  oopSpan.textContent = `oop: ${obj.oop}`;
-
-  hdr.append(bt, classLink, ins, oopSpan);
-  card.appendChild(hdr);
-
-  const entries = obj.instVars || {};
-  const entryKeys = Object.keys(entries);
-  const isDictLike = obj.basetype === 'hash';
-  const isArrayLike = obj.basetype === 'array';
-
-  if (obj.loaded && entryKeys.length > 0) {
-    const tbl = document.createElement('table');
-    tbl.className = 'inst-vars';
-    if (isDictLike) {
-      tbl.innerHTML = '<thead><tr><th>Key</th><th>Value</th></tr></thead>';
-    } else if (isArrayLike) {
-      tbl.innerHTML = '<thead><tr><th>#</th><th>Value</th></tr></thead>';
-    } else {
-      tbl.innerHTML = '<thead><tr><th>Variable</th><th>Value</th></tr></thead>';
-    }
-    const tbody = document.createElement('tbody');
-
-    for (const [idx, pair] of Object.entries(entries)) {
-      const [nameOrKeyView, valView] = pair;
-      const tr = document.createElement('tr');
-
-      const tdKey = document.createElement('td');
-      tdKey.className = 'col-key';
-      const keyText = nameOrKeyView.inspection || `@${idx}`;
-      const keyIsLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(nameOrKeyView.basetype);
-      if (isDictLike && nameOrKeyView.oop != null && !keyIsLeaf) {
-        const a = document.createElement('a');
-        a.className = 'link-oop';
-        a.textContent = keyText;
-        a.addEventListener('click', () => {
-          history.push({label: keyText, oop: nameOrKeyView.oop});
-          loadObject(nameOrKeyView.oop, keyText);
-        });
-        tdKey.appendChild(a);
-      } else {
-        tdKey.textContent = keyText;
-      }
-
-      const tdVal = makeValueCell(valView, keyText);
-      tr.append(tdKey, tdVal);
-      tbody.appendChild(tr);
-    }
-    tbl.appendChild(tbody);
-    card.appendChild(tbl);
-
-    if (obj.instVarsSize > entryKeys.length) {
-      const moreDiv = document.createElement('div');
-      moreDiv.className = 'more-row';
-      moreDiv.textContent = `Showing ${entryKeys.length} of ${obj.instVarsSize} entries`;
-      card.appendChild(moreDiv);
-    }
-  } else if (obj.loaded && obj.basetype === 'object') {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'padding:6px 8px;color:#6c7086;font-size:11px';
-    empty.textContent = '(no named instance variables)';
-    card.appendChild(empty);
-  }
-
-  div.appendChild(card);
-
-  if (obj.classObject?.oop) {
-    const classRow = document.createElement('div');
-    classRow.style.cssText = 'margin:0 0 8px 4px;font-size:11px;display:flex;gap:6px;align-items:center';
-
-    const lbl = document.createElement('span');
-    lbl.style.color = '#6c7086';
-    lbl.textContent = 'Class:';
-
-    const aClass = document.createElement('a');
-    aClass.className = 'link-oop';
-    aClass.textContent = obj.classObject.inspection || `oop:${obj.classObject.oop}`;
-    aClass.title = 'Navigate to class object';
-    aClass.addEventListener('click', () => {
-      const lbl2 = obj.classObject.inspection || 'class';
-      history.push({label: lbl2, oop: obj.classObject.oop});
-      loadObject(obj.classObject.oop, lbl2);
-    });
-
-    const aMethods = document.createElement('a');
-    aMethods.className = 'link-oop';
-    aMethods.style.color = '#cba6f7';
-    aMethods.textContent = 'Browse methods ›';
-    aMethods.addEventListener('click', () => openMethodBrowser(obj.classObject.oop, obj.classObject.inspection || 'class'));
-
-    classRow.append(lbl, aClass, aMethods);
-    div.appendChild(classRow);
-  }
-
-  return div;
-}
-
-// ── method browser ────────────────────────────────────────────────────────────
-async function openMethodBrowser(classOop, className) {
-  methodBrowser.classList.remove('hidden');
-  $('method-browser-class').textContent = className + ' methods';
-  $('method-categories').innerHTML = '<div class="method-cat" style="color:#6c7086"><span class="spinner"></span></div>';
-  $('method-selectors').innerHTML = '';
-  $('method-source-code').value = '';
-  mbData = {}; mbCat = null; mbSel = null; mbClassOop = classOop;
-
-  try {
-    const d = await api(`/code/selectors/${classOop}`);
-    if (!d.success) throw new Error(d.exception);
-    mbData = d.result || {};
-    renderMethodCategories();
-  } catch (e) {
-    $('method-categories').innerHTML = `<div class="method-cat" style="color:#f38ba8">${escHtml(e.message)}</div>`;
-  }
-}
-
-function renderMethodCategories() {
-  const cats = Object.keys(mbData).sort();
-  const div = $('method-categories');
-  div.innerHTML = '';
-  for (const cat of cats) {
-    const el = document.createElement('div');
-    el.className = 'method-cat';
-    el.textContent = cat || '(uncategorized)';
-    el.title = `${(mbData[cat] || []).length} methods`;
-    el.addEventListener('click', () => {
-      div.querySelectorAll('.method-cat').forEach(e => e.classList.remove('active'));
-      el.classList.add('active');
-      mbCat = cat;
-      renderMethodSelectors(cat);
-    });
-    div.appendChild(el);
-  }
-  if (cats.length > 0) div.querySelector('.method-cat')?.click();
-}
-
-function renderMethodSelectors(cat) {
-  const sels = (mbData[cat] || []).slice().sort();
-  const div = $('method-selectors');
-  div.innerHTML = '';
-  for (const sel of sels) {
-    const el = document.createElement('div');
-    el.className = 'method-sel';
-    el.textContent = sel;
-    el.addEventListener('click', async () => {
-      div.querySelectorAll('.method-sel').forEach(e => e.classList.remove('active'));
-      el.classList.add('active');
-      mbSel = sel;
-      $('method-source-code').value = 'Loading…';
+  async function showItab() {
+    const ibody = body.querySelector(`#${id}-ibody`);
+    if (!currentObjData) return;
+    const obj = currentObjData;
+    ibody.innerHTML = '';
+    if (currentItab === 'instvars') { ibody.appendChild(renderCard(obj)); return; }
+    if (currentItab === 'constants') {
+      ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await api(`/code/code/${mbClassOop}?selector=${encodeURIComponent(sel)}`);
-        $('method-source-code').value = d.success ? (d.result || '') : ('Error: ' + d.exception);
-      } catch (err) {
-        $('method-source-code').value = 'Error: ' + err.message;
-      }
-    });
-    div.appendChild(el);
-  }
-}
-
-$('method-browser-close').addEventListener('click', () => {
-  methodBrowser.classList.add('hidden');
-});
-
-// ── evaluation (object browser) ───────────────────────────────────────────────
-evalBtn.addEventListener('click', doEval);
-evalCode.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') doEval(); });
-
-async function doEval() {
-  if (!currentOop) return;
-  const code = evalCode.value.trim();
-  if (!code) return;
-
-  evalResult.textContent = '';
-  evalResult.className = '';
-  evalResultCard.innerHTML = '';
-  const spinner = document.createElement('span');
-  spinner.className = 'spinner';
-  evalResult.appendChild(spinner);
-
-  try {
-    const lang = evalLang.value;
-    const url = `/object/evaluate/${currentOop}?code=${encodeURIComponent(code)}&language=${lang}&depth=2`;
-    const data = await api(url);
-    evalResult.innerHTML = '';
-    if (!data.success) {
-      evalResult.className = 'error';
-      evalResult.textContent = 'Error: ' + (data.exception || 'unknown');
+        const d = await api(`/object/constants/${currentOop}`);
+        ibody.innerHTML = '';
+        if (!d.success) throw new Error(d.exception);
+        if (!d.constants.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no constants)</p>'; return; }
+        ibody.appendChild(makeTable(['Name','Value'], d.constants.map(c => [c.key, c.value])));
+      } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
       return;
     }
-    const [isExc, resView] = data.result;
-    if (isExc) {
-      evalResult.className = 'error';
-      evalResult.textContent = '⚑ ' + (resView.inspection || 'Exception');
-    } else {
-      const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(resView.basetype);
-      evalResult.textContent = resView.inspection || 'nil';
-      if (!isLeaf && resView.oop) {
-        const navBtn = document.createElement('a');
-        navBtn.className = 'link-oop';
-        navBtn.style.cssText = 'margin-left:10px;font-size:11px';
-        navBtn.textContent = 'Navigate →';
-        navBtn.addEventListener('click', () => {
-          const lbl = resView.inspection || 'result';
-          history.push({label: lbl, oop: resView.oop});
-          loadObject(resView.oop, lbl);
-        });
-        evalResult.appendChild(navBtn);
-      }
-    }
-  } catch (e) {
-    evalResult.innerHTML = '';
-    evalResult.className = 'error';
-    evalResult.textContent = 'Error: ' + e.message;
-  }
-}
-
-// ── transaction (object browser) ──────────────────────────────────────────────
-$('tx-commit-btn').addEventListener('click', async () => {
-  try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
-  catch (e) { setStatus(false, 'commit failed: ' + e.message); }
-});
-$('tx-abort-btn').addEventListener('click', async () => {
-  try {
-    const d = await api('/transaction/abort');
-    setStatus(d.success, d.success ? 'aborted' : 'abort failed: ' + d.exception);
-    if (d.success && currentOop) loadObject(currentOop, history[history.length-1]?.label);
-  } catch (e) { setStatus(false, 'abort failed: ' + e.message); }
-});
-
-// ── workspace ─────────────────────────────────────────────────────────────────
-const wsHistory = $('ws-history');
-const wsCodeArea = $('ws-code-area');
-
-$('ws-eval-btn').addEventListener('click', wsDoIt);
-$('ws-clear-btn').addEventListener('click', () => { wsHistory.innerHTML = ''; });
-wsCodeArea.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') wsDoIt(); });
-
-async function wsDoIt() {
-  const code = wsCodeArea.value.trim();
-  if (!code) return;
-
-  const entry = document.createElement('div');
-  entry.className = 'ws-entry';
-
-  const codeEl = document.createElement('div');
-  codeEl.className = 'ws-code';
-  codeEl.textContent = code;
-  entry.appendChild(codeEl);
-
-  const resultEl = document.createElement('div');
-  resultEl.className = 'ws-result';
-  resultEl.textContent = '…';
-  entry.appendChild(resultEl);
-  wsHistory.appendChild(entry);
-  wsHistory.scrollTop = wsHistory.scrollHeight;
-
-  // evaluate in Globals context (use System oop if available, else use /object/evaluate with Globals)
-  const globalsOop = roots['Globals'] || roots['UserGlobals'];
-  if (!globalsOop) {
-    resultEl.className = 'ws-result error';
-    resultEl.textContent = 'Not connected';
-    return;
-  }
-
-  try {
-    const url = `/object/evaluate/${globalsOop}?code=${encodeURIComponent(code)}&language=smalltalk&depth=1`;
-    const data = await api(url);
-    if (!data.success) {
-      resultEl.className = 'ws-result error';
-      resultEl.textContent = 'Error: ' + (data.exception || 'unknown');
+    if (currentItab === 'hierarchy') {
+      ibody.innerHTML = '<span class="spinner"></span>';
+      try {
+        const d = await api(`/object/hierarchy/${currentOop}`);
+        ibody.innerHTML = '';
+        if (!d.success) throw new Error(d.exception);
+        const ul = document.createElement('ul'); ul.className = 'hierarchy-list';
+        d.hierarchy.forEach(c => { const li = document.createElement('li'); li.textContent = c; ul.appendChild(li); });
+        ibody.appendChild(ul);
+      } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
       return;
     }
-    const [isExc, resView] = data.result;
-    if (isExc) {
-      resultEl.className = 'ws-result error';
-      resultEl.textContent = '⚑ ' + (resView.inspection || 'Exception');
-    } else {
-      const text = resView.inspection || 'nil';
-      resultEl.textContent = '=> ' + text;
-      const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(resView.basetype);
-      if (!isLeaf && resView.oop) {
-        const nav = document.createElement('span');
-        nav.className = 'ws-nav';
-        nav.textContent = 'navigate →';
-        nav.addEventListener('click', () => {
-          document.querySelector('.nav-tab[data-tab="object"]').click();
-          history = [{label: text, oop: resView.oop}];
-          loadObject(resView.oop, text);
+    if (currentItab === 'instances') {
+      ibody.innerHTML = '<span class="spinner"></span>';
+      try {
+        const d = await api(`/object/instances/${currentOop}`);
+        ibody.innerHTML = '';
+        if (!d.success) throw new Error(d.exception);
+        if (!d.instances.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no instances)</p>'; return; }
+        const ul = document.createElement('ul'); ul.className = 'instances-list';
+        d.instances.forEach(inst => {
+          const li = document.createElement('li');
+          const a = document.createElement('a'); a.className = 'link-oop'; a.textContent = inst.printString || `oop:${inst.oop}`;
+          a.addEventListener('click', () => { history.push({label: inst.printString || `oop:${inst.oop}`, oop: inst.oop}); loadObj(inst.oop, inst.printString); });
+          li.appendChild(a); ul.appendChild(li);
         });
-        resultEl.appendChild(nav);
+        if (d.instances.length >= d.limit) { const li = document.createElement('li'); li.style.color='#6c7086'; li.textContent=`First ${d.limit} shown`; ul.appendChild(li); }
+        ibody.appendChild(ul);
+      } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
+      return;
+    }
+  }
+
+  function renderCard(obj) {
+    const wrap = document.createElement('div');
+    const card = document.createElement('div'); card.className = 'obj-card';
+    const hdr  = document.createElement('div'); hdr.className = 'obj-card-hdr';
+
+    const bt = document.createElement('span'); bt.className = 'basetype'; bt.textContent = obj.basetype || 'object';
+    const cn = document.createElement('span'); cn.className = 'class-name';
+    const cname = obj.classObject?.inspection || '';
+    cn.textContent = cname;
+    if (cname && obj.classObject?.oop) { cn.title='Browse methods'; cn.addEventListener('click', () => openMB(obj.classObject.oop, cname)); }
+    const ins = document.createElement('span'); ins.className = 'inspection'; ins.textContent = obj.inspection || '';
+    const oopSp = document.createElement('span'); oopSp.className = 'oop'; oopSp.textContent = `oop:${obj.oop}`;
+    hdr.append(bt, cn, ins, oopSp);
+    card.appendChild(hdr);
+
+    const entries = obj.instVars || {};
+    const keys = Object.keys(entries);
+    const isDictLike = obj.basetype === 'hash', isArr = obj.basetype === 'array';
+    if (obj.loaded && keys.length) {
+      const tbl = document.createElement('table'); tbl.className = 'dbtable';
+      tbl.innerHTML = `<thead><tr><th>${isDictLike?'Key':isArr?'#':'Variable'}</th><th>Value</th></tr></thead>`;
+      const tbody = document.createElement('tbody');
+      for (const [idx, [nameV, valV]] of Object.entries(entries)) {
+        const tr = document.createElement('tr');
+        const tdK = document.createElement('td'); tdK.className = 'col-key';
+        const ktext = nameV.inspection || `@${idx}`;
+        const kLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(nameV.basetype);
+        if (isDictLike && nameV.oop != null && !kLeaf) {
+          const a = document.createElement('a'); a.className='link-oop'; a.textContent=ktext;
+          a.addEventListener('click', () => { history.push({label:ktext, oop:nameV.oop}); loadObj(nameV.oop, ktext); });
+          tdK.appendChild(a);
+        } else { tdK.textContent = ktext; }
+        const tdV = makeValCell(valV, ktext);
+        tr.append(tdK, tdV); tbody.appendChild(tr);
+      }
+      tbl.appendChild(tbody); card.appendChild(tbl);
+      if (obj.instVarsSize > keys.length) {
+        const m = document.createElement('div'); m.className = 'more-row';
+        m.textContent = `${keys.length} of ${obj.instVarsSize} entries`; card.appendChild(m);
       }
     }
-  } catch (e) {
-    resultEl.className = 'ws-result error';
-    resultEl.textContent = 'Error: ' + e.message;
+    wrap.appendChild(card);
+
+    // class row below card
+    if (obj.classObject?.oop) {
+      const cr = document.createElement('div'); cr.className = 'class-row';
+      const lbl = document.createElement('span'); lbl.textContent = 'Class:';
+      const aC = document.createElement('a'); aC.className='link-oop'; aC.textContent = obj.classObject.inspection || `oop:${obj.classObject.oop}`;
+      aC.addEventListener('click', () => { const l2=obj.classObject.inspection||'class'; history.push({label:l2,oop:obj.classObject.oop}); loadObj(obj.classObject.oop,l2); });
+      const aM = document.createElement('a'); aM.className='link-oop'; aM.style.color='#cba6f7'; aM.textContent='Browse methods ›';
+      aM.addEventListener('click', () => openMB(obj.classObject.oop, obj.classObject.inspection||'class'));
+      cr.append(lbl, aC, aM); wrap.appendChild(cr);
+    }
+    return wrap;
   }
-  wsHistory.scrollTop = wsHistory.scrollHeight;
+
+  function makeValCell(valV, label) {
+    const td = document.createElement('td'); td.className = 'col-val';
+    if (!valV) { td.textContent = 'nil'; return td; }
+    const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valV.basetype);
+    const text = valV.inspection || (valV.oop != null ? `oop:${valV.oop}` : 'nil');
+    if (!isLeaf && valV.oop != null) {
+      const a = document.createElement('a'); a.className='link-oop'; a.textContent=text;
+      a.addEventListener('click', () => { history.push({label:label||text, oop:valV.oop}); loadObj(valV.oop, label||text); });
+      td.appendChild(a);
+    } else { td.textContent = text; }
+    return td;
+  }
+
+  async function openMB(classOop, className) {
+    const mb = body.querySelector(`#${id}-mb`);
+    mb.classList.remove('hidden');
+    body.querySelector(`#${id}-mb-class`).textContent = className + ' methods';
+    const catsEl = body.querySelector(`#${id}-mb-cats`);
+    const selsEl = body.querySelector(`#${id}-mb-sels`);
+    const srcEl  = body.querySelector(`#${id}-mb-src`);
+    catsEl.innerHTML = '<div class="mb-cat" style="color:#6c7086"><span class="spinner"></span></div>';
+    selsEl.innerHTML = ''; srcEl.value = ''; mbClassOop = classOop;
+    try {
+      const d = await api(`/code/selectors/${classOop}`);
+      if (!d.success) throw new Error(d.exception);
+      mbData = d.result || {};
+      const cats = Object.keys(mbData).sort();
+      catsEl.innerHTML = '';
+      cats.forEach(cat => {
+        const el = document.createElement('div'); el.className = 'mb-cat'; el.textContent = cat || '(uncategorized)';
+        el.addEventListener('click', () => {
+          catsEl.querySelectorAll('.mb-cat').forEach(e => e.classList.remove('active'));
+          el.classList.add('active');
+          const sels = (mbData[cat]||[]).slice().sort();
+          selsEl.innerHTML = '';
+          sels.forEach(sel => {
+            const s = document.createElement('div'); s.className='mb-sel'; s.textContent=sel;
+            s.addEventListener('click', async () => {
+              selsEl.querySelectorAll('.mb-sel').forEach(e => e.classList.remove('active'));
+              s.classList.add('active'); srcEl.value = 'Loading…';
+              try { const sd = await api(`/code/code/${mbClassOop}?selector=${encodeURIComponent(sel)}`); srcEl.value = sd.success ? (sd.result||'') : 'Error: '+sd.exception; }
+              catch(err) { srcEl.value = 'Error: '+err.message; }
+            });
+            selsEl.appendChild(s);
+          });
+        });
+        catsEl.appendChild(el);
+      });
+      if (cats.length) catsEl.querySelector('.mb-cat')?.click();
+    } catch(e) { catsEl.innerHTML = `<div class="mb-cat" style="color:#f38ba8">${escHtml(e.message)}</div>`; }
+  }
+
+  async function doEval() {
+    if (!currentOop) return;
+    const code = evalCode.value.trim(); if (!code) return;
+    evalRes.textContent = ''; evalRes.className = 'eval-result';
+    const sp = document.createElement('span'); sp.className='spinner'; evalRes.appendChild(sp);
+    try {
+      const d = await api(`/object/evaluate/${currentOop}?code=${encodeURIComponent(code)}&language=smalltalk&depth=2`);
+      evalRes.innerHTML = '';
+      if (!d.success) { evalRes.className='eval-result error'; evalRes.textContent='Error: '+d.exception; return; }
+      const [isExc, rv] = d.result;
+      if (isExc) { evalRes.className='eval-result error'; evalRes.textContent='⚑ '+(rv.inspection||'Exception'); }
+      else {
+        evalRes.textContent = rv.inspection || 'nil';
+        const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(rv.basetype);
+        if (!isLeaf && rv.oop) {
+          const nav = document.createElement('a'); nav.className='link-oop'; nav.style.marginLeft='8px'; nav.textContent='Navigate →';
+          nav.addEventListener('click', () => { const l=rv.inspection||'result'; history.push({label:l,oop:rv.oop}); loadObj(rv.oop,l); });
+          evalRes.appendChild(nav);
+        }
+      }
+    } catch(e) { evalRes.innerHTML=''; evalRes.className='eval-result error'; evalRes.textContent='Error: '+e.message; }
+  }
+
+  if (initialOop) { history = [{label: initialLabel||'object', oop: initialOop}]; loadObj(initialOop, initialLabel||'object'); }
 }
 
-$('ws-commit-btn').addEventListener('click', async () => {
-  try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
-  catch (e) { setStatus(false, 'commit failed: ' + e.message); }
-});
-$('ws-abort-btn').addEventListener('click', async () => {
-  try { const d = await api('/transaction/abort'); setStatus(d.success, d.success ? 'aborted' : 'abort failed: ' + d.exception); }
-  catch (e) { setStatus(false, 'abort failed: ' + e.message); }
-});
-
-// ── utils ─────────────────────────────────────────────────────────────────────
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ── tab switching ─────────────────────────────────────────────────────────────
-document.querySelectorAll('.nav-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const name = tab.dataset.tab;
-    $('object-tab').style.display    = name === 'object'    ? 'flex' : 'none';
-    $('workspace-tab').style.display  = name === 'workspace' ? 'flex' : 'none';
-    $('symlist-tab').style.display    = name === 'symlist'   ? 'flex' : 'none';
-    $('sidebar').style.display        = name === 'object'    ? 'flex' : 'none';
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKSPACE WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openWorkspace() {
+  const {win, body, id} = createWindow({title:'Workspace', width:500, height:420, taskbarLabel:'Workspace'});
+  body.innerHTML = `
+    <div class="ws-history" id="${id}-wsh"></div>
+    <div class="ws-input-row">
+      <textarea class="ws-code-area" id="${id}-wsc" placeholder="Smalltalk expression… (Ctrl+Enter)"></textarea>
+      <div class="ws-controls">
+        <button class="btn" id="${id}-doit">Do it</button>
+        <button class="btn-ghost" id="${id}-clr">Clear</button>
+        <span class="ws-hint">Ctrl+Enter</span>
+      </div>
+    </div>
+    <div class="txbar">
+      <span>Transaction:</span>
+      <button class="btn-tx" id="${id}-abort">Abort Transaction</button>
+      <button class="btn-tx" id="${id}-commit">Commit Transaction</button>
+    </div>
+  `;
+  const wsh = body.querySelector(`#${id}-wsh`);
+  const wsc = body.querySelector(`#${id}-wsc`);
+  body.querySelector(`#${id}-doit`).addEventListener('click', wsDoIt);
+  body.querySelector(`#${id}-clr`).addEventListener('click', () => { wsh.innerHTML = ''; });
+  wsc.addEventListener('keydown', e => { if (e.ctrlKey && e.key==='Enter') wsDoIt(); });
+  body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
+    try { const d=await api('/transaction/abort'); setStatus(d.success, d.success?'aborted':d.exception); } catch(e){setStatus(false,e.message);}
   });
-});
+  body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
+    try { const d=await api('/transaction/commit'); setStatus(d.success, d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
+  });
+
+  async function wsDoIt() {
+    const code = wsc.value.trim(); if (!code) return;
+    const entry = document.createElement('div'); entry.className='ws-entry';
+    const codeEl = document.createElement('div'); codeEl.className='ws-code'; codeEl.textContent=code;
+    const resEl  = document.createElement('div'); resEl.className='ws-result'; resEl.textContent='…';
+    entry.append(codeEl, resEl); wsh.appendChild(entry); wsh.scrollTop=wsh.scrollHeight;
+    const globOop = roots['Globals'] || roots['UserGlobals'];
+    if (!globOop) { resEl.className='ws-result error'; resEl.textContent='Not connected'; return; }
+    try {
+      const d = await api(`/object/evaluate/${globOop}?code=${encodeURIComponent(code)}&language=smalltalk&depth=1`);
+      if (!d.success) { resEl.className='ws-result error'; resEl.textContent='Error: '+d.exception; return; }
+      const [isExc, rv] = d.result;
+      if (isExc) { resEl.className='ws-result error'; resEl.textContent='⚑ '+(rv.inspection||'Exception'); }
+      else {
+        resEl.textContent = '=> ' + (rv.inspection||'nil');
+        const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(rv.basetype);
+        if (!isLeaf && rv.oop) {
+          const nav = document.createElement('span'); nav.className='ws-nav'; nav.textContent='navigate →';
+          nav.addEventListener('click', () => openObjectBrowser(rv.oop, rv.inspection||'result'));
+          resEl.appendChild(nav);
+        }
+      }
+    } catch(e) { resEl.className='ws-result error'; resEl.textContent='Error: '+e.message; }
+    wsh.scrollTop=wsh.scrollHeight;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEBUGGER WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openDebugger(threadOop, threadName) {
+  const {win, body, id} = createWindow({
+    title: 'Debugger — ' + (threadName||'').slice(0,40),
+    width: 640, height: 580, taskbarLabel: 'Debugger'
+  });
+
+  let currentFrameIdx = 0;
+  let frames = [];
+
+  body.innerHTML = `
+    <div class="tab-strip">
+      <div class="tab-item active" data-dtab="stack">Stack Trace</div>
+      <div class="tab-item" data-dtab="tls">Thread Local Storage</div>
+    </div>
+    <div id="${id}-stack" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+      <div class="dbg-frames-pane" id="${id}-frames">
+        <span class="spinner" style="margin:8px"></span>
+      </div>
+      <div class="dbg-action-bar">
+        <button class="btn-dbg" id="${id}-proceed">Proceed</button>
+        <button class="btn-dbg" id="${id}-stepinto">Step into</button>
+        <button class="btn-dbg" id="${id}-stepover">Step over</button>
+        <button class="btn-dbg" id="${id}-trim">Trim stack</button>
+      </div>
+      <div class="dbg-source-pane" id="${id}-srcp">
+        <textarea id="${id}-src" readonly placeholder="Select a frame…"></textarea>
+        <div class="dbg-var-row">
+          <select id="${id}-vars"><option value="">— variables —</option></select>
+          <span class="dbg-var-val" id="${id}-varval"></span>
+        </div>
+      </div>
+    </div>
+    <div id="${id}-tls" style="display:none;flex:1;overflow-y:auto;padding:6px">
+      <span class="spinner" id="${id}-tls-spin"></span>
+      <ul class="dbg-tls-list" id="${id}-tls-list"></ul>
+    </div>
+  `;
+
+  // tab switching
+  body.querySelector('.tab-strip').addEventListener('click', e => {
+    const tab = e.target.closest('.tab-item'); if (!tab) return;
+    body.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active')); tab.classList.add('active');
+    const name = tab.dataset.dtab;
+    body.querySelector(`#${id}-stack`).style.display = name==='stack' ? 'flex' : 'none';
+    body.querySelector(`#${id}-tls`).style.display   = name==='tls'   ? 'block' : 'none';
+    if (name==='tls') loadTLS();
+  });
+
+  // actions
+  body.querySelector(`#${id}-proceed`).addEventListener('click', async () => {
+    try { await apiPost(`/debug/proceed/${threadOop}`, {}); setStatus(true,'resumed'); closeWindow(win, id); } catch(e){setStatus(false,e.message);}
+  });
+  body.querySelector(`#${id}-stepinto`).addEventListener('click', async () => {
+    try { await apiPost(`/debug/step-into/${threadOop}`, {}); loadFrames(); } catch(e){setStatus(false,e.message);}
+  });
+  body.querySelector(`#${id}-stepover`).addEventListener('click', async () => {
+    try { await apiPost(`/debug/step-over/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
+  });
+  body.querySelector(`#${id}-trim`).addEventListener('click', async () => {
+    try { await apiPost(`/debug/trim/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
+  });
+
+  // variable selector
+  body.querySelector(`#${id}-vars`).addEventListener('change', e => {
+    const sel = e.target; if (!sel.value) return;
+    const opt = sel.options[sel.selectedIndex];
+    body.querySelector(`#${id}-varval`).textContent = opt.dataset.val || '';
+  });
+
+  async function loadFrames() {
+    const framesEl = body.querySelector(`#${id}-frames`);
+    framesEl.innerHTML = '<span class="spinner" style="margin:8px"></span>';
+    try {
+      const d = await api(`/debug/frames/${threadOop}`);
+      if (!d.success) throw new Error(d.exception);
+      frames = d.frames;
+      framesEl.innerHTML = '';
+      frames.forEach(f => {
+        const el = document.createElement('div'); el.className='dbg-frame-item';
+        el.textContent = f.name; el.dataset.idx = f.index;
+        el.addEventListener('click', () => selectFrame(f.index, el));
+        framesEl.appendChild(el);
+      });
+      if (frames.length) selectFrame(0, framesEl.querySelector('.dbg-frame-item'));
+    } catch(e) { framesEl.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
+  }
+
+  async function selectFrame(idx, el) {
+    currentFrameIdx = idx;
+    body.querySelectorAll('.dbg-frame-item').forEach(e=>e.classList.remove('active'));
+    if (el) el.classList.add('active');
+    const srcEl = body.querySelector(`#${id}-src`);
+    const varsEl = body.querySelector(`#${id}-vars`);
+    const varvalEl = body.querySelector(`#${id}-varval`);
+    srcEl.value = 'Loading…';
+    varsEl.innerHTML = '<option value="">— variables —</option>';
+    varvalEl.textContent = '';
+    try {
+      const d = await api(`/debug/frame/${threadOop}?index=${idx}`);
+      if (!d.success) throw new Error(d.exception);
+      srcEl.value = d.source || '(no source)';
+      if (d.variables && d.variables.length) {
+        d.variables.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.name; opt.textContent = v.name; opt.dataset.val = v.value;
+          varsEl.appendChild(opt);
+        });
+      }
+    } catch(e) { srcEl.value = 'Error: ' + e.message; }
+  }
+
+  async function loadTLS() {
+    const spin = body.querySelector(`#${id}-tls-spin`);
+    const lst  = body.querySelector(`#${id}-tls-list`);
+    spin.style.display='inline-block'; lst.innerHTML = '';
+    try {
+      const d = await api(`/debug/thread-local/${threadOop}`);
+      spin.style.display='none';
+      if (!d.success) throw new Error(d.exception);
+      if (!d.entries.length) { lst.innerHTML='<li style="color:#6c7086">(empty)</li>'; return; }
+      d.entries.forEach(e => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${escHtml(e.key)}</span><span>${escHtml(e.value)}</span>`;
+        lst.appendChild(li);
+      });
+    } catch(e) { spin.style.display='none'; lst.innerHTML=`<li style="color:#f38ba8">${escHtml(e.message)}</li>`; }
+  }
+
+  loadFrames();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYMBOL LIST WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openSymbolList() {
+  const {win, body, id} = createWindow({title:'Symbol List Browser', width:620, height:500, taskbarLabel:'Symbol List'});
+
+  let slUser=null, slDict=null, slKey=null, slKeyOop=null;
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid #313244;flex-shrink:0;background:#1e1e2e">
+      <label style="font-size:11px;white-space:nowrap">Symbol List for</label>
+      <select id="${id}-user" style="flex:1;background:#24273a;color:#cdd6f4;border:1px solid #45475a;border-radius:3px;padding:3px 6px;font-size:12px">
+        <option>— loading —</option>
+      </select>
+    </div>
+    <div class="sl-two-col" style="height:200px;border-bottom:1px solid #313244;flex-shrink:0">
+      <div class="sl-col" style="width:200px;border-right:1px solid #313244">
+        <div class="sl-col-header">
+          <span class="sl-col-label">Dictionaries</span>
+          <button class="sl-add-btn" id="${id}-add-dict">+</button>
+        </div>
+        <ul class="sl-list" id="${id}-dicts"></ul>
+      </div>
+      <div class="sl-col" style="flex:1">
+        <div class="sl-col-header">
+          <span class="sl-col-label">Entries</span>
+          <button class="sl-add-btn" id="${id}-add-entry">+</button>
+        </div>
+        <ul class="sl-list" id="${id}-entries"></ul>
+      </div>
+    </div>
+    <div class="sl-sel-row">
+      <span class="sl-sel-label">Selection</span>
+      <span class="sl-sel-val" id="${id}-selval"></span>
+      <button class="btn-ghost hidden" id="${id}-inspect" style="margin-left:auto;font-size:10px">Inspect ›</button>
+    </div>
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#6c7086;padding:4px 8px 2px;background:#1e1e2e">Keys / Values</div>
+    <div style="flex:1;overflow-y:auto">
+      <table class="dbtable" style="width:100%">
+        <thead><tr><th>Key</th><th>Value</th></tr></thead>
+        <tbody id="${id}-kv"></tbody>
+      </table>
+    </div>
+    <div class="sl-preview">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#6c7086;padding:4px 8px 2px;background:#1e1e2e">PrintString</div>
+      <div class="sl-printstring" id="${id}-ps"></div>
+    </div>
+    <div class="txbar">
+      <span>Transaction:</span>
+      <button class="btn-tx" id="${id}-abort">Abort Transaction</button>
+      <button class="btn-tx" id="${id}-commit">Commit Transaction</button>
+    </div>
+  `;
+
+  body.querySelector(`#${id}-inspect`).addEventListener('click', () => {
+    if (!slKeyOop) return;
+    openObjectBrowser(slKeyOop, slKey||'object');
+  });
+  body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
+    try { const d=await api('/transaction/abort'); setStatus(d.success,d.success?'aborted':d.exception); if (d.success&&slUser) loadDicts(slUser); } catch(e){setStatus(false,e.message);}
+  });
+  body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
+    try { const d=await api('/transaction/commit'); setStatus(d.success,d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
+  });
+  body.querySelector(`#${id}-add-dict`).addEventListener('click', () => {
+    if (!slUser){setStatus(false,'Select a user first');return;}
+    openModal('Add Dictionary',[{label:'Name',id:'m-dn',type:'input',placeholder:'MyDictionary'}], async f => {
+      const name=f['m-dn'].trim(); if(!name)return;
+      const r=await apiPost('/symbol-list/add-dictionary',{user:slUser,name}); if(!r.success)throw new Error(r.exception);
+      await loadDicts(slUser);
+    });
+  });
+  body.querySelector(`#${id}-add-entry`).addEventListener('click', () => {
+    if (!slUser||!slDict){setStatus(false,'Select a dictionary first');return;}
+    openModal('Add Entry',[
+      {label:'Key',id:'m-ek',type:'input',placeholder:'myKey'},
+      {label:'Value (Smalltalk)',id:'m-ev',type:'textarea',placeholder:'nil'},
+    ], async f => {
+      const key=f['m-ek'].trim(); const val=f['m-ev'].trim()||'nil'; if(!key)return;
+      const r=await apiPost('/symbol-list/add-entry',{user:slUser,dictionary:slDict,key,value:val}); if(!r.success)throw new Error(r.exception);
+      await loadEntries(slUser,slDict);
+    });
+  });
+  body.querySelector(`#${id}-user`).addEventListener('change', async () => {
+    slUser=body.querySelector(`#${id}-user`).value; slDict=slKey=slKeyOop=null;
+    body.querySelector(`#${id}-dicts`).innerHTML=''; body.querySelector(`#${id}-entries`).innerHTML=''; clearKV();
+    if (slUser) await loadDicts(slUser);
+  });
+
+  async function loadUsers() {
+    const sel=body.querySelector(`#${id}-user`);
+    sel.innerHTML='<option>— loading —</option>';
+    try {
+      const d=await api('/symbol-list/users'); if(!d.success)throw new Error(d.exception);
+      sel.innerHTML='';
+      for(const u of d.users){const o=document.createElement('option');o.value=o.textContent=u;sel.appendChild(o);}
+      if(d.users.length){const pref='DataCurator'; slUser=d.users.includes(pref)?pref:d.users[0]; sel.value=slUser; await loadDicts(slUser);}
+    } catch(e){sel.innerHTML=`<option>${escHtml(e.message)}</option>`;}
+  }
+
+  async function loadDicts(user) {
+    const ul=body.querySelector(`#${id}-dicts`);
+    ul.innerHTML='<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
+    try {
+      const d=await api(`/symbol-list/dictionaries/${encodeURIComponent(user)}`); if(!d.success)throw new Error(d.exception);
+      ul.innerHTML=''; let first=null;
+      for(const name of d.dictionaries){const li=makeDictItem(name);ul.appendChild(li);if(!first)first={li,name};}
+      if(first)selectDict(first.name,first.li);
+    } catch(e){ul.innerHTML=`<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;}
+  }
+
+  function makeDictItem(name) {
+    const li=document.createElement('li');
+    const sp=document.createElement('span');sp.className='sl-name';sp.textContent=name;
+    const del=document.createElement('button');del.className='sl-del';del.textContent='✕';
+    del.addEventListener('click',async e=>{
+      e.stopPropagation(); if(!confirm(`Remove "${name}"?`))return;
+      try{const r=await apiPost('/symbol-list/remove-dictionary',{user:slUser,name});if(!r.success)throw new Error(r.exception);li.remove();if(slDict===name){slDict=null;body.querySelector(`#${id}-entries`).innerHTML='';clearKV();}}
+      catch(err){setStatus(false,'Error: '+err.message);}
+    });
+    li.append(sp,del);
+    li.addEventListener('click',()=>selectDict(name,li));
+    return li;
+  }
+
+  async function selectDict(name,liEl) {
+    slDict=name;slKey=slKeyOop=null;clearKV();
+    body.querySelector(`#${id}-dicts`).querySelectorAll('li').forEach(l=>l.classList.remove('active'));
+    liEl.classList.add('active');
+    await loadEntries(slUser,name);
+  }
+
+  async function loadEntries(user,dict) {
+    const ul=body.querySelector(`#${id}-entries`);
+    ul.innerHTML='<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
+    try {
+      const d=await api(`/symbol-list/entries/${encodeURIComponent(user)}/${encodeURIComponent(dict)}`); if(!d.success)throw new Error(d.exception);
+      ul.innerHTML='';
+      const sorted=d.entries.slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+      for(const key of sorted)ul.appendChild(makeEntryItem(key));
+    } catch(e){ul.innerHTML=`<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;}
+  }
+
+  function makeEntryItem(key) {
+    const li=document.createElement('li');
+    const sp=document.createElement('span');sp.className='sl-name';sp.textContent=key;
+    const del=document.createElement('button');del.className='sl-del';del.textContent='✕';
+    del.addEventListener('click',async e=>{
+      e.stopPropagation();if(!confirm(`Remove "${key}"?`))return;
+      try{const r=await apiPost('/symbol-list/remove-entry',{user:slUser,dictionary:slDict,key});if(!r.success)throw new Error(r.exception);li.remove();if(slKey===key){slKey=slKeyOop=null;clearKV();}}
+      catch(err){setStatus(false,'Error: '+err.message);}
+    });
+    li.append(sp,del);
+    li.addEventListener('click',()=>selectEntry(key,li));
+    return li;
+  }
+
+  async function selectEntry(key,liEl) {
+    slKey=key;slKeyOop=null;
+    body.querySelector(`#${id}-entries`).querySelectorAll('li').forEach(l=>l.classList.remove('active'));
+    liEl.classList.add('active');
+    body.querySelector(`#${id}-selval`).textContent=key;
+    body.querySelector(`#${id}-inspect`).classList.add('hidden');
+    clearKV();
+    const kv=body.querySelector(`#${id}-kv`);
+    kv.innerHTML='<tr><td colspan="2" style="color:#6c7086"><span class="spinner"></span> Loading…</td></tr>';
+    try {
+      const d=await api(`/symbol-list/preview/${encodeURIComponent(slUser)}/${encodeURIComponent(slDict)}/${encodeURIComponent(key)}`);
+      if(!d.success)throw new Error(d.exception);
+      slKeyOop=d.oop||null;
+      if(slKeyOop)body.querySelector(`#${id}-inspect`).classList.remove('hidden');
+      body.querySelector(`#${id}-ps`).textContent=d.inspection||'nil';
+      kv.innerHTML='';
+      const pairs=Object.values(d.instVars||{});
+      if(!pairs.length){kv.innerHTML='<tr><td colspan="2" style="color:#6c7086;font-style:italic">(no entries)</td></tr>';return;}
+      for(const [nv,vv] of pairs){
+        const tr=document.createElement('tr');
+        const tk=document.createElement('td');tk.className='col-key';tk.textContent=nv.inspection||'';
+        const tv=document.createElement('td');tv.className='col-val';
+        const isLeaf=['string','symbol','fixnum','float','boolean','nilclass'].includes(vv.basetype);
+        if(!isLeaf&&vv.oop){const a=document.createElement('a');a.className='link-oop';a.textContent=vv.inspection||`oop:${vv.oop}`;a.addEventListener('click',()=>{openObjectBrowser(vv.oop,vv.inspection||nv.inspection||'object');});tv.appendChild(a);}
+        else{tv.textContent=vv.inspection||'nil';}
+        tr.append(tk,tv);kv.appendChild(tr);
+      }
+      if(d.instVarsSize>pairs.length){const tr=document.createElement('tr');tr.innerHTML=`<td colspan="2" style="color:#6c7086;font-size:10px">${pairs.length} of ${d.instVarsSize}</td>`;kv.appendChild(tr);}
+    } catch(e){kv.innerHTML=`<tr><td colspan="2" style="color:#f38ba8">${escHtml(e.message)}</td></tr>`;}
+  }
+
+  function clearKV() {
+    body.querySelector(`#${id}-selval`).textContent='';
+    body.querySelector(`#${id}-inspect`).classList.add('hidden');
+    body.querySelector(`#${id}-kv`).innerHTML='';
+    body.querySelector(`#${id}-ps`).textContent='';
+  }
+
+  loadUsers();
+}
+
+// ── shared helpers ────────────────────────────────────────────────────────────
+function makeTable(headers, rows) {
+  const tbl = document.createElement('table'); tbl.className='dbtable';
+  const thead=document.createElement('thead');
+  thead.innerHTML='<tr>'+headers.map(h=>`<th>${escHtml(h)}</th>`).join('')+'</tr>';
+  tbl.appendChild(thead);
+  const tbody=document.createElement('tbody');
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    r.forEach((c,i)=>{
+      const td=document.createElement('td');td.className=i===0?'col-key':'col-val';td.textContent=c;tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  return tbl;
+}
+
+// ── modal ─────────────────────────────────────────────────────────────────────
+function openModal(title, fields, onOk) {
+  document.getElementById('modal-title').textContent=title;
+  const fd=document.getElementById('modal-fields'); fd.innerHTML='';
+  for(const f of fields){
+    const lbl=document.createElement('label');lbl.textContent=f.label;lbl.style.cssText='display:block;margin-bottom:2px';fd.appendChild(lbl);
+    const el=f.type==='textarea'?document.createElement('textarea'):document.createElement('input');
+    if(f.type!=='textarea')el.type='text';
+    el.placeholder=f.placeholder||'';el.id=f.id;el.style.marginBottom='6px';fd.appendChild(el);
+  }
+  document.getElementById('modal-overlay').classList.add('visible');
+  if(fields.length)document.getElementById(fields[0].id)?.focus();
+  const cleanup=()=>document.getElementById('modal-overlay').classList.remove('visible');
+  document.getElementById('modal-cancel').onclick=cleanup;
+  document.getElementById('modal-ok').onclick=async()=>{
+    const vals={};for(const f of fields)vals[f.id]=document.getElementById(f.id).value;
+    try{await onOk(vals);cleanup();}catch(e){setStatus(false,'Error: '+e.message);}
+  };
+}
 
 // ── startup ───────────────────────────────────────────────────────────────────
 async function startup() {
   await init();
-  await slLoadUsers();
+  // open default windows
+  openObjectBrowser();
+  openSymbolList();
 }
 startup();
-
-// ═════════════════════════════════════════════════════════════════════════════
-// SYMBOL LIST BROWSER
-// ═════════════════════════════════════════════════════════════════════════════
-
-let slUser = null, slDict = null, slKey = null, slKeyOop = null;
-
-async function slLoadUsers() {
-  const sel = $('sl-user-select');
-  sel.innerHTML = '<option value="">— loading —</option>';
-  try {
-    const d = await api('/symbol-list/users');
-    if (!d.success) throw new Error(d.exception);
-    sel.innerHTML = '';
-    for (const u of d.users) {
-      const opt = document.createElement('option');
-      opt.value = opt.textContent = u;
-      sel.appendChild(opt);
-    }
-    if (d.users.length > 0) {
-      const preferred = 'DataCurator';
-      slUser = d.users.includes(preferred) ? preferred : d.users[0];
-      sel.value = slUser;
-      await slLoadDicts(slUser);
-    }
-  } catch (e) {
-    sel.innerHTML = `<option value="">${escHtml(e.message)}</option>`;
-  }
-}
-
-$('sl-user-select').addEventListener('change', async () => {
-  slUser = $('sl-user-select').value;
-  slDict = slKey = slKeyOop = null;
-  $('sl-dicts').innerHTML = '';
-  $('sl-entries').innerHTML = '';
-  slClearKV();
-  if (slUser) await slLoadDicts(slUser);
-});
-
-async function slLoadDicts(user) {
-  const ul = $('sl-dicts');
-  ul.innerHTML = '<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
-  try {
-    const d = await api(`/symbol-list/dictionaries/${encodeURIComponent(user)}`);
-    if (!d.success) throw new Error(d.exception);
-    ul.innerHTML = '';
-    let firstLi = null;
-    for (const name of d.dictionaries) {
-      const li = slDictItem(name);
-      ul.appendChild(li);
-      if (!firstLi) firstLi = {li, name};
-    }
-    if (firstLi) slSelectDict(firstLi.name, firstLi.li);
-  } catch (e) {
-    ul.innerHTML = `<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;
-  }
-}
-
-function slDictItem(name) {
-  const li = document.createElement('li');
-  const ns = document.createElement('span');
-  ns.textContent = name;
-  ns.style.cssText = 'overflow:hidden;text-overflow:ellipsis;flex:1';
-  li.appendChild(ns);
-  const del = document.createElement('button');
-  del.className = 'sl-del-btn'; del.title = 'Remove'; del.textContent = '✕';
-  del.addEventListener('click', async e => {
-    e.stopPropagation();
-    if (!confirm(`Remove dictionary "${name}"?`)) return;
-    try {
-      const r = await apiPost('/symbol-list/remove-dictionary', {user: slUser, name});
-      if (!r.success) throw new Error(r.exception);
-      li.remove();
-      if (slDict === name) { slDict = null; $('sl-entries').innerHTML = ''; slClearKV(); }
-    } catch (err) { setStatus(false, 'Error: ' + err.message); }
-  });
-  li.appendChild(del);
-  li.addEventListener('click', () => slSelectDict(name, li));
-  return li;
-}
-
-async function slSelectDict(name, liEl) {
-  slDict = name; slKey = slKeyOop = null; slClearKV();
-  document.querySelectorAll('#sl-dicts li').forEach(l => l.classList.remove('active'));
-  liEl.classList.add('active');
-  await slLoadEntries(slUser, name);
-}
-
-async function slLoadEntries(user, dict) {
-  const ul = $('sl-entries');
-  ul.innerHTML = '<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
-  try {
-    const d = await api(`/symbol-list/entries/${encodeURIComponent(user)}/${encodeURIComponent(dict)}`);
-    if (!d.success) throw new Error(d.exception);
-    ul.innerHTML = '';
-    const sorted = d.entries.slice().sort((a, b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
-    for (const key of sorted) ul.appendChild(slEntryItem(key));
-  } catch (e) {
-    ul.innerHTML = `<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;
-  }
-}
-
-function slEntryItem(key) {
-  const li = document.createElement('li');
-  const ns = document.createElement('span');
-  ns.textContent = key;
-  ns.style.cssText = 'overflow:hidden;text-overflow:ellipsis;flex:1';
-  li.appendChild(ns);
-  const del = document.createElement('button');
-  del.className = 'sl-del-btn'; del.title = 'Remove'; del.textContent = '✕';
-  del.addEventListener('click', async e => {
-    e.stopPropagation();
-    if (!confirm(`Remove entry "${key}"?`)) return;
-    try {
-      const r = await apiPost('/symbol-list/remove-entry', {user: slUser, dictionary: slDict, key});
-      if (!r.success) throw new Error(r.exception);
-      li.remove();
-      if (slKey === key) { slKey = slKeyOop = null; slClearKV(); }
-    } catch (err) { setStatus(false, 'Error: ' + err.message); }
-  });
-  li.appendChild(del);
-  li.addEventListener('click', () => slSelectEntry(key, li));
-  return li;
-}
-
-async function slSelectEntry(key, liEl) {
-  slKey = key; slKeyOop = null;
-  document.querySelectorAll('#sl-entries li').forEach(l => l.classList.remove('active'));
-  liEl.classList.add('active');
-  $('sl-selection-val').textContent = key;
-  $('sl-inspect-btn').classList.add('hidden');
-  slClearKV();
-  $('sl-kv-tbody').innerHTML = '<tr><td colspan="2" style="color:#6c7086"><span class="spinner"></span> Loading…</td></tr>';
-
-  try {
-    const d = await api(
-      `/symbol-list/preview/${encodeURIComponent(slUser)}/${encodeURIComponent(slDict)}/${encodeURIComponent(key)}`
-    );
-    if (!d.success) throw new Error(d.exception);
-    slKeyOop = d.oop || null;
-    if (slKeyOop) $('sl-inspect-btn').classList.remove('hidden');
-    slRenderKV(d);
-  } catch (e) {
-    $('sl-kv-tbody').innerHTML = `<tr><td colspan="2" style="color:#f38ba8">${escHtml(e.message)}</td></tr>`;
-    $('sl-printstring-box').textContent = '';
-  }
-}
-
-function slRenderKV(view) {
-  const tbody = $('sl-kv-tbody');
-  tbody.innerHTML = '';
-  $('sl-printstring-box').textContent = view.inspection || 'nil';
-
-  const entries = view.instVars || {};
-  const pairs = Object.values(entries);
-
-  if (pairs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="2" style="color:#6c7086;font-style:italic">(no entries)</td></tr>';
-    return;
-  }
-
-  for (const [nameView, valView] of pairs) {
-    const tr = document.createElement('tr');
-    const tdKey = document.createElement('td');
-    tdKey.textContent = nameView.inspection || '';
-
-    const tdVal = document.createElement('td');
-    const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valView.basetype);
-    if (!isLeaf && valView.oop) {
-      const a = document.createElement('a');
-      a.className = 'link-oop';
-      a.textContent = valView.inspection || `oop:${valView.oop}`;
-      a.addEventListener('click', () => {
-        document.querySelector('.nav-tab[data-tab="object"]').click();
-        const lbl = valView.inspection || nameView.inspection || 'object';
-        history = [{label: lbl, oop: valView.oop}];
-        loadObject(valView.oop, lbl);
-      });
-      tdVal.appendChild(a);
-    } else {
-      tdVal.textContent = valView.inspection || 'nil';
-    }
-
-    tr.append(tdKey, tdVal);
-    tbody.appendChild(tr);
-  }
-
-  if (view.instVarsSize > pairs.length) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="2" style="color:#6c7086;font-style:italic;font-size:11px">${pairs.length} of ${view.instVarsSize} entries shown</td>`;
-    tbody.appendChild(tr);
-  }
-}
-
-function slClearKV() {
-  $('sl-selection-val').textContent = '';
-  $('sl-inspect-btn').classList.add('hidden');
-  $('sl-kv-tbody').innerHTML = '';
-  $('sl-printstring-box').textContent = '';
-}
-
-$('sl-inspect-btn').addEventListener('click', () => {
-  if (!slKeyOop) return;
-  document.querySelector('.nav-tab[data-tab="object"]').click();
-  const lbl = slKey || 'object';
-  history = [{label: lbl, oop: slKeyOop}];
-  loadObject(slKeyOop, lbl);
-});
-
-// ── add dict modal ────────────────────────────────────────────────────────────
-$('sl-add-dict-btn').addEventListener('click', () => {
-  if (!slUser) { setStatus(false, 'Select a user first'); return; }
-  openModal('Add Dictionary', [
-    {label:'Dictionary name', id:'modal-dict-name', type:'input', placeholder:'MyDictionary'},
-  ], async fields => {
-    const name = fields['modal-dict-name'].trim();
-    if (!name) return;
-    const r = await apiPost('/symbol-list/add-dictionary', {user: slUser, name});
-    if (!r.success) throw new Error(r.exception);
-    await slLoadDicts(slUser);
-  });
-});
-
-$('sl-add-entry-btn').addEventListener('click', () => {
-  if (!slUser || !slDict) { setStatus(false, 'Select a dictionary first'); return; }
-  openModal('Add Entry', [
-    {label:'Key (Symbol name)', id:'modal-entry-key', type:'input', placeholder:'myKey'},
-    {label:'Value (Smalltalk expression)', id:'modal-entry-val', type:'textarea', placeholder:'nil'},
-  ], async fields => {
-    const key = fields['modal-entry-key'].trim();
-    const value = fields['modal-entry-val'].trim() || 'nil';
-    if (!key) return;
-    const r = await apiPost('/symbol-list/add-entry', {user: slUser, dictionary: slDict, key, value});
-    if (!r.success) throw new Error(r.exception);
-    await slLoadEntries(slUser, slDict);
-  });
-});
-
-$('sl-commit-btn').addEventListener('click', async () => {
-  try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : 'commit failed: ' + d.exception); }
-  catch (e) { setStatus(false, 'commit failed: ' + e.message); }
-});
-$('sl-abort-btn').addEventListener('click', async () => {
-  try {
-    const d = await api('/transaction/abort');
-    setStatus(d.success, d.success ? 'aborted' : 'abort failed: ' + d.exception);
-    if (d.success && slUser) await slLoadDicts(slUser);
-  } catch (e) { setStatus(false, 'abort failed: ' + e.message); }
-});
-
-// ── modal helper ──────────────────────────────────────────────────────────────
-function openModal(title, fields, onOk) {
-  $('modal-title').textContent = title;
-  const fieldsDiv = $('modal-fields');
-  fieldsDiv.innerHTML = '';
-  for (const f of fields) {
-    const lbl = document.createElement('label');
-    lbl.textContent = f.label;
-    lbl.style.cssText = 'display:block;margin-bottom:2px';
-    fieldsDiv.appendChild(lbl);
-    const el = f.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
-    if (f.type !== 'textarea') el.type = 'text';
-    el.placeholder = f.placeholder || '';
-    el.id = f.id;
-    el.style.marginBottom = '8px';
-    fieldsDiv.appendChild(el);
-  }
-  $('modal-overlay').classList.add('visible');
-  if (fields.length > 0) document.getElementById(fields[0].id).focus();
-
-  const cleanup = () => $('modal-overlay').classList.remove('visible');
-  $('modal-cancel').onclick = cleanup;
-  $('modal-ok').onclick = async () => {
-    const vals = {};
-    for (const f of fields) vals[f.id] = document.getElementById(f.id).value;
-    try { await onOk(vals); cleanup(); }
-    catch (e) { setStatus(false, 'Error: ' + e.message); }
-  };
-}
 </script>
 </body>
 </html>

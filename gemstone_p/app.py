@@ -453,6 +453,234 @@ def create_app() -> Flask:
         return jsonify(success=True, debug=text)
 
     # ------------------------------------------------------------------ #
+    # Debugger — halted threads                                           #
+    # ------------------------------------------------------------------ #
+
+    @app.get("/debug/threads")
+    def debug_threads():
+        """Return list of halted GsProcess objects."""
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    "| result |\n"
+                    "result := ''.\n"
+                    "[\n"
+                    "  GsProcess allSubinstances do: [:p |\n"
+                    "    | status |\n"
+                    "    status := [p status] on: Error do: [:e | 'unknown'].\n"
+                    "    (status = 'suspended' or: [status = 'halted']) ifTrue: [\n"
+                    "      result := result , p asOop printString , '|'\n"
+                    "        , (p printString copyFrom: 1 to: (p printString size min: 80))\n"
+                    "        , String lf asString\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "] on: Error do: [:e | result := ''].\n"
+                    "result"
+                )
+                threads = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        oop_s, _, ps = line.partition('|')
+                        try:
+                            threads.append({"oop": int(oop_s.strip()), "printString": ps.strip()})
+                        except ValueError:
+                            pass
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, threads=threads)
+
+    @app.get("/debug/frames/<int:oop>")
+    def debug_frames(oop: int):
+        """Return stack frame method names for a halted GsProcess."""
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str, object_for_oop_expr
+                raw = _eval_str(session,
+                    f"| proc result |\n"
+                    f"proc := {object_for_oop_expr(oop)}.\n"
+                    f"result := ''.\n"
+                    f"[\n"
+                    f"  | frames |\n"
+                    f"  frames := proc suspendedContext.\n"
+                    f"  frames isNil ifFalse: [\n"
+                    f"    | idx ctx |\n"
+                    f"    idx := 0.\n"
+                    f"    ctx := frames.\n"
+                    f"    [ctx notNil] whileTrue: [\n"
+                    f"      | methodName |\n"
+                    f"      methodName := [ctx method printString] on: Error do: [:e | ctx printString].\n"
+                    f"      result := result , idx printString , '|' , methodName , String lf asString.\n"
+                    f"      idx := idx + 1.\n"
+                    f"      ctx := ctx sender.\n"
+                    f"      idx >= 50 ifTrue: [ctx := nil]\n"
+                    f"    ]\n"
+                    f"  ]\n"
+                    f"] on: Error do: [:e | result := '0|(error: ' , e messageText , ')'].\n"
+                    f"result"
+                )
+                frames = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        idx_s, _, name = line.partition('|')
+                        try:
+                            frames.append({"index": int(idx_s), "name": name})
+                        except ValueError:
+                            pass
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, frames=frames)
+
+    @app.get("/debug/frame/<int:oop>")
+    def debug_frame(oop: int):
+        """Return detail of one stack frame: source, args/temps, self."""
+        frame_index = int(request.args.get("index", 0))
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str, object_for_oop_expr, _escape_st as _esc
+                raw = _eval_str(session,
+                    f"| proc ctx idx source selfPs vars |\n"
+                    f"proc := {object_for_oop_expr(oop)}.\n"
+                    f"ctx := proc suspendedContext.\n"
+                    f"idx := 0.\n"
+                    f"[ctx notNil and: [idx < {frame_index}]] whileTrue: [\n"
+                    f"  ctx := ctx sender. idx := idx + 1\n"
+                    f"].\n"
+                    f"ctx isNil ifTrue: [\n"
+                    f"  '(no frame)||()|()'\n"
+                    f"] ifFalse: [\n"
+                    f"  source := [ctx method sourceString] on: Error do: [:e | ''].\n"
+                    f"  source isNil ifTrue: [source := ''].\n"
+                    f"  source := source size > 4000\n"
+                    f"    ifTrue: [source copyFrom: 1 to: 4000]\n"
+                    f"    ifFalse: [source].\n"
+                    f"  selfPs := [ctx receiver printString] on: Error do: [:e | '?'].\n"
+                    f"  vars := ''.\n"
+                    f"  [ctx tempNames do: [:n |\n"
+                    f"    | v |\n"
+                    f"    v := [ctx tempAt: n] on: Error do: [:e | '?'].\n"
+                    f"    vars := vars , n , '=' , v printString , ';'\n"
+                    f"  ]] on: Error do: [:e | ].\n"
+                    f"  | methodName ipOffset |\n"
+                    f"  methodName := [ctx method printString] on: Error do: [:e | 'unknown'].\n"
+                    f"  ipOffset := [ctx pc printString] on: Error do: [:e | '0'].\n"
+                    f"  methodName , '|' , ipOffset , '|' , selfPs , '|' , source , '|' , vars\n"
+                    f"]"
+                )
+                parts = str(raw).split('|', 4)
+                method_name = parts[0] if len(parts) > 0 else ''
+                ip_offset   = parts[1] if len(parts) > 1 else '0'
+                self_ps     = parts[2] if len(parts) > 2 else ''
+                source      = parts[3] if len(parts) > 3 else ''
+                vars_raw    = parts[4] if len(parts) > 4 else ''
+                variables = []
+                for item in vars_raw.split(';'):
+                    if '=' in item:
+                        n, _, v = item.partition('=')
+                        variables.append({"name": n, "value": v})
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(
+            success=True,
+            methodName=method_name,
+            ipOffset=ip_offset,
+            selfPrintString=self_ps,
+            source=source,
+            variables=variables,
+            frameIndex=frame_index,
+        )
+
+    @app.post("/debug/proceed/<int:oop>")
+    def debug_proceed(oop: int):
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                from gemstone_p.object_view import object_for_oop_expr
+                session.eval(
+                    f"| proc |\n"
+                    f"proc := {object_for_oop_expr(oop)}.\n"
+                    f"[proc resume] on: Error do: [:e | ]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.post("/debug/step-into/<int:oop>")
+    def debug_step_into(oop: int):
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                from gemstone_p.object_view import object_for_oop_expr
+                session.eval(
+                    f"| proc |\n"
+                    f"proc := {object_for_oop_expr(oop)}.\n"
+                    f"[proc step] on: Error do: [:e | ]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.post("/debug/step-over/<int:oop>")
+    def debug_step_over(oop: int):
+        frame_index = int((request.get_json(force=True) or {}).get("index", 0))
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                from gemstone_p.object_view import object_for_oop_expr
+                session.eval(
+                    f"| proc |\n"
+                    f"proc := {object_for_oop_expr(oop)}.\n"
+                    f"[proc stepOver] on: Error do: [:e | ]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.post("/debug/trim/<int:oop>")
+    def debug_trim(oop: int):
+        frame_index = int((request.get_json(force=True) or {}).get("index", 0))
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                from gemstone_p.object_view import object_for_oop_expr
+                session.eval(
+                    f"| proc ctx idx |\n"
+                    f"proc := {object_for_oop_expr(oop)}.\n"
+                    f"ctx := proc suspendedContext.\n"
+                    f"idx := 0.\n"
+                    f"[ctx notNil and: [idx < {frame_index}]] whileTrue: [\n"
+                    f"  ctx := ctx sender. idx := idx + 1\n"
+                    f"].\n"
+                    f"ctx isNil ifFalse: [\n"
+                    f"  [proc trimTo: ctx] on: Error do: [:e | ]\n"
+                    f"]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True)
+
+    @app.get("/debug/thread-local/<int:oop>")
+    def debug_thread_local(oop: int):
+        """Return thread-local storage dictionary for a GsProcess."""
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str, object_for_oop_expr
+                raw = _eval_str(session,
+                    f"| proc result |\n"
+                    f"proc := {object_for_oop_expr(oop)}.\n"
+                    f"result := ''.\n"
+                    f"[proc threadStorage do: [:assoc |\n"
+                    f"  result := result , assoc key printString , '|'\n"
+                    f"    , assoc value printString , String lf asString\n"
+                    f"]] on: Error do: [:e | result := ''].\n"
+                    f"result"
+                )
+                entries = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        k, _, v = line.partition('|')
+                        entries.append({"key": k, "value": v})
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, entries=entries)
+
+    # ------------------------------------------------------------------ #
     # Inspector tabs                                                       #
     # ------------------------------------------------------------------ #
 
