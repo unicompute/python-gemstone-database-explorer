@@ -716,13 +716,15 @@ async function init() {
     setStatus(true, 'connected');
   } catch (e) {
     setStatus(false, 'failed: ' + e.message);
+    return;
   }
-  api('/version').then(d => {
+  // fetch version sequentially — no concurrent GCI sessions
+  try {
+    const d = await api('/version');
     if (d.success) {
       document.getElementById('taskbar-version').textContent = 'GemStone ' + d.stone;
     }
-  }).catch(() => {});
-  startThreadPoller();
+  } catch (_) {}
 }
 
 // ── halted thread poller ──────────────────────────────────────────────────────
@@ -1466,7 +1468,8 @@ function openSymbolList() {
     body.querySelector(`#${id}-ps`).textContent='';
   }
 
-  loadUsers();
+  // delay first load so it doesn't race with other startup requests
+  setTimeout(loadUsers, 1500);
 }
 
 // ── shared helpers ────────────────────────────────────────────────────────────
@@ -1510,9 +1513,12 @@ function openModal(title, fields, onOk) {
 // ── startup ───────────────────────────────────────────────────────────────────
 async function startup() {
   await init();
-  // open default windows
   openObjectBrowser();
-  openSymbolList();
+  // open symbol list window but delay its data fetch so it doesn't
+  // overlap with the object browser's first load
+  const slWin = openSymbolList();
+  // start thread poller well after all init requests have settled
+  setTimeout(startThreadPoller, 5000);
 }
 startup();
 </script>
