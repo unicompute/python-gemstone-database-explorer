@@ -732,17 +732,28 @@ def create_app() -> Flask:
     def object_included_modules(oop: int):
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str
+                from gemstone_p.object_view import _eval_str, object_for_oop_expr
                 raw = _eval_str(session,
                     f"| obj result |\n"
-                    f"obj := ObjectMemory objectForOop: {oop}.\n"
+                    f"obj := {object_for_oop_expr(oop)}.\n"
                     f"result := ''.\n"
                     f"[obj class withAllSuperclasses do: [:cls |\n"
-                    f"  cls instVarNames do: [:v | v]."
+                    f"  (cls respondsTo: #includedModules) ifTrue: [\n"
+                    f"    cls includedModules do: [:m |\n"
+                    f"      result := result , m asOop printString , '|' , m name , String lf asString\n"
+                    f"    ]\n"
+                    f"  ]\n"
                     f"]] on: Error do: [:e | ].\n"
                     f"result"
                 )
-                modules: list[str] = []
+                modules = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        oop_s, _, name = line.partition('|')
+                        try:
+                            modules.append({"oop": int(oop_s.strip()), "name": name.strip()})
+                        except ValueError:
+                            pass
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, modules=modules)
@@ -776,6 +787,104 @@ def create_app() -> Flask:
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, instances=instances, limit=limit)
+
+    # ------------------------------------------------------------------ #
+    # Transaction — continue / persistent mode                            #
+    # ------------------------------------------------------------------ #
+
+    @app.get("/transaction/continue")
+    def transaction_continue():
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                from gemstone_p.object_view import _eval_str
+                result = _eval_str(session,
+                    "| ok |\n"
+                    "[System continueTransaction. ok := 'continued'] on: Error do: [:e | ok := 'error: ' , e messageText].\n"
+                    "ok"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, result=str(result))
+
+    @app.get("/transaction/persistent-mode")
+    def transaction_persistent_mode():
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    "[GemStone session autoBeginTransaction printString] on: Error do: [:e | 'false']"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, persistent=str(raw).strip() == 'true')
+
+    @app.post("/transaction/persistent-mode")
+    def transaction_set_persistent_mode():
+        data = request.get_json(force=True) or {}
+        enable = bool(data.get("enable", True))
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                from gemstone_p.object_view import _eval_str
+                val = 'true' if enable else 'false'
+                result = _eval_str(session,
+                    f"[GemStone session autoBeginTransaction: {val}. GemStone session autoBeginTransaction printString]\n"
+                    f"on: Error do: [:e | 'error: ' , e messageText]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, persistent=str(result).strip() == 'true')
+
+    # ------------------------------------------------------------------ #
+    # Version reports                                                      #
+    # ------------------------------------------------------------------ #
+
+    @app.get("/object/stone-version-report")
+    def object_stone_version_report():
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    "| result |\n"
+                    "result := ''.\n"
+                    "[SystemRepository versionReport do: [:assoc |\n"
+                    "  result := result , assoc key asString , '|' , assoc value printString , String lf asString\n"
+                    "]] on: Error do: [:e | \n"
+                    "  result := 'version|' , SystemRepository versionString , String lf asString\n"
+                    "].\n"
+                    "result"
+                )
+                pairs = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        k, _, v = line.partition('|')
+                        pairs.append({"key": k.strip(), "value": v.strip()})
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, report=pairs)
+
+    @app.get("/object/gem-version-report")
+    def object_gem_version_report():
+        try:
+            with gs_session.request_session() as session:
+                from gemstone_p.object_view import _eval_str
+                raw = _eval_str(session,
+                    "| result |\n"
+                    "result := ''.\n"
+                    "[GemStone versionReport do: [:assoc |\n"
+                    "  result := result , assoc key asString , '|' , assoc value printString , String lf asString\n"
+                    "]] on: Error do: [:e | \n"
+                    "  result := 'version|' , GemStone version , String lf asString\n"
+                    "].\n"
+                    "result"
+                )
+                pairs = []
+                for line in str(raw).splitlines():
+                    if '|' in line:
+                        k, _, v = line.partition('|')
+                        pairs.append({"key": k.strip(), "value": v.strip()})
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, report=pairs)
 
     # ------------------------------------------------------------------ #
     # Version / health                                                     #

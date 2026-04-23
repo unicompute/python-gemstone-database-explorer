@@ -20,7 +20,17 @@
     #desktop {
       position: absolute;
       inset: 0;
+      bottom: 32px;
       overflow: hidden;
+    }
+
+    /* SVG arrow canvas — covers full desktop, pointer-events off so clicks pass through */
+    #arrow-canvas {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: visible;
+      z-index: 0;
     }
 
     /* ── taskbar ──────────────────────────────────────────────────────── */
@@ -90,6 +100,7 @@
       min-width: 320px;
       min-height: 180px;
       overflow: hidden;
+      z-index: 10;
     }
     .win.focused { border-color: #cba6f7; }
     .win-titlebar {
@@ -258,21 +269,31 @@
     .link-oop:hover { text-decoration: underline; }
     .more-row { font-size: 10px; color: #6c7086; padding: 3px 6px; }
 
-    /* ── hierarchy ───────────────────────────────────────────────────── */
-    .hierarchy-list { list-style: none; padding: 6px 0; }
-    .hierarchy-list li {
-      padding: 2px 8px; font-family: monospace; font-size: 11px;
-      color: #cba6f7; border-left: 3px solid #45475a; margin-left: 8px;
-      margin-bottom: 2px;
+    /* ── hierarchy tree ──────────────────────────────────────────────── */
+    .hierarchy-tree { list-style: none; padding: 6px 0; }
+    .hierarchy-tree li {
+      display: flex; align-items: center; gap: 6px;
+      padding: 2px 0; font-family: monospace; font-size: 11px;
     }
-    .hierarchy-list li:first-child { border-left-color: #89dceb; }
+    .tree-indent { display: inline-block; width: 16px; flex-shrink: 0; }
+    .tree-connector {
+      display: inline-block; width: 14px; height: 14px;
+      border-left: 2px solid #45475a; border-bottom: 2px solid #45475a;
+      flex-shrink: 0; margin-left: 2px;
+    }
 
-    /* ── instances ───────────────────────────────────────────────────── */
-    .instances-list { list-style: none; padding: 4px 0; }
-    .instances-list li {
-      padding: 2px 8px; font-size: 11px; font-family: monospace; cursor: pointer;
+    /* ── instances table ─────────────────────────────────────────────── */
+    .instances-tbl-wrap { overflow: auto; flex: 1; }
+    .instances-tbl-wrap table.dbtable td { white-space: nowrap; }
+    .inst-pagination {
+      display: flex; gap: 5px; align-items: center; padding: 4px 8px;
+      border-top: 1px solid #313244; background: #181825; flex-shrink: 0;
     }
-    .instances-list li:hover { background: #313244; }
+    .inst-page-btn {
+      background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+      border-radius: 3px; padding: 1px 8px; font-size: 10px; cursor: pointer;
+    }
+    .inst-page-btn.active { background: #45475a; border-color: #cba6f7; color: #cba6f7; }
 
     /* ── eval panel ──────────────────────────────────────────────────── */
     .eval-panel {
@@ -312,6 +333,7 @@
       padding: 3px 12px; font-weight: 700; cursor: pointer; font-size: 11px;
     }
     button.btn-tx:hover { background: #c06010; }
+    button.btn-tx.active { background: #a6e3a1; color: #1e1e2e; }
     button.btn-dbg {
       background: #1e6fba; color: #fff;
       border: none; border-radius: 3px;
@@ -324,8 +346,14 @@
     .txbar {
       background: #181825; border-top: 1px solid #313244;
       padding: 4px 8px; display: flex; gap: 5px; align-items: center; flex-shrink: 0;
+      flex-wrap: wrap;
     }
     .txbar span { font-size: 10px; color: #6c7086; }
+    .txbar-result {
+      font-size: 10px; font-family: monospace; color: #a6e3a1;
+      padding: 2px 6px; background: #1a3a1a; border-radius: 3px;
+    }
+    .txbar-result.error { color: #f38ba8; background: #3a1a1a; }
 
     /* ── workspace ───────────────────────────────────────────────────── */
     .ws-history {
@@ -335,12 +363,14 @@
     .ws-entry { margin-bottom: 6px; }
     .ws-code { color: #cdd6f4; white-space: pre-wrap; word-break: break-all; }
     .ws-result {
-      background: #2a5f2a; color: #a6e3a1;
-      padding: 2px 7px; border-radius: 3px;
-      white-space: pre-wrap; word-break: break-all; margin-top: 2px;
+      background: #1a3a1a; color: #a6e3a1;
+      padding: 3px 8px; border-radius: 3px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin-top: 2px;
     }
-    .ws-result.error { background: #5f2a2a; color: #f38ba8; }
-    .ws-nav { font-size: 10px; color: #89b4fa; cursor: pointer; margin-left: 6px; }
+    .ws-result.error { background: #3a1a1a; color: #f38ba8; }
+    .ws-result-text { white-space: pre-wrap; word-break: break-all; flex: 1; }
+    .ws-nav { font-size: 10px; color: #89b4fa; cursor: pointer; }
     .ws-nav:hover { text-decoration: underline; }
     .ws-input-row {
       border-top: 1px solid #313244; display: flex;
@@ -355,6 +385,54 @@
     }
     .ws-controls { display: flex; gap: 5px; align-items: center; }
     .ws-hint { font-size: 9px; color: #45475a; margin-left: auto; }
+
+    /* ── inline object chip ──────────────────────────────────────────── */
+    .obj-chip {
+      display: inline-flex; align-items: center; gap: 0;
+      background: #2d2d45; border: 1px solid #45475a;
+      border-radius: 4px; font-family: monospace; font-size: 11px;
+      cursor: pointer; user-select: none; vertical-align: middle;
+      position: relative;
+    }
+    .obj-chip:hover { border-color: #89b4fa; }
+    .obj-chip.dragging { opacity: .5; cursor: grabbing; }
+    .obj-chip-text {
+      padding: 1px 5px 1px 6px;
+      color: #89dceb; max-width: 160px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .obj-chip-caret {
+      padding: 1px 5px 1px 3px;
+      color: #6c7086; border-left: 1px solid #313244;
+      font-size: 9px;
+    }
+    .obj-chip:hover .obj-chip-caret { color: #a6adc8; }
+    /* chip dropdown */
+    .chip-dropdown {
+      position: absolute; top: 100%; left: 0; z-index: 99999;
+      background: #24273a; border: 1px solid #45475a; border-radius: 5px;
+      min-width: 200px; padding: 6px;
+      display: none; flex-direction: column; gap: 5px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.7);
+    }
+    .chip-dropdown.open { display: flex; }
+    .chip-dd-label {
+      font-size: 9px; color: #6c7086; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .chip-dd-code {
+      font-family: monospace; font-size: 11px;
+      background: #1e1e2e; color: #cdd6f4;
+      border: 1px solid #313244; border-radius: 3px;
+      padding: 3px 5px; resize: vertical; min-height: 36px; outline: none; width: 100%;
+    }
+    .chip-dd-controls { display: flex; gap: 5px; align-items: center; }
+    .chip-dd-lang { font-size: 10px; background: #313244; border: none; color: #a6adc8; border-radius: 3px; padding: 2px 6px; cursor: pointer; }
+    .chip-dd-lang.active { background: #cba6f7; color: #1e1e2e; }
+    .chip-dd-result {
+      font-family: monospace; font-size: 10px; color: #a6e3a1;
+      background: #1a3a1a; border-radius: 3px; padding: 2px 5px; word-break: break-all;
+    }
+    .chip-dd-result.error { color: #f38ba8; background: #3a1a1a; }
 
     /* ── method browser ──────────────────────────────────────────────── */
     .mb-header {
@@ -387,6 +465,12 @@
     .mb-cat:hover, .mb-sel:hover { background: #313244; }
     .mb-cat.active { background: #45475a; color: #cba6f7; }
     .mb-sel.active { background: #45475a; color: #89dceb; }
+    .mb-statusbar {
+      font-size: 9px; color: #6c7086; padding: 3px 7px;
+      background: #181825; border-top: 1px solid #313244;
+      font-family: monospace; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; flex-shrink: 0;
+    }
 
     /* ── debugger ────────────────────────────────────────────────────── */
     .dbg-split {
@@ -400,11 +484,19 @@
       padding: 3px 8px; font-size: 11px; font-family: monospace;
       cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       border-left: 3px solid transparent;
+      display: flex; align-items: center; gap: 6px;
     }
     .dbg-frame-item:hover { background: #313244; }
     .dbg-frame-item.active {
       background: #1e4f9f; border-left-color: #89b4fa; color: #cdd6f4;
     }
+    .dbg-frame-icon {
+      width: 12px; height: 12px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 7px; flex-shrink: 0;
+      background: #f9e2af; color: #1e1e2e;
+    }
+    .dbg-frame-icon.ruby { background: #f38ba8; }
     .dbg-action-bar {
       display: flex; flex-shrink: 0; border-bottom: 1px solid #313244;
     }
@@ -416,6 +508,13 @@
       font-family: monospace; font-size: 11px;
       border: none; padding: 6px 8px; resize: none; outline: none;
     }
+    .dbg-self-bar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 8px; border-top: 1px solid #313244;
+      background: #181825; flex-shrink: 0; font-size: 10px;
+    }
+    .dbg-self-label { color: #6c7086; }
+    .dbg-self-val { font-family: monospace; color: #cba6f7; flex: 1; overflow: hidden; text-overflow: ellipsis; }
     .dbg-var-row {
       display: flex; align-items: center; gap: 6px;
       padding: 3px 8px; border-top: 1px solid #313244;
@@ -427,9 +526,12 @@
     }
     .dbg-var-val { font-size: 11px; font-family: monospace; color: #a6e3a1; }
     .dbg-tls-list { list-style: none; padding: 4px 0; }
-    .dbg-tls-list li { padding: 2px 8px; font-size: 11px; font-family: monospace; }
-    .dbg-tls-list li span:first-child { color: #f5c2e7; }
-    .dbg-tls-list li span:last-child { color: #a6e3a1; margin-left: 6px; }
+    .dbg-tls-list li {
+      padding: 2px 8px; font-size: 11px; font-family: monospace;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dbg-tls-list li .tls-key { color: #f5c2e7; min-width: 80px; }
+    .dbg-tls-list li .tls-val { color: #a6e3a1; }
 
     /* ── symbol list browser ─────────────────────────────────────────── */
     .sl-two-col { display: flex; flex: 1; overflow: hidden; }
@@ -470,6 +572,38 @@
       padding: 5px 8px; border: 1px solid #313244; border-radius: 3px;
       min-height: 34px; word-break: break-all; white-space: pre-wrap;
     }
+
+    /* ── web browser window ──────────────────────────────────────────── */
+    .wb-urlbar {
+      display: flex; gap: 5px; align-items: center;
+      padding: 4px 8px; border-bottom: 1px solid #313244;
+      background: #181825; flex-shrink: 0;
+    }
+    .wb-urlbar label { font-size: 9px; color: #6c7086; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+    .wb-url-input {
+      flex: 1; font-family: monospace; font-size: 11px;
+      background: #1e1e2e; color: #89b4fa;
+      border: 1px solid #313244; border-radius: 3px;
+      padding: 2px 6px; outline: none;
+    }
+    .wb-url-input:focus { border-color: #89b4fa; }
+    .wb-iframe-wrap { flex: 1; overflow: hidden; }
+    .wb-iframe-wrap iframe {
+      width: 100%; height: 100%; border: none; background: #fff;
+    }
+
+    /* ── control panel ───────────────────────────────────────────────── */
+    .control-panel {
+      padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .cp-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .cp-result {
+      padding: 5px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;
+      background: #1a3a1a; color: #a6e3a1; display: none;
+    }
+    .cp-result.visible { display: block; }
+    .cp-result.error { background: #3a1a1a; color: #f38ba8; }
+    .cp-result.loading { background: #1a1a3a; color: #89b4fa; }
 
     /* ── spinner ─────────────────────────────────────────────────────── */
     .spinner {
@@ -532,15 +666,30 @@
 </head>
 <body>
 
-<div id="desktop"></div>
+<div id="desktop">
+  <svg id="arrow-canvas" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr-head" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#6c7086"/>
+      </marker>
+      <marker id="arr-head-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#346789"/>
+      </marker>
+      <marker id="arr-head-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#c50b0b"/>
+      </marker>
+    </defs>
+  </svg>
+</div>
 
 <!-- Taskbar -->
 <div id="taskbar">
   <span id="taskbar-title">GemStone DB Explorer</span>
-  <span id="taskbar-version" id="gs-version"></span>
+  <span id="taskbar-version"></span>
   <button class="taskbar-btn" onclick="openObjectBrowser()">Object Browser</button>
   <button class="taskbar-btn" onclick="openWorkspace()">Workspace</button>
   <button class="taskbar-btn" onclick="openSymbolList()">Symbol List</button>
+  <button class="taskbar-btn" onclick="openWebBrowser()">Web Browser</button>
   <div id="halted-threads-bar"></div>
   <div id="taskbar-sep"></div>
   <span id="status-dot"></span>
@@ -564,6 +713,7 @@
 
 // ── utilities ─────────────────────────────────────────────────────────────────
 const desktop = document.getElementById('desktop');
+const arrowCanvas = document.getElementById('arrow-canvas');
 let zTop = 100;
 
 function escHtml(s) {
@@ -591,7 +741,7 @@ function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
   const id = 'win-' + (++winCount);
   const w = width, h = height;
   const lx = x !== undefined ? x : Math.max(20, Math.min(window.innerWidth  - w - 20, 60 + winCount * 28));
-  const ly = y !== undefined ? y : Math.max(20, Math.min(window.innerHeight - h - 52, 40 + winCount * 28));
+  const ly = y !== undefined ? y : Math.max(20, Math.min(window.innerHeight - h - 64, 40 + winCount * 28));
 
   const win = document.createElement('div');
   win.className = 'win';
@@ -642,6 +792,7 @@ function focusWin(win) {
 }
 
 function closeWindow(win, id) {
+  removeArrowsFor(id);
   win.remove();
   const tb = document.getElementById('tb-' + id);
   if (tb) tb.remove();
@@ -676,6 +827,7 @@ function makeDraggable(win) {
     const move = e2 => {
       win.style.left = Math.max(0, ox + e2.clientX - startX) + 'px';
       win.style.top  = Math.max(0, oy + e2.clientY - startY) + 'px';
+      redrawArrows();
     };
     const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
     document.addEventListener('mousemove', move);
@@ -694,12 +846,171 @@ function makeResizable(win) {
     const move = e2 => {
       win.style.width  = Math.max(320, startW + e2.clientX - startX) + 'px';
       win.style.height = Math.max(180, startH + e2.clientY - startY) + 'px';
+      redrawArrows();
     };
     const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
   });
 }
+
+// ── SVG arrows between windows ────────────────────────────────────────────────
+const arrows = []; // {id, srcWinId, dstWinId, label, type, el}
+
+function drawArrow(srcWinId, dstWinId, label='', type='ref') {
+  const existing = arrows.find(a => a.srcWinId === srcWinId && a.dstWinId === dstWinId);
+  if (existing) return;
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  const colors = {ref:'#6c7086', class:'#9b59bb', superclass:'#346789', error:'#c50b0b'};
+  const color = colors[type] || '#6c7086';
+  const markerMap = {ref:'arr-head', class:'arr-head', superclass:'arr-head-blue', error:'arr-head-red'};
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', type === 'superclass' ? '2' : '1.5');
+  path.setAttribute('fill', 'none');
+  if (type !== 'superclass') path.setAttribute('stroke-dasharray', '6 3');
+  path.setAttribute('marker-end', `url(#${markerMap[type]||'arr-head'})`);
+  g.appendChild(path);
+  if (label) {
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('fill', color); txt.setAttribute('font-size','9');
+    txt.setAttribute('font-family','monospace'); txt.textContent = label;
+    g.appendChild(txt);
+  }
+  arrowCanvas.appendChild(g);
+  const entry = {srcWinId, dstWinId, label, type, g, path, txt: g.querySelector('text')};
+  arrows.push(entry);
+  _updateArrow(entry);
+  return entry;
+}
+
+function _updateArrow(entry) {
+  const sw = document.getElementById(entry.srcWinId);
+  const dw = document.getElementById(entry.dstWinId);
+  if (!sw || !dw) { entry.g.remove(); return; }
+  const sr = sw.getBoundingClientRect();
+  const dr = dw.getBoundingClientRect();
+  const cr = arrowCanvas.getBoundingClientRect();
+  const sx = sr.left - cr.left + sr.width / 2;
+  const sy = sr.top  - cr.top  + sr.height;
+  const dx = dr.left - cr.left + dr.width / 2;
+  const dy = dr.top  - cr.top;
+  const cx1 = sx, cy1 = sy + 40;
+  const cx2 = dx, cy2 = dy - 40;
+  entry.path.setAttribute('d', `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${dx},${dy}`);
+  if (entry.txt) {
+    const mx = (sx + dx) / 2, my = (sy + dy) / 2 - 6;
+    entry.txt.setAttribute('x', mx); entry.txt.setAttribute('y', my);
+    entry.txt.setAttribute('text-anchor','middle');
+  }
+}
+
+function redrawArrows() {
+  for (const a of arrows) _updateArrow(a);
+}
+
+function removeArrowsFor(winId) {
+  for (let i = arrows.length - 1; i >= 0; i--) {
+    if (arrows[i].srcWinId === winId || arrows[i].dstWinId === winId) {
+      arrows[i].g.remove();
+      arrows.splice(i, 1);
+    }
+  }
+}
+
+// ── inline object chip (ClassName▼ button) ────────────────────────────────────
+function makeChip(text, oop, winId, evalContext) {
+  const wrap = document.createElement('span');
+  wrap.className = 'obj-chip';
+  wrap.draggable = true;
+  wrap.innerHTML = `<span class="obj-chip-text">${escHtml(text)}</span><span class="obj-chip-caret">▼</span>`;
+
+  // dropdown panel
+  const dd = document.createElement('div');
+  dd.className = 'chip-dropdown';
+  let ddLang = 'smalltalk';
+  dd.innerHTML = `
+    <div class="chip-dd-label">${escHtml(text)}</div>
+    <textarea class="chip-dd-code" placeholder="self printString"></textarea>
+    <div class="chip-dd-controls">
+      <button class="chip-dd-lang active" data-lang="smalltalk">Smalltalk</button>
+      <button class="chip-dd-lang" data-lang="ruby">Ruby</button>
+      <button class="btn" style="padding:2px 8px;font-size:10px">Print it</button>
+      <button class="btn-ghost" style="padding:2px 8px;font-size:10px">Inspect →</button>
+    </div>
+    <div class="chip-dd-result hidden"></div>
+  `;
+  wrap.appendChild(dd);
+
+  // language toggle
+  dd.querySelectorAll('.chip-dd-lang').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      ddLang = btn.dataset.lang;
+      dd.querySelectorAll('.chip-dd-lang').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // print it
+  const btns = dd.querySelectorAll('button');
+  btns[2].addEventListener('click', async e => {
+    e.stopPropagation();
+    const code = dd.querySelector('.chip-dd-code').value.trim();
+    if (!code || !oop) return;
+    const resEl = dd.querySelector('.chip-dd-result');
+    resEl.classList.remove('hidden','error'); resEl.textContent = '…';
+    try {
+      const d = await api(`/object/evaluate/${oop}?code=${encodeURIComponent(code)}&language=${ddLang}&depth=1`);
+      if (!d.success) { resEl.classList.add('error'); resEl.textContent = 'Error: '+d.exception; return; }
+      const [isExc, rv] = d.result;
+      if (isExc) { resEl.classList.add('error'); resEl.textContent = '⚑ '+(rv.inspection||'Exception'); }
+      else resEl.textContent = rv.inspection || 'nil';
+    } catch(e) { resEl.classList.add('error'); resEl.textContent = e.message; }
+  });
+
+  // inspect
+  btns[3].addEventListener('click', e => {
+    e.stopPropagation();
+    dd.classList.remove('open');
+    if (oop) {
+      const newWin = openObjectBrowser(oop, text);
+      if (winId && newWin) drawArrow(winId, newWin.id, '', 'ref');
+    }
+  });
+
+  // toggle dropdown
+  wrap.querySelector('.obj-chip-caret').addEventListener('click', e => {
+    e.stopPropagation();
+    dd.classList.toggle('open');
+  });
+
+  // close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    if (!wrap.contains(e.target)) dd.classList.remove('open');
+  }, {capture: true});
+
+  // drag to open inspector in new window
+  wrap.addEventListener('dragstart', e => {
+    wrap.classList.add('dragging');
+    e.dataTransfer.setData('text/plain', JSON.stringify({oop, text, srcWinId: winId}));
+  });
+  wrap.addEventListener('dragend', () => wrap.classList.remove('dragging'));
+
+  return wrap;
+}
+
+// drop on desktop opens inspector
+desktop.addEventListener('dragover', e => e.preventDefault());
+desktop.addEventListener('drop', e => {
+  e.preventDefault();
+  try {
+    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    if (!data.oop) return;
+    const newWin = openObjectBrowser(data.oop, data.text, e.clientX - 200, e.clientY - 20);
+    if (data.srcWinId && newWin) drawArrow(data.srcWinId, newWin.id, '', 'ref');
+  } catch(_) {}
+});
 
 // ── global state ──────────────────────────────────────────────────────────────
 let roots = {};
@@ -718,7 +1029,6 @@ async function init() {
     setStatus(false, 'failed: ' + e.message);
     return;
   }
-  // fetch version sequentially — no concurrent GCI sessions
   try {
     const d = await api('/version');
     if (d.success) {
@@ -757,15 +1067,19 @@ function startThreadPoller() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // OBJECT BROWSER WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openObjectBrowser(initialOop, initialLabel) {
-  const {win, body, id} = createWindow({title:'Object Browser', width:700, height:520, taskbarLabel:'Objects'});
+function openObjectBrowser(initialOop, initialLabel, px, py) {
+  const {win, body, id} = createWindow({
+    title:'Object Browser', width:720, height:530,
+    taskbarLabel:'Objects',
+    x: px, y: py
+  });
 
-  // state
   let currentOop = null;
   let currentObjData = null;
   let history = [];
   let currentItab = 'instvars';
   let mbData = {}, mbClassOop = null;
+  let instPage = 0;
 
   body.innerHTML = `
     <div style="display:flex;flex:1;overflow:hidden">
@@ -782,13 +1096,18 @@ function openObjectBrowser(initialOop, initialLabel) {
               <div class="inspector-tab" data-itab="constants">Constants</div>
               <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
               <div class="inspector-tab" data-itab="instances">Instances</div>
+              <div class="inspector-tab" data-itab="modules">Included Modules</div>
+              <div class="inspector-tab" data-itab="stone-ver">Stone Version</div>
+              <div class="inspector-tab" data-itab="gem-ver">Gem Version</div>
+              <div class="inspector-tab" data-itab="control">Control Panel</div>
+              <div class="inspector-tab" data-itab="code">Code</div>
             </div>
             <div class="inspector-body" id="${id}-ibody">
               <p style="color:#6c7086;padding:12px">Select a root object to begin.</p>
             </div>
           </div>
-          <!-- method browser -->
-          <div id="${id}-mb" class="hidden" style="width:280px;border-left:1px solid #313244;display:flex;flex-direction:column;background:#181825;flex-shrink:0">
+          <!-- method browser (Code tab) -->
+          <div id="${id}-mb" class="hidden" style="width:300px;border-left:1px solid #313244;display:flex;flex-direction:column;background:#181825;flex-shrink:0">
             <div class="mb-header">
               <span id="${id}-mb-class">Methods</span>
               <button class="mb-close" id="${id}-mb-close">✕</button>
@@ -799,6 +1118,7 @@ function openObjectBrowser(initialOop, initialLabel) {
                 <div class="mb-sels" id="${id}-mb-sels"></div>
                 <div class="mb-src">
                   <textarea id="${id}-mb-src" readonly placeholder="Select a method…"></textarea>
+                  <div class="mb-statusbar" id="${id}-mb-status">No method selected</div>
                 </div>
               </div>
             </div>
@@ -814,8 +1134,10 @@ function openObjectBrowser(initialOop, initialLabel) {
         </div>
         <div class="txbar">
           <span>Transaction:</span>
-          <button class="btn-tx" id="${id}-abort">Abort Transaction</button>
-          <button class="btn-tx" id="${id}-commit">Commit Transaction</button>
+          <button class="btn-tx" id="${id}-abort">Abort</button>
+          <button class="btn-tx" id="${id}-commit">Commit</button>
+          <button class="btn-tx" id="${id}-continue" style="background:#4a90d9">Continue</button>
+          <span id="${id}-tx-res" class="txbar-result hidden"></span>
         </div>
       </div>
     </div>
@@ -838,12 +1160,23 @@ function openObjectBrowser(initialOop, initialLabel) {
     body.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     currentItab = tab.dataset.itab;
+    if (currentItab === 'code') {
+      body.querySelector(`#${id}-mb`).classList.remove('hidden');
+      if (currentObjData?.classObject?.oop && !mbClassOop) {
+        openMB(currentObjData.classObject.oop, currentObjData.classObject.inspection||'class');
+      }
+    } else {
+      body.querySelector(`#${id}-mb`).classList.add('hidden');
+    }
     showItab();
   });
 
   // method browser close
   body.querySelector(`#${id}-mb-close`).addEventListener('click', () => {
     body.querySelector(`#${id}-mb`).classList.add('hidden');
+    body.querySelectorAll('.inspector-tab').forEach(t => { if (t.dataset.itab==='instvars') { t.classList.add('active'); } else t.classList.remove('active'); });
+    currentItab = 'instvars';
+    showItab();
   });
 
   // eval
@@ -852,19 +1185,28 @@ function openObjectBrowser(initialOop, initialLabel) {
   body.querySelector(`#${id}-eval-btn`).addEventListener('click', doEval);
   evalCode.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') doEval(); });
 
-  // tx
+  // tx buttons
+  async function txAction(route, label) {
+    const resEl = body.querySelector(`#${id}-tx-res`);
+    resEl.classList.remove('hidden','error'); resEl.textContent = label + '…';
+    try {
+      const d = await api(route);
+      resEl.textContent = d.success ? (label + ' ok') : 'Error: ' + (d.exception||'');
+      if (!d.success) resEl.classList.add('error');
+      setStatus(d.success, d.success ? label : d.exception||'error');
+    } catch(e) { resEl.classList.add('error'); resEl.textContent = e.message; setStatus(false, e.message); }
+  }
   body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
-    try { const d = await api('/transaction/abort'); setStatus(d.success, d.success ? 'aborted' : d.exception); if (d.success && currentOop) loadObj(currentOop, history[history.length-1]?.label); }
-    catch(e) { setStatus(false, e.message); }
+    await txAction('/transaction/abort','aborted');
+    if (currentOop) loadObj(currentOop, history[history.length-1]?.label);
   });
-  body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
-    try { const d = await api('/transaction/commit'); setStatus(d.success, d.success ? 'committed' : d.exception); }
-    catch(e) { setStatus(false, e.message); }
-  });
+  body.querySelector(`#${id}-commit`).addEventListener('click', () => txAction('/transaction/commit','committed'));
+  body.querySelector(`#${id}-continue`).addEventListener('click', () => txAction('/transaction/continue','continued'));
 
   async function loadObj(oop, label) {
     currentOop = oop;
     currentObjData = null;
+    instPage = 0;
     renderBc();
     body.querySelectorAll(`#${id}-roots li`).forEach(li => li.classList.toggle('active', parseInt(li.dataset.oop) === oop));
     const ibody = body.querySelector(`#${id}-ibody`);
@@ -897,10 +1239,11 @@ function openObjectBrowser(initialOop, initialLabel) {
 
   async function showItab() {
     const ibody = body.querySelector(`#${id}-ibody`);
-    if (!currentObjData) return;
-    const obj = currentObjData;
+    if (!currentObjData && currentItab !== 'stone-ver' && currentItab !== 'gem-ver' && currentItab !== 'control') return;
     ibody.innerHTML = '';
-    if (currentItab === 'instvars') { ibody.appendChild(renderCard(obj)); return; }
+
+    if (currentItab === 'instvars') { ibody.appendChild(renderCard(currentObjData)); return; }
+
     if (currentItab === 'constants') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
@@ -912,37 +1255,174 @@ function openObjectBrowser(initialOop, initialLabel) {
       } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
       return;
     }
+
     if (currentItab === 'hierarchy') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
         const d = await api(`/object/hierarchy/${currentOop}`);
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
-        const ul = document.createElement('ul'); ul.className = 'hierarchy-list';
-        d.hierarchy.forEach(c => { const li = document.createElement('li'); li.textContent = c; ul.appendChild(li); });
+        const ul = document.createElement('ul'); ul.className = 'hierarchy-tree';
+        d.hierarchy.forEach((cls, i) => {
+          const li = document.createElement('li');
+          if (i > 0) {
+            for (let j = 0; j < i - 1; j++) { const sp = document.createElement('span'); sp.className = 'tree-indent'; li.appendChild(sp); }
+            const conn = document.createElement('span'); conn.className = 'tree-connector'; li.appendChild(conn);
+          }
+          li.appendChild(document.createTextNode(cls));
+          ul.appendChild(li);
+        });
         ibody.appendChild(ul);
       } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
       return;
     }
+
     if (currentItab === 'instances') {
+      renderInstances(ibody);
+      return;
+    }
+
+    if (currentItab === 'modules') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await api(`/object/instances/${currentOop}`);
+        const d = await api(`/object/included-modules/${currentOop}`);
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
-        if (!d.instances.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no instances)</p>'; return; }
-        const ul = document.createElement('ul'); ul.className = 'instances-list';
-        d.instances.forEach(inst => {
-          const li = document.createElement('li');
-          const a = document.createElement('a'); a.className = 'link-oop'; a.textContent = inst.printString || `oop:${inst.oop}`;
-          a.addEventListener('click', () => { history.push({label: inst.printString || `oop:${inst.oop}`, oop: inst.oop}); loadObj(inst.oop, inst.printString); });
-          li.appendChild(a); ul.appendChild(li);
+        if (!d.modules.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no included modules)</p>'; return; }
+        const ol = document.createElement('ol'); ol.style.cssText = 'padding-left:24px;font-family:monospace;font-size:11px;';
+        d.modules.forEach(m => {
+          const li = document.createElement('li'); li.style.padding = '3px 0';
+          if (m.oop) {
+            const chip = makeChip(m.name, m.oop, id);
+            li.appendChild(chip);
+          } else { li.textContent = m.name; }
+          ol.appendChild(li);
         });
-        if (d.instances.length >= d.limit) { const li = document.createElement('li'); li.style.color='#6c7086'; li.textContent=`First ${d.limit} shown`; ul.appendChild(li); }
-        ibody.appendChild(ul);
+        ibody.appendChild(ol);
       } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
       return;
     }
+
+    if (currentItab === 'stone-ver') {
+      ibody.innerHTML = '<span class="spinner"></span>';
+      try {
+        const d = await api('/object/stone-version-report');
+        ibody.innerHTML = '';
+        if (!d.success) throw new Error(d.exception);
+        ibody.appendChild(makeTable(['Property','Value'], d.report.map(r => [r.key, r.value])));
+      } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
+      return;
+    }
+
+    if (currentItab === 'gem-ver') {
+      ibody.innerHTML = '<span class="spinner"></span>';
+      try {
+        const d = await api('/object/gem-version-report');
+        ibody.innerHTML = '';
+        if (!d.success) throw new Error(d.exception);
+        ibody.appendChild(makeTable(['Property','Value'], d.report.map(r => [r.key, r.value])));
+      } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
+      return;
+    }
+
+    if (currentItab === 'control') {
+      ibody.classList.remove('inspector-body');
+      ibody.style.overflow = 'auto';
+      renderControlPanel(ibody);
+      return;
+    }
+
+    if (currentItab === 'code') {
+      ibody.innerHTML = '<p style="color:#6c7086;padding:8px;font-size:11px">Select a category and method in the panel →</p>';
+      return;
+    }
+  }
+
+  function renderInstances(ibody) {
+    ibody.innerHTML = '<span class="spinner"></span>';
+    const PAGE = 20;
+    api(`/object/instances/${currentOop}?limit=200`).then(d => {
+      ibody.innerHTML = '';
+      if (!d.success) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(d.exception)}</p>`; return; }
+      if (!d.instances.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no instances)</p>'; return; }
+
+      const pageData = d.instances;
+      const totalPages = Math.ceil(pageData.length / PAGE);
+
+      function renderPage(p) {
+        ibody.innerHTML = '';
+        const chunk = pageData.slice(p * PAGE, (p + 1) * PAGE);
+        const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;height:100%';
+        const tblWrap = document.createElement('div'); tblWrap.className = 'instances-tbl-wrap';
+        const tbl = document.createElement('table'); tbl.className = 'dbtable';
+        tbl.innerHTML = '<thead><tr><th>oop</th><th>Object</th><th>printString</th></tr></thead>';
+        const tbody = document.createElement('tbody');
+        chunk.forEach(inst => {
+          const tr = document.createElement('tr');
+          const tdOop = document.createElement('td'); tdOop.className = 'col-key'; tdOop.style.fontFamily = 'monospace'; tdOop.textContent = inst.oop;
+          const tdObj = document.createElement('td'); tdObj.className = 'col-val';
+          const chip = makeChip(inst.printString.slice(0,40), inst.oop, id);
+          tdObj.appendChild(chip);
+          const tdPs = document.createElement('td'); tdPs.className = 'col-val'; tdPs.style.color='#6c7086'; tdPs.textContent = inst.printString.slice(0,80);
+          tr.append(tdOop, tdObj, tdPs); tbody.appendChild(tr);
+        });
+        tbl.appendChild(tbody); tblWrap.appendChild(tbl);
+        wrap.appendChild(tblWrap);
+        if (totalPages > 1) {
+          const pg = document.createElement('div'); pg.className = 'inst-pagination';
+          pg.innerHTML = `<span style="font-size:10px;color:#6c7086">${pageData.length} instances</span>`;
+          for (let i = 0; i < totalPages; i++) {
+            const btn = document.createElement('button'); btn.className = 'inst-page-btn' + (i===p?' active':'');
+            btn.textContent = i + 1;
+            btn.addEventListener('click', () => { instPage = i; renderPage(i); });
+            pg.appendChild(btn);
+          }
+          wrap.appendChild(pg);
+        }
+        ibody.appendChild(wrap);
+      }
+      renderPage(instPage);
+    }).catch(e => { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; });
+  }
+
+  function renderControlPanel(ibody) {
+    const wrap = document.createElement('div'); wrap.className = 'control-panel';
+    const resDiv = document.createElement('div'); resDiv.className = 'cp-result';
+
+    async function cpAction(url, method='GET', body_data) {
+      resDiv.className = 'cp-result visible loading'; resDiv.textContent = 'Working…';
+      try {
+        const opts = method === 'POST' ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body_data||{})} : undefined;
+        const d = await api(url, opts);
+        resDiv.className = 'cp-result visible' + (d.success ? '' : ' error');
+        resDiv.textContent = d.success ? (d.result || 'ok') : 'Error: ' + (d.exception||'');
+        setStatus(d.success, d.success ? 'ok' : d.exception||'error');
+      } catch(e) { resDiv.className = 'cp-result visible error'; resDiv.textContent = e.message; }
+    }
+
+    const row = document.createElement('div'); row.className = 'cp-row';
+    const btnAbort   = document.createElement('button'); btnAbort.className   = 'btn-tx'; btnAbort.textContent   = 'Abort Transaction';
+    const btnCommit  = document.createElement('button'); btnCommit.className  = 'btn-tx'; btnCommit.textContent  = 'Commit Transaction';
+    const btnCont    = document.createElement('button'); btnCont.className    = 'btn-tx'; btnCont.style.background = '#4a90d9'; btnCont.textContent = 'Continue Transaction';
+    const btnPersist = document.createElement('button'); btnPersist.className = 'btn-tx'; btnPersist.style.background = '#45475a'; btnPersist.textContent = 'Persistent Mode';
+
+    btnAbort.addEventListener('click', () => cpAction('/transaction/abort'));
+    btnCommit.addEventListener('click', () => cpAction('/transaction/commit'));
+    btnCont.addEventListener('click', () => cpAction('/transaction/continue'));
+    btnPersist.addEventListener('click', async () => {
+      const active = btnPersist.classList.contains('active');
+      await cpAction('/transaction/persistent-mode', 'POST', {enable: !active});
+      btnPersist.classList.toggle('active', !active);
+    });
+
+    // check current persistent mode
+    api('/transaction/persistent-mode').then(d => {
+      if (d.success && d.persistent) btnPersist.classList.add('active');
+    }).catch(()=>{});
+
+    row.append(btnAbort, btnCommit, btnCont, btnPersist);
+    wrap.append(row, resDiv);
+    ibody.appendChild(wrap);
   }
 
   function renderCard(obj) {
@@ -973,9 +1453,7 @@ function openObjectBrowser(initialOop, initialLabel) {
         const ktext = nameV.inspection || `@${idx}`;
         const kLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(nameV.basetype);
         if (isDictLike && nameV.oop != null && !kLeaf) {
-          const a = document.createElement('a'); a.className='link-oop'; a.textContent=ktext;
-          a.addEventListener('click', () => { history.push({label:ktext, oop:nameV.oop}); loadObj(nameV.oop, ktext); });
-          tdK.appendChild(a);
+          tdK.appendChild(makeChip(ktext, nameV.oop, id));
         } else { tdK.textContent = ktext; }
         const tdV = makeValCell(valV, ktext);
         tr.append(tdK, tdV); tbody.appendChild(tr);
@@ -988,7 +1466,6 @@ function openObjectBrowser(initialOop, initialLabel) {
     }
     wrap.appendChild(card);
 
-    // class row below card
     if (obj.classObject?.oop) {
       const cr = document.createElement('div'); cr.className = 'class-row';
       const lbl = document.createElement('span'); lbl.textContent = 'Class:';
@@ -1007,9 +1484,10 @@ function openObjectBrowser(initialOop, initialLabel) {
     const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valV.basetype);
     const text = valV.inspection || (valV.oop != null ? `oop:${valV.oop}` : 'nil');
     if (!isLeaf && valV.oop != null) {
-      const a = document.createElement('a'); a.className='link-oop'; a.textContent=text;
-      a.addEventListener('click', () => { history.push({label:label||text, oop:valV.oop}); loadObj(valV.oop, label||text); });
-      td.appendChild(a);
+      const chip = makeChip(text, valV.oop, id);
+      const nav = document.createElement('span'); nav.className='ws-nav'; nav.textContent=' ↗'; nav.style.fontSize='10px';
+      nav.addEventListener('click', () => { history.push({label:label||text, oop:valV.oop}); loadObj(valV.oop, label||text); });
+      td.append(chip, nav);
     } else { td.textContent = text; }
     return td;
   }
@@ -1018,9 +1496,10 @@ function openObjectBrowser(initialOop, initialLabel) {
     const mb = body.querySelector(`#${id}-mb`);
     mb.classList.remove('hidden');
     body.querySelector(`#${id}-mb-class`).textContent = className + ' methods';
-    const catsEl = body.querySelector(`#${id}-mb-cats`);
-    const selsEl = body.querySelector(`#${id}-mb-sels`);
-    const srcEl  = body.querySelector(`#${id}-mb-src`);
+    const catsEl   = body.querySelector(`#${id}-mb-cats`);
+    const selsEl   = body.querySelector(`#${id}-mb-sels`);
+    const srcEl    = body.querySelector(`#${id}-mb-src`);
+    const statusEl = body.querySelector(`#${id}-mb-status`);
     catsEl.innerHTML = '<div class="mb-cat" style="color:#6c7086"><span class="spinner"></span></div>';
     selsEl.innerHTML = ''; srcEl.value = ''; mbClassOop = classOop;
     try {
@@ -1040,9 +1519,13 @@ function openObjectBrowser(initialOop, initialLabel) {
             const s = document.createElement('div'); s.className='mb-sel'; s.textContent=sel;
             s.addEventListener('click', async () => {
               selsEl.querySelectorAll('.mb-sel').forEach(e => e.classList.remove('active'));
-              s.classList.add('active'); srcEl.value = 'Loading…';
-              try { const sd = await api(`/code/code/${mbClassOop}?selector=${encodeURIComponent(sel)}`); srcEl.value = sd.success ? (sd.result||'') : 'Error: '+sd.exception; }
-              catch(err) { srcEl.value = 'Error: '+err.message; }
+              s.classList.add('active'); srcEl.value = 'Loading…'; statusEl.textContent = 'Loading…';
+              try {
+                const sd = await api(`/code/code/${mbClassOop}?selector=${encodeURIComponent(sel)}`);
+                srcEl.value = sd.success ? (sd.result||'') : 'Error: '+sd.exception;
+                statusEl.textContent = `${className} >> ${sel}`;
+              }
+              catch(err) { srcEl.value = 'Error: '+err.message; statusEl.textContent = 'Error'; }
             });
             selsEl.appendChild(s);
           });
@@ -1050,7 +1533,11 @@ function openObjectBrowser(initialOop, initialLabel) {
         catsEl.appendChild(el);
       });
       if (cats.length) catsEl.querySelector('.mb-cat')?.click();
-    } catch(e) { catsEl.innerHTML = `<div class="mb-cat" style="color:#f38ba8">${escHtml(e.message)}</div>`; }
+      statusEl.textContent = className + ' — ' + cats.length + ' categories';
+    } catch(e) {
+      catsEl.innerHTML = `<div class="mb-cat" style="color:#f38ba8">${escHtml(e.message)}</div>`;
+      statusEl.textContent = 'Error loading';
+    }
   }
 
   async function doEval() {
@@ -1068,6 +1555,8 @@ function openObjectBrowser(initialOop, initialLabel) {
         evalRes.textContent = rv.inspection || 'nil';
         const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(rv.basetype);
         if (!isLeaf && rv.oop) {
+          const chip = makeChip(rv.inspection||'result', rv.oop, id);
+          evalRes.appendChild(document.createTextNode(' ')); evalRes.appendChild(chip);
           const nav = document.createElement('a'); nav.className='link-oop'; nav.style.marginLeft='8px'; nav.textContent='Navigate →';
           nav.addEventListener('click', () => { const l=rv.inspection||'result'; history.push({label:l,oop:rv.oop}); loadObj(rv.oop,l); });
           evalRes.appendChild(nav);
@@ -1077,13 +1566,14 @@ function openObjectBrowser(initialOop, initialLabel) {
   }
 
   if (initialOop) { history = [{label: initialLabel||'object', oop: initialOop}]; loadObj(initialOop, initialLabel||'object'); }
+  return win;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORKSPACE WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function openWorkspace() {
-  const {win, body, id} = createWindow({title:'Workspace', width:500, height:420, taskbarLabel:'Workspace'});
+  const {win, body, id} = createWindow({title:'Workspace', width:520, height:440, taskbarLabel:'Workspace'});
   body.innerHTML = `
     <div class="ws-history" id="${id}-wsh"></div>
     <div class="ws-input-row">
@@ -1096,8 +1586,9 @@ function openWorkspace() {
     </div>
     <div class="txbar">
       <span>Transaction:</span>
-      <button class="btn-tx" id="${id}-abort">Abort Transaction</button>
-      <button class="btn-tx" id="${id}-commit">Commit Transaction</button>
+      <button class="btn-tx" id="${id}-abort">Abort</button>
+      <button class="btn-tx" id="${id}-commit">Commit</button>
+      <button class="btn-tx" id="${id}-continue" style="background:#4a90d9">Continue</button>
     </div>
   `;
   const wsh = body.querySelector(`#${id}-wsh`);
@@ -1111,32 +1602,66 @@ function openWorkspace() {
   body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
     try { const d=await api('/transaction/commit'); setStatus(d.success, d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
   });
+  body.querySelector(`#${id}-continue`).addEventListener('click', async () => {
+    try { const d=await api('/transaction/continue'); setStatus(d.success, d.success?'continued':d.exception); } catch(e){setStatus(false,e.message);}
+  });
 
   async function wsDoIt() {
     const code = wsc.value.trim(); if (!code) return;
     const entry = document.createElement('div'); entry.className='ws-entry';
     const codeEl = document.createElement('div'); codeEl.className='ws-code'; codeEl.textContent=code;
-    const resEl  = document.createElement('div'); resEl.className='ws-result'; resEl.textContent='…';
+    const resEl  = document.createElement('div'); resEl.className='ws-result';
+    const textSpan = document.createElement('span'); textSpan.className='ws-result-text'; textSpan.textContent='…';
+    resEl.appendChild(textSpan);
     entry.append(codeEl, resEl); wsh.appendChild(entry); wsh.scrollTop=wsh.scrollHeight;
     const globOop = roots['Globals'] || roots['UserGlobals'];
-    if (!globOop) { resEl.className='ws-result error'; resEl.textContent='Not connected'; return; }
+    if (!globOop) { resEl.className='ws-result error'; textSpan.textContent='Not connected'; return; }
     try {
       const d = await api(`/object/evaluate/${globOop}?code=${encodeURIComponent(code)}&language=smalltalk&depth=1`);
-      if (!d.success) { resEl.className='ws-result error'; resEl.textContent='Error: '+d.exception; return; }
+      if (!d.success) { resEl.className='ws-result error'; textSpan.textContent='Error: '+d.exception; return; }
       const [isExc, rv] = d.result;
-      if (isExc) { resEl.className='ws-result error'; resEl.textContent='⚑ '+(rv.inspection||'Exception'); }
+      if (isExc) { resEl.className='ws-result error'; textSpan.textContent='⚑ '+(rv.inspection||'Exception'); }
       else {
-        resEl.textContent = '=> ' + (rv.inspection||'nil');
+        textSpan.textContent = '=> ' + (rv.inspection||'nil');
         const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(rv.basetype);
         if (!isLeaf && rv.oop) {
-          const nav = document.createElement('span'); nav.className='ws-nav'; nav.textContent='navigate →';
+          const chip = makeChip(rv.inspection||'result', rv.oop, id);
+          resEl.appendChild(chip);
+          const nav = document.createElement('span'); nav.className='ws-nav'; nav.textContent='inspect →';
           nav.addEventListener('click', () => openObjectBrowser(rv.oop, rv.inspection||'result'));
           resEl.appendChild(nav);
         }
       }
-    } catch(e) { resEl.className='ws-result error'; resEl.textContent='Error: '+e.message; }
+    } catch(e) { resEl.className='ws-result error'; textSpan.textContent='Error: '+e.message; }
     wsh.scrollTop=wsh.scrollHeight;
   }
+  return win;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEB BROWSER WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openWebBrowser(initialUrl) {
+  const {win, body, id} = createWindow({title:'Web Browser', width:700, height:520, taskbarLabel:'Web Browser'});
+  const defaultUrl = initialUrl || (window.location.protocol + '//' + window.location.hostname + ':' + (parseInt(window.location.port||80) + 1) + '/');
+  body.innerHTML = `
+    <div class="wb-urlbar">
+      <label>URL</label>
+      <input class="wb-url-input" id="${id}-url" type="text" value="${escHtml(defaultUrl)}">
+      <button class="btn-ghost" id="${id}-go">Go</button>
+      <button class="btn-ghost" id="${id}-reload">↺</button>
+    </div>
+    <div class="wb-iframe-wrap">
+      <iframe id="${id}-iframe" src="${escHtml(defaultUrl)}" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+    </div>
+  `;
+  const urlInput = body.querySelector(`#${id}-url`);
+  const iframe   = body.querySelector(`#${id}-iframe`);
+  function navigate() { iframe.src = urlInput.value; }
+  body.querySelector(`#${id}-go`).addEventListener('click', navigate);
+  body.querySelector(`#${id}-reload`).addEventListener('click', () => { iframe.src = iframe.src; });
+  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') navigate(); });
+  return win;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1145,7 +1670,7 @@ function openWorkspace() {
 function openDebugger(threadOop, threadName) {
   const {win, body, id} = createWindow({
     title: 'Debugger — ' + (threadName||'').slice(0,40),
-    width: 640, height: 580, taskbarLabel: 'Debugger'
+    width: 660, height: 600, taskbarLabel: 'Debugger'
   });
 
   let currentFrameIdx = 0;
@@ -1168,6 +1693,10 @@ function openDebugger(threadOop, threadName) {
       </div>
       <div class="dbg-source-pane" id="${id}-srcp">
         <textarea id="${id}-src" readonly placeholder="Select a frame…"></textarea>
+        <div class="dbg-self-bar">
+          <span class="dbg-self-label">self:</span>
+          <span class="dbg-self-val" id="${id}-selfval"></span>
+        </div>
         <div class="dbg-var-row">
           <select id="${id}-vars"><option value="">— variables —</option></select>
           <span class="dbg-var-val" id="${id}-varval"></span>
@@ -1180,7 +1709,6 @@ function openDebugger(threadOop, threadName) {
     </div>
   `;
 
-  // tab switching
   body.querySelector('.tab-strip').addEventListener('click', e => {
     const tab = e.target.closest('.tab-item'); if (!tab) return;
     body.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active')); tab.classList.add('active');
@@ -1190,7 +1718,6 @@ function openDebugger(threadOop, threadName) {
     if (name==='tls') loadTLS();
   });
 
-  // actions
   body.querySelector(`#${id}-proceed`).addEventListener('click', async () => {
     try { await apiPost(`/debug/proceed/${threadOop}`, {}); setStatus(true,'resumed'); closeWindow(win, id); } catch(e){setStatus(false,e.message);}
   });
@@ -1204,7 +1731,6 @@ function openDebugger(threadOop, threadName) {
     try { await apiPost(`/debug/trim/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
   });
 
-  // variable selector
   body.querySelector(`#${id}-vars`).addEventListener('change', e => {
     const sel = e.target; if (!sel.value) return;
     const opt = sel.options[sel.selectedIndex];
@@ -1221,7 +1747,14 @@ function openDebugger(threadOop, threadName) {
       framesEl.innerHTML = '';
       frames.forEach(f => {
         const el = document.createElement('div'); el.className='dbg-frame-item';
-        el.textContent = f.name; el.dataset.idx = f.index;
+        // frame type icon: Smalltalk (gold) vs Ruby (red) detected from method name
+        const isRuby = f.name.includes('(Ruby)') || f.name.startsWith('Ruby');
+        const icon = document.createElement('span');
+        icon.className = 'dbg-frame-icon' + (isRuby ? ' ruby' : '');
+        icon.textContent = isRuby ? 'R' : 'S';
+        el.appendChild(icon);
+        el.appendChild(document.createTextNode(f.name));
+        el.dataset.idx = f.index;
         el.addEventListener('click', () => selectFrame(f.index, el));
         framesEl.appendChild(el);
       });
@@ -1233,20 +1766,24 @@ function openDebugger(threadOop, threadName) {
     currentFrameIdx = idx;
     body.querySelectorAll('.dbg-frame-item').forEach(e=>e.classList.remove('active'));
     if (el) el.classList.add('active');
-    const srcEl = body.querySelector(`#${id}-src`);
-    const varsEl = body.querySelector(`#${id}-vars`);
+    const srcEl    = body.querySelector(`#${id}-src`);
+    const varsEl   = body.querySelector(`#${id}-vars`);
     const varvalEl = body.querySelector(`#${id}-varval`);
+    const selfEl   = body.querySelector(`#${id}-selfval`);
     srcEl.value = 'Loading…';
     varsEl.innerHTML = '<option value="">— variables —</option>';
     varvalEl.textContent = '';
+    selfEl.textContent = '';
     try {
       const d = await api(`/debug/frame/${threadOop}?index=${idx}`);
       if (!d.success) throw new Error(d.exception);
       srcEl.value = d.source || '(no source)';
+      selfEl.textContent = d.selfPrintString || '';
       if (d.variables && d.variables.length) {
         d.variables.forEach(v => {
           const opt = document.createElement('option');
-          opt.value = v.name; opt.textContent = v.name; opt.dataset.val = v.value;
+          opt.value = v.name; opt.textContent = v.name + ' = ' + String(v.value).slice(0,40);
+          opt.dataset.val = v.value;
           varsEl.appendChild(opt);
         });
       }
@@ -1264,7 +1801,9 @@ function openDebugger(threadOop, threadName) {
       if (!d.entries.length) { lst.innerHTML='<li style="color:#6c7086">(empty)</li>'; return; }
       d.entries.forEach(e => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${escHtml(e.key)}</span><span>${escHtml(e.value)}</span>`;
+        const keySpan = document.createElement('span'); keySpan.className = 'tls-key'; keySpan.textContent = e.key;
+        const valSpan = document.createElement('span'); valSpan.className = 'tls-val'; valSpan.textContent = e.value;
+        li.append(keySpan, valSpan);
         lst.appendChild(li);
       });
     } catch(e) { spin.style.display='none'; lst.innerHTML=`<li style="color:#f38ba8">${escHtml(e.message)}</li>`; }
@@ -1277,7 +1816,7 @@ function openDebugger(threadOop, threadName) {
 // SYMBOL LIST WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function openSymbolList() {
-  const {win, body, id} = createWindow({title:'Symbol List Browser', width:620, height:500, taskbarLabel:'Symbol List'});
+  const {win, body, id} = createWindow({title:'Symbol List Browser', width:640, height:520, taskbarLabel:'Symbol List'});
 
   let slUser=null, slDict=null, slKey=null, slKeyOop=null;
 
@@ -1322,8 +1861,8 @@ function openSymbolList() {
     </div>
     <div class="txbar">
       <span>Transaction:</span>
-      <button class="btn-tx" id="${id}-abort">Abort Transaction</button>
-      <button class="btn-tx" id="${id}-commit">Commit Transaction</button>
+      <button class="btn-tx" id="${id}-abort">Abort</button>
+      <button class="btn-tx" id="${id}-commit">Commit</button>
     </div>
   `;
 
@@ -1453,8 +1992,10 @@ function openSymbolList() {
         const tk=document.createElement('td');tk.className='col-key';tk.textContent=nv.inspection||'';
         const tv=document.createElement('td');tv.className='col-val';
         const isLeaf=['string','symbol','fixnum','float','boolean','nilclass'].includes(vv.basetype);
-        if(!isLeaf&&vv.oop){const a=document.createElement('a');a.className='link-oop';a.textContent=vv.inspection||`oop:${vv.oop}`;a.addEventListener('click',()=>{openObjectBrowser(vv.oop,vv.inspection||nv.inspection||'object');});tv.appendChild(a);}
-        else{tv.textContent=vv.inspection||'nil';}
+        if(!isLeaf&&vv.oop){
+          const chip = makeChip(vv.inspection||`oop:${vv.oop}`, vv.oop, id);
+          tv.appendChild(chip);
+        } else{tv.textContent=vv.inspection||'nil';}
         tr.append(tk,tv);kv.appendChild(tr);
       }
       if(d.instVarsSize>pairs.length){const tr=document.createElement('tr');tr.innerHTML=`<td colspan="2" style="color:#6c7086;font-size:10px">${pairs.length} of ${d.instVarsSize}</td>`;kv.appendChild(tr);}
@@ -1468,8 +2009,8 @@ function openSymbolList() {
     body.querySelector(`#${id}-ps`).textContent='';
   }
 
-  // delay first load so it doesn't race with other startup requests
   setTimeout(loadUsers, 1500);
+  return win;
 }
 
 // ── shared helpers ────────────────────────────────────────────────────────────
@@ -1514,10 +2055,7 @@ function openModal(title, fields, onOk) {
 async function startup() {
   await init();
   openObjectBrowser();
-  // open symbol list window but delay its data fetch so it doesn't
-  // overlap with the object browser's first load
-  const slWin = openSymbolList();
-  // start thread poller well after all init requests have settled
+  openSymbolList();
   setTimeout(startThreadPoller, 5000);
 }
 startup();
