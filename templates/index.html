@@ -786,9 +786,12 @@ function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
     cascadeX += CASCADE_STEP; cascadeY += CASCADE_STEP;
     if (cascadeX > CASCADE_MAX_X || cascadeY > CASCADE_MAX_Y) { cascadeX = 30; cascadeY = 30; }
   }
-  // clamp to viewport
-  lx = Math.max(0, Math.min(lx, Math.max(0, window.innerWidth  - w - 10)));
-  ly = Math.max(0, Math.min(ly, Math.max(0, window.innerHeight - h - 42)));
+  // only clamp when position was auto-calculated (not explicitly provided)
+  const explicitPos = (x !== undefined || y !== undefined);
+  if (!explicitPos) {
+    lx = Math.max(0, Math.min(lx, Math.max(0, window.innerWidth  - w - 10)));
+    ly = Math.max(0, Math.min(ly, Math.max(0, window.innerHeight - h - 42)));
+  }
 
   const win = document.createElement('div');
   win.className = 'win';
@@ -1114,9 +1117,10 @@ function startThreadPoller() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // OBJECT BROWSER WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openObjectBrowser(initialOop, initialLabel, px, py) {
+function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
   const {win, body, id} = createWindow({
-    title:'Object Browser', width:720, height:530,
+    title:'Object Browser',
+    width: pw || 720, height: ph || 530,
     taskbarLabel:'Objects',
     x: px, y: py
   });
@@ -1990,8 +1994,8 @@ function openDebugger(threadOop, threadName) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYMBOL LIST WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openSymbolList() {
-  const {win, body, id} = createWindow({title:'Symbol List Browser', width:640, height:520, taskbarLabel:'Symbol List'});
+function openSymbolList(px, py, pw, ph) {
+  const {win, body, id} = createWindow({title:'Symbol List Browser', width: pw||640, height: ph||520, taskbarLabel:'Symbol List', x: px, y: py});
 
   let slUser=null, slDict=null, slKey=null, slKeyOop=null;
 
@@ -2229,12 +2233,12 @@ function openModal(title, fields, onOk) {
 // ── startup ───────────────────────────────────────────────────────────────────
 async function startup() {
   await init();
-  // Open Object Browser on the left side
-  cascadeX = 20; cascadeY = 20;
-  openObjectBrowser();
-  // Open Symbol List to the right, non-overlapping
-  cascadeX = 760; cascadeY = 20;
-  openSymbolList();
+  // Place the two default windows side-by-side, filling the viewport.
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - 32; // subtract taskbar height
+  const half = Math.max(360, Math.floor(vw / 2) - 2);
+  openObjectBrowser(undefined, undefined, 0, 0, half, vh);
+  openSymbolList(half + 2, 0, vw - half - 2, vh);
   // Reset cascade for user-opened windows
   cascadeX = 60; cascadeY = 60;
   setTimeout(startThreadPoller, 5000);
