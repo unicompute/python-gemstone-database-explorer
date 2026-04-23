@@ -614,6 +614,35 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── inspector titlebar chips ───────────────────────────────────── */
+    .insp-titlebar {
+      background: #0a0a12;
+      padding: 0 6px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: move;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .insp-titlebar-left  { display: flex; align-items: center; gap: 3px; flex: 1; overflow: hidden; min-width: 0; }
+    .insp-titlebar-right { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+    .insp-sep { color: #45475a; font-size: 11px; }
+    .insp-oop { color: #6c7086; font-size: 10px; font-family: monospace; white-space: nowrap; }
+    /* Associations tab for hash objects */
+    .assoc-row {
+      display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+      padding: 3px 8px; border-bottom: 1px solid #1e1e2e; font-family: monospace; font-size: 11px;
+    }
+    .assoc-row:hover { background: #1e1e2e; }
+    .assoc-key-label { color: #f5c2e7; min-width: 60px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+    .assoc-arrow { color: #6c7086; font-size: 11px; }
+    /* control panel tab — greyed style */
+    .inspector-tab.dim { color: #45475a; }
+    .inspector-tab.dim:hover { color: #6c7086; }
+    .inspector-tab.dim.active { color: #89dceb; }
+
     /* ── obj-card ────────────────────────────────────────────────────── */
     .obj-card { background: #181825; border: 1px solid #313244; border-radius: 5px; margin-bottom: 8px; overflow: hidden; }
     .obj-card-hdr {
@@ -767,10 +796,10 @@ function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
   win.style.cssText = `left:${lx}px;top:${ly}px;width:${w}px;height:${h}px;z-index:${++zTop}`;
 
   win.innerHTML = `
-    <div class="win-titlebar" data-win="${id}">
+    <div class="win-titlebar" data-win="${id}" id="${id}-titlebar">
       <button class="win-btn win-btn-close" title="Close">✕</button>
       <button class="win-btn win-btn-min" title="Minimise">–</button>
-      <span class="win-title">${escHtml(title)}</span>
+      <span class="win-title" id="${id}-title-text">${escHtml(title)}</span>
     </div>
     <div class="win-body"></div>
     <div class="win-resize" data-win="${id}"></div>
@@ -1099,6 +1128,46 @@ function openObjectBrowser(initialOop, initialLabel, px, py) {
   let mbData = {}, mbClassOop = null;
   let instPage = 0;
 
+  // Replace plain titlebar with MagLev-style chip titlebar
+  const titlebar = win.querySelector(`#${id}-titlebar`);
+  titlebar.className = 'insp-titlebar';
+  titlebar.querySelector(`#${id}-title-text`).remove();
+  const tbLeft  = document.createElement('div'); tbLeft.className  = 'insp-titlebar-left';  tbLeft.id  = id+'-tb-left';
+  const tbRight = document.createElement('div'); tbRight.className = 'insp-titlebar-right'; tbRight.id = id+'-tb-right';
+  tbLeft.innerHTML  = '<span style="color:#6c7086;font-size:10px;font-style:italic">Object Browser</span>';
+  tbRight.innerHTML = '';
+  titlebar.appendChild(tbLeft);
+  titlebar.appendChild(tbRight);
+
+  function updateTitlebar(obj) {
+    const left  = win.querySelector(`#${id}-tb-left`);
+    const right = win.querySelector(`#${id}-tb-right`);
+    left.innerHTML = ''; right.innerHTML = '';
+    if (!obj) { left.innerHTML = '<span style="color:#6c7086;font-size:10px;font-style:italic">Object Browser</span>'; return; }
+
+    // Left: self▼ < superclass▼ <0xOOP>
+    const selfChip = makeChip(obj.inspection || obj.classObject?.inspection || 'self', obj.oop, id);
+    left.appendChild(selfChip);
+    if (obj.classObject?.oop) {
+      const lt = document.createElement('span'); lt.className='insp-sep'; lt.textContent=' < '; left.appendChild(lt);
+      const clsChip = makeChip(obj.classObject.inspection||'class', obj.classObject.oop, id);
+      left.appendChild(clsChip);
+    }
+    const oopSp = document.createElement('span'); oopSp.className='insp-oop';
+    oopSp.textContent = ' <0x' + (obj.oop||0).toString(16) + '>'; left.appendChild(oopSp);
+
+    // Right: printString▼ :: Class▼
+    if (obj.inspection) {
+      const psChip = makeChip(obj.inspection, obj.oop, id);
+      right.appendChild(psChip);
+    }
+    if (obj.classObject?.oop) {
+      const sep2 = document.createElement('span'); sep2.className='insp-sep'; sep2.textContent=' :: '; right.appendChild(sep2);
+      const cls2 = makeChip(obj.classObject.inspection||'class', obj.classObject.oop, id);
+      right.appendChild(cls2);
+    }
+  }
+
   body.style.minHeight = '0';
   body.innerHTML = `
     <div style="display:flex;flex:1;min-height:0;overflow:hidden">
@@ -1118,7 +1187,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py) {
               <div class="inspector-tab" data-itab="modules">Included Modules</div>
               <div class="inspector-tab" data-itab="stone-ver">Stone Version</div>
               <div class="inspector-tab" data-itab="gem-ver">Gem Version</div>
-              <div class="inspector-tab" data-itab="control">Control Panel</div>
+              <div class="inspector-tab dim" data-itab="control">Control Panel</div>
               <div class="inspector-tab" data-itab="code">Code</div>
             </div>
             <div class="inspector-body" id="${id}-ibody">
@@ -1232,11 +1301,27 @@ function openObjectBrowser(initialOop, initialLabel, px, py) {
     ibody.innerHTML = '<span class="spinner"></span>';
     body.querySelector(`#${id}-itabs`).style.display = 'none';
     evalRes.textContent = '';
+    updateTitlebar(null);
     try {
       const d = await api(`/object/index/${oop}?depth=2`);
       if (!d.success) throw new Error(d.exception);
       currentObjData = d.result;
-      body.querySelector(`#${id}-itabs`).style.display = 'flex';
+      updateTitlebar(currentObjData);
+      // Show Associations tab for hash/dict objects
+      const itabs = body.querySelector(`#${id}-itabs`);
+      let assocTab = itabs.querySelector('[data-itab="assoc"]');
+      if (currentObjData.basetype === 'hash') {
+        if (!assocTab) {
+          assocTab = document.createElement('div');
+          assocTab.className = 'inspector-tab';
+          assocTab.dataset.itab = 'assoc';
+          assocTab.textContent = 'Associations';
+          itabs.insertBefore(assocTab, itabs.firstChild);
+        }
+      } else {
+        if (assocTab) assocTab.remove();
+      }
+      itabs.style.display = 'flex';
       showItab();
     } catch(e) {
       ibody.innerHTML = `<p style="color:#f38ba8;padding:10px">Error: ${escHtml(e.message)}</p>`;
@@ -1262,6 +1347,11 @@ function openObjectBrowser(initialOop, initialLabel, px, py) {
     ibody.innerHTML = '';
 
     if (currentItab === 'instvars') { ibody.appendChild(renderCard(currentObjData)); return; }
+
+    if (currentItab === 'assoc') {
+      renderAssociations(ibody, currentObjData);
+      return;
+    }
 
     if (currentItab === 'constants') {
       ibody.innerHTML = '<span class="spinner"></span>';
@@ -1441,6 +1531,68 @@ function openObjectBrowser(initialOop, initialLabel, px, py) {
 
     row.append(btnAbort, btnCommit, btnCont, btnPersist);
     wrap.append(row, resDiv);
+    ibody.appendChild(wrap);
+  }
+
+  function renderAssociations(ibody, obj) {
+    ibody.innerHTML = '';
+    const entries = obj.instVars || {};
+    const keys = Object.keys(entries);
+    if (!keys.length) {
+      ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(empty)</p>'; return;
+    }
+    const wrap = document.createElement('div');
+    for (const [, [keyV, valV]] of Object.entries(entries)) {
+      const row = document.createElement('div'); row.className = 'assoc-row';
+
+      // Key label (symbol key like :MaglevRecord)
+      const keyLabel = document.createElement('span'); keyLabel.className = 'assoc-key-label';
+      const kIsLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(keyV?.basetype);
+      const kText = keyV?.inspection || (keyV?.oop != null ? `oop:${keyV.oop}` : 'nil');
+      if (!kIsLeaf && keyV?.oop) {
+        const kChip = makeChip(kText, keyV.oop, id);
+        row.appendChild(kChip);
+      } else {
+        keyLabel.textContent = kText;
+        row.appendChild(keyLabel);
+      }
+
+      // Arrow
+      const arr = document.createElement('span'); arr.className = 'assoc-arrow'; arr.textContent = ' ⇒ ';
+      row.appendChild(arr);
+
+      // Value — render as chip(s) — if it's a hash/array show { ... } style
+      if (!valV || valV.basetype === 'nilclass') {
+        const nil = document.createElement('span'); nil.style.color='#6c7086'; nil.textContent='nil';
+        row.appendChild(nil);
+      } else {
+        const vText = valV.inspection || (valV.oop != null ? `oop:${valV.oop}` : 'nil');
+        const vIsLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valV.basetype);
+        if (!vIsLeaf && valV.oop) {
+          // For hash/array types show { ... }▼ prefix chip then class chip
+          if (valV.basetype === 'hash' || valV.basetype === 'array') {
+            const open = document.createElement('span'); open.className='insp-sep'; open.textContent = valV.basetype==='hash' ? '{ ' : '[ ';
+            row.appendChild(open);
+            const ellipsis = document.createElement('span'); ellipsis.style.color='#6c7086'; ellipsis.textContent='…';
+            row.appendChild(ellipsis);
+            const close = document.createElement('span'); close.className='insp-sep'; close.textContent = valV.basetype==='hash' ? ' }' : ' ]';
+            row.appendChild(close);
+          }
+          const vChip = makeChip(vText.slice(0,60), valV.oop, id);
+          row.appendChild(vChip);
+        } else {
+          const vSpan = document.createElement('span'); vSpan.style.color='#a6e3a1'; vSpan.style.fontFamily='monospace'; vSpan.textContent=vText;
+          row.appendChild(vSpan);
+        }
+      }
+
+      wrap.appendChild(row);
+    }
+    if (obj.instVarsSize > keys.length) {
+      const more = document.createElement('div'); more.className='more-row';
+      more.textContent = `${keys.length} of ${obj.instVarsSize} entries`;
+      wrap.appendChild(more);
+    }
     ibody.appendChild(wrap);
   }
 
