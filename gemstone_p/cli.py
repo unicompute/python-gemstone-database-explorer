@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> None:
 
     app = create_app()
     print(f"GemStone Database Explorer running at http://{args.host}:{args.port}/")
-    app.run(host=args.host, port=args.port, debug=args.debug)
+    app.run(host=args.host, port=args.port, debug=args.debug, threaded=False)
 
 
 if __name__ == "__main__":

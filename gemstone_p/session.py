@@ -13,9 +13,9 @@ from gemstone_py import GemStoneConfig, GemStoneSession
 
 _config: GemStoneConfig | None = None
 
-# GCI is not thread-safe for concurrent logins from the same process.
-# Serialise all session open/close operations with a lock so only one
-# GemStone session is being established or torn down at a time.
+# GCI uses process-global state, including the active session id. Treat the
+# entire request lifecycle as single-threaded inside a Flask process so
+# concurrent browser requests cannot switch sessions underneath each other.
 _gci_lock = threading.Lock()
 
 
@@ -30,27 +30,25 @@ def request_session(*, read_only: bool = True) -> Iterator[GemStoneSession]:
     Open a GemStone session, yield it, then abort (read-only) or leave the
     caller to commit (read_only=False). Always logs out on exit.
 
-    GCI login/logout are serialised via _gci_lock to prevent the segfault
-    that occurs when multiple sessions are opened concurrently in the same
-    process.
+    Hold the global GCI lock for the full request so no other thread can
+    activate a different GemStone session while this one is in use.
     """
     assert _config is not None, "call init_app() first"
-    session = GemStoneSession(config=_config)
     with _gci_lock:
+        session = GemStoneSession(config=_config)
         session.login()
-    try:
-        yield session
-        if read_only:
+        try:
+            yield session
+            if read_only:
+                try:
+                    session.abort()
+                except Exception:
+                    pass
+        except Exception:
             try:
                 session.abort()
             except Exception:
                 pass
-    except Exception:
-        try:
-            session.abort()
-        except Exception:
-            pass
-        raise
-    finally:
-        with _gci_lock:
+            raise
+        finally:
             session.logout()

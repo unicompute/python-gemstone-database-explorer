@@ -574,6 +574,101 @@
       min-height: 34px; word-break: break-all; white-space: pre-wrap;
     }
 
+    /* ── class browser ──────────────────────────────────────────────── */
+    .cb-wrap {
+      display: flex; flex-direction: column; height: 100%; min-height: 0;
+      background: #11111b;
+    }
+    .cb-toolbar {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      padding: 5px 8px; border-bottom: 1px solid #313244;
+      background: #181825; flex-shrink: 0;
+    }
+    .cb-toolbar .btn, .cb-toolbar .btn-ghost {
+      padding: 2px 8px; font-size: 10px;
+    }
+    .cb-meta {
+      display: inline-flex; align-items: center; gap: 5px;
+      color: #a6adc8; font-size: 11px; white-space: nowrap;
+      margin-left: auto;
+    }
+    .cb-meta input { accent-color: #cba6f7; }
+    .cb-lists {
+      display: grid; grid-template-columns: 160px 220px 180px 220px;
+      min-height: 210px; height: 210px; border-bottom: 1px solid #313244;
+      flex-shrink: 0;
+    }
+    .cb-pane {
+      display: flex; flex-direction: column; min-width: 0;
+      border-right: 1px solid #313244;
+    }
+    .cb-pane:last-child { border-right: none; }
+    .cb-pane-label {
+      padding: 4px 8px; background: #1e1e2e; border-bottom: 1px solid #313244;
+      font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #6c7086;
+      flex-shrink: 0;
+    }
+    .cb-list { overflow-y: auto; flex: 1; }
+    .cb-item {
+      padding: 3px 8px; cursor: pointer; font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      border-left: 3px solid transparent;
+    }
+    .cb-item:hover { background: #2a2a3e; }
+    .cb-item.active { background: #313244; color: #cba6f7; border-left-color: #cba6f7; }
+    .cb-empty { padding: 8px; font-size: 11px; color: #6c7086; }
+    .cb-source-wrap {
+      display: flex; flex-direction: column; flex: 1; min-height: 0;
+    }
+    .cb-source-hdr {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 4px 8px; background: #1e1e2e; border-bottom: 1px solid #313244;
+      font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #6c7086;
+      flex-shrink: 0;
+    }
+    .cb-source-note {
+      color: #89dceb; font-size: 10px; text-transform: none; letter-spacing: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cb-source {
+      width: 100%; flex: 1; border: none; outline: none; resize: none;
+      background: #11111b; color: #cdd6f4;
+      font-family: monospace; font-size: 12px; line-height: 1.45;
+      padding: 10px 12px;
+    }
+    .cb-status {
+      padding: 4px 8px; border-top: 1px solid #313244; background: #181825;
+      font-size: 10px; font-family: monospace; color: #6c7086; flex-shrink: 0;
+    }
+    .cb-status.ok { color: #a6e3a1; }
+    .cb-status.error { color: #f38ba8; }
+
+    /* ── query / versions windows ───────────────────────────────────── */
+    .qv-wrap { display: flex; height: 100%; min-height: 0; }
+    .qv-list {
+      width: 280px; border-right: 1px solid #313244; overflow-y: auto; flex-shrink: 0;
+      background: #11111b;
+    }
+    .qv-item {
+      padding: 5px 8px; cursor: pointer; font-size: 11px;
+      border-left: 3px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .qv-item:hover { background: #2a2a3e; }
+    .qv-item.active { background: #313244; color: #cba6f7; border-left-color: #cba6f7; }
+    .qv-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .qv-toolbar {
+      display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+      border-bottom: 1px solid #313244; background: #181825; flex-shrink: 0;
+    }
+    .qv-title {
+      font-size: 11px; color: #a6adc8; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .qv-preview {
+      width: 100%; flex: 1; border: none; outline: none; resize: none;
+      background: #11111b; color: #cdd6f4; font-family: monospace; font-size: 12px;
+      padding: 10px 12px; line-height: 1.45;
+    }
+
     /* ── web browser window ──────────────────────────────────────────── */
     .wb-urlbar {
       display: flex; gap: 5px; align-items: center;
@@ -717,6 +812,7 @@
   <span id="taskbar-title">GemStone DB Explorer</span>
   <span id="taskbar-version"></span>
   <button class="taskbar-btn" onclick="openObjectBrowser()">Object Browser</button>
+  <button class="taskbar-btn" onclick="openClassBrowser()">Class Browser</button>
   <button class="taskbar-btn" onclick="openWorkspace()">Workspace</button>
   <button class="taskbar-btn" onclick="openSymbolList()">Symbol List</button>
   <button class="taskbar-btn" onclick="openWebBrowser()">Web Browser</button>
@@ -752,16 +848,91 @@ function escHtml(s) {
 
 async function api(url, opts) {
   const r = await fetch(url, opts);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+  const text = await r.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_) {
+    data = null;
+  }
+  if (!r.ok) {
+    const detail = data?.exception || data?.error || text || `HTTP ${r.status}`;
+    throw new Error(detail);
+  }
+  return data;
 }
 async function apiPost(url, body) {
   return api(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+}
+function apiWithParams(url, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    qs.set(key, String(value));
+  });
+  const suffix = qs.toString();
+  return api(suffix ? `${url}?${suffix}` : url);
 }
 
 function setStatus(ok, msg) {
   document.getElementById('status-dot').className = ok ? '' : 'error';
   document.getElementById('status-txt').textContent = msg;
+}
+
+const LEAF_BASETYPES = new Set(['string', 'symbol', 'fixnum', 'float', 'boolean', 'nilclass']);
+const windowState = new Map();
+
+function isLeafBasetype(basetype) {
+  return LEAF_BASETYPES.has(basetype);
+}
+
+function shortLabel(value, max = 32) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.length > max ? text.slice(0, max - 1) + '…' : text;
+}
+
+function upsertWindowState(id, patch) {
+  const current = windowState.get(id) || {};
+  windowState.set(id, {...current, ...patch});
+}
+
+function shouldDrawManualArrow(sourceWinId) {
+  if (!sourceWinId) return false;
+  const source = windowState.get(sourceWinId);
+  return !source || source.kind !== 'object';
+}
+
+function openLinkedObjectWindow({oop, text, sourceWinId, arrowType='ref', arrowLabel='', x, y}) {
+  if (!oop) return null;
+  const newWin = openObjectBrowser(oop, text, x, y);
+  if (sourceWinId && newWin && shouldDrawManualArrow(sourceWinId)) {
+    drawArrow(sourceWinId, newWin.id, arrowLabel, arrowType);
+  }
+  return newWin;
+}
+
+function attachObjectButtonBehavior(el, {oop, text, sourceWinId, arrowType='ref', arrowLabel=''} = {}) {
+  if (!el || !oop) return el;
+  el.dataset.objButton = '1';
+  el.draggable = true;
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    openLinkedObjectWindow({oop, text, sourceWinId, arrowType, arrowLabel});
+  });
+  el.addEventListener('dragstart', e => {
+    el.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      oop,
+      text,
+      srcWinId: sourceWinId,
+      arrowType,
+      arrowLabel,
+    }));
+  });
+  el.addEventListener('dragend', () => el.classList.remove('dragging'));
+  return el;
 }
 
 // ── windowing system ──────────────────────────────────────────────────────────
@@ -828,6 +999,7 @@ function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
   document.getElementById('halted-threads-bar').before(tbBtn);
 
   win.addEventListener('mousedown', () => focusWin(win));
+  upsertWindowState(id, {kind: 'generic', title});
 
   return {win, body: win.querySelector('.win-body'), id};
 }
@@ -843,6 +1015,7 @@ function focusWin(win) {
 
 function closeWindow(win, id) {
   removeArrowsFor(id);
+  windowState.delete(id);
   win.remove();
   const tb = document.getElementById('tb-' + id);
   if (tb) tb.remove();
@@ -863,13 +1036,14 @@ function toggleMinimise(win, id) {
     if (res) res.style.display = 'none';
     win.style.height = '28px';
   }
+  redrawArrows();
 }
 
 function makeDraggable(win) {
   const bar = win.querySelector('.win-titlebar');
   let ox, oy, startX, startY;
   bar.addEventListener('mousedown', e => {
-    if (e.target.tagName === 'BUTTON') return;
+    if (e.target.tagName === 'BUTTON' || e.target.closest('[data-obj-button="1"]')) return;
     e.preventDefault();
     focusWin(win);
     startX = e.clientX; startY = e.clientY;
@@ -905,11 +1079,18 @@ function makeResizable(win) {
 }
 
 // ── SVG arrows between windows ────────────────────────────────────────────────
-const arrows = []; // {id, srcWinId, dstWinId, label, type, el}
+const arrows = []; // {srcWinId, dstWinId, label, type, auto, g, path, txt}
 
-function drawArrow(srcWinId, dstWinId, label='', type='ref') {
-  const existing = arrows.find(a => a.srcWinId === srcWinId && a.dstWinId === dstWinId);
-  if (existing) return;
+function drawArrow(srcWinId, dstWinId, label='', type='ref', {auto=false} = {}) {
+  const cleanLabel = shortLabel(label, 48);
+  const existing = arrows.find(a =>
+    a.srcWinId === srcWinId &&
+    a.dstWinId === dstWinId &&
+    a.type === type &&
+    a.label === cleanLabel &&
+    a.auto === auto
+  );
+  if (existing) return existing;
   const g = document.createElementNS('http://www.w3.org/2000/svg','g');
   const path = document.createElementNS('http://www.w3.org/2000/svg','path');
   const colors = {ref:'#6c7086', class:'#9b59bb', superclass:'#346789', error:'#c50b0b'};
@@ -921,14 +1102,14 @@ function drawArrow(srcWinId, dstWinId, label='', type='ref') {
   if (type !== 'superclass') path.setAttribute('stroke-dasharray', '6 3');
   path.setAttribute('marker-end', `url(#${markerMap[type]||'arr-head'})`);
   g.appendChild(path);
-  if (label) {
+  if (cleanLabel) {
     const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
     txt.setAttribute('fill', color); txt.setAttribute('font-size','9');
-    txt.setAttribute('font-family','monospace'); txt.textContent = label;
+    txt.setAttribute('font-family','monospace'); txt.textContent = cleanLabel;
     g.appendChild(txt);
   }
   arrowCanvas.appendChild(g);
-  const entry = {srcWinId, dstWinId, label, type, g, path, txt: g.querySelector('text')};
+  const entry = {srcWinId, dstWinId, label: cleanLabel, type, auto, g, path, txt: g.querySelector('text')};
   arrows.push(entry);
   _updateArrow(entry);
   return entry;
@@ -945,11 +1126,15 @@ function _updateArrow(entry) {
   const sy = sr.top  - cr.top  + sr.height;
   const dx = dr.left - cr.left + dr.width / 2;
   const dy = dr.top  - cr.top;
-  const cx1 = sx, cy1 = sy + 40;
-  const cx2 = dx, cy2 = dy - 40;
+  const siblings = arrows.filter(a => a.srcWinId === entry.srcWinId && a.dstWinId === entry.dstWinId);
+  const siblingIndex = siblings.indexOf(entry);
+  const spread = (siblingIndex - (siblings.length - 1) / 2) * 24;
+  const cx1 = sx + spread, cy1 = sy + 40;
+  const cx2 = dx + spread, cy2 = dy - 40;
   entry.path.setAttribute('d', `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${dx},${dy}`);
   if (entry.txt) {
-    const mx = (sx + dx) / 2, my = (sy + dy) / 2 - 6;
+    const mx = (sx + dx) / 2 + spread * 0.35;
+    const my = (sy + dy) / 2 - 6 - Math.abs(spread) * 0.15;
     entry.txt.setAttribute('x', mx); entry.txt.setAttribute('y', my);
     entry.txt.setAttribute('text-anchor','middle');
   }
@@ -959,13 +1144,77 @@ function redrawArrows() {
   for (const a of arrows) _updateArrow(a);
 }
 
-function removeArrowsFor(winId) {
+function removeArrowsWhere(predicate) {
   for (let i = arrows.length - 1; i >= 0; i--) {
-    if (arrows[i].srcWinId === winId || arrows[i].dstWinId === winId) {
+    if (predicate(arrows[i])) {
       arrows[i].g.remove();
       arrows.splice(i, 1);
     }
   }
+}
+
+function removeArrowsFor(winId) {
+  removeArrowsWhere(a => a.srcWinId === winId || a.dstWinId === winId);
+}
+
+function collectObjectLinks(obj, targetOop) {
+  if (!obj || targetOop == null) return [];
+
+  const links = [];
+  const pushLink = (type, label='') => {
+    const cleanLabel = shortLabel(label, 48);
+    if (!links.some(link => link.type === type && link.label === cleanLabel)) {
+      links.push({type, label: cleanLabel});
+    }
+  };
+
+  if (obj.classObject?.oop === targetOop) pushLink('class');
+  if (obj.superclassObject?.oop === targetOop) pushLink('superclass');
+
+  for (const [idx, pair] of Object.entries(obj.instVars || {})) {
+    if (!Array.isArray(pair) || pair.length < 2) continue;
+    const [nameV, valV] = pair;
+    const keyText = shortLabel(nameV?.inspection || idx, 24) || idx;
+
+    if (obj.basetype === 'hash') {
+      if (nameV?.oop === targetOop && !isLeafBasetype(nameV?.basetype)) {
+        pushLink('ref', `key ${keyText}`);
+      }
+      if (valV?.oop === targetOop && !isLeafBasetype(valV?.basetype)) {
+        pushLink('ref', keyText);
+      }
+      continue;
+    }
+
+    if (valV?.oop === targetOop && !isLeafBasetype(valV?.basetype)) {
+      pushLink('ref', keyText);
+    }
+  }
+
+  return links;
+}
+
+function syncObjectWindowArrows(winId) {
+  removeArrowsWhere(a => a.auto && (a.srcWinId === winId || a.dstWinId === winId));
+
+  const source = windowState.get(winId);
+  if (!source || source.kind !== 'object' || !source.object?.oop) {
+    redrawArrows();
+    return;
+  }
+
+  for (const [otherId, other] of windowState.entries()) {
+    if (otherId === winId || other.kind !== 'object' || !other.object?.oop) continue;
+
+    for (const link of collectObjectLinks(source.object, other.object.oop)) {
+      drawArrow(winId, otherId, link.label, link.type, {auto: true});
+    }
+    for (const link of collectObjectLinks(other.object, source.object.oop)) {
+      drawArrow(otherId, winId, link.label, link.type, {auto: true});
+    }
+  }
+
+  redrawArrows();
 }
 
 // ── inline object chip (ClassName▼ button) ────────────────────────────────────
@@ -1024,8 +1273,7 @@ function makeChip(text, oop, winId, evalContext) {
     e.stopPropagation();
     dd.classList.remove('open');
     if (oop) {
-      const newWin = openObjectBrowser(oop, text);
-      if (winId && newWin) drawArrow(winId, newWin.id, '', 'ref');
+      openLinkedObjectWindow({oop, text, sourceWinId: winId});
     }
   });
 
@@ -1043,7 +1291,14 @@ function makeChip(text, oop, winId, evalContext) {
   // drag to open inspector in new window
   wrap.addEventListener('dragstart', e => {
     wrap.classList.add('dragging');
-    e.dataTransfer.setData('text/plain', JSON.stringify({oop, text, srcWinId: winId}));
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      oop,
+      text,
+      srcWinId: winId,
+      arrowType: 'ref',
+      arrowLabel: '',
+    }));
   });
   wrap.addEventListener('dragend', () => wrap.classList.remove('dragging'));
 
@@ -1057,18 +1312,31 @@ desktop.addEventListener('drop', e => {
   try {
     const data = JSON.parse(e.dataTransfer.getData('text/plain'));
     if (!data.oop) return;
-    const newWin = openObjectBrowser(data.oop, data.text, e.clientX - 200, e.clientY - 20);
-    if (data.srcWinId && newWin) drawArrow(data.srcWinId, newWin.id, '', 'ref');
+    openLinkedObjectWindow({
+      oop: data.oop,
+      text: data.text,
+      sourceWinId: data.srcWinId,
+      arrowType: data.arrowType || 'ref',
+      arrowLabel: data.arrowLabel || '',
+      x: e.clientX - 200,
+      y: e.clientY - 20,
+    });
   } catch(_) {}
 });
 
 // ── global state ──────────────────────────────────────────────────────────────
 let roots = {};
+let startupIds = {};
 
 // ── init ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
     const data = await api('/ids');
+    startupIds = {
+      persistentRootId: data.persistentRootId,
+      systemId: data.gemStoneSystemId,
+      globalsId: data.globalsId,
+    };
     roots = {
       'UserGlobals': data.persistentRootId,
       'Globals':     data.globalsId,
@@ -1117,10 +1385,10 @@ function startThreadPoller() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // OBJECT BROWSER WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
+function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {}) {
   const {win, body, id} = createWindow({
     title:'Object Browser',
-    width: pw || 720, height: ph || 530,
+    width: pw || 520, height: ph || 480,
     taskbarLabel:'Objects',
     x: px, y: py
   });
@@ -1131,6 +1399,9 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
   let currentItab = 'instvars';
   let mbData = {}, mbClassOop = null;
   let instPage = 0;
+  let preferredInitialTab = options.initialTab || null;
+  const compactMode = !!options.compact;
+  upsertWindowState(id, {kind: 'object', object: null});
 
   // Replace plain titlebar with MagLev-style chip titlebar
   const titlebar = win.querySelector(`#${id}-titlebar`);
@@ -1143,37 +1414,77 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
   titlebar.appendChild(tbLeft);
   titlebar.appendChild(tbRight);
 
+  function tbChip(text, oop, icon) {
+    // A titlebar chip: icon + text + ▼ caret, opens inspector on click
+    const sp = document.createElement('span');
+    sp.style.cssText = 'display:inline-flex;align-items:center;gap:2px;background:#2a2a3a;border:1px solid #45475a;border-radius:3px;padding:0 5px 0 4px;font-size:10px;font-family:monospace;cursor:pointer;white-space:nowrap;color:#cdd6f4;';
+    sp.innerHTML = (icon ? `<span style="font-size:9px;color:#a6adc8">${icon}</span>` : '') + escHtml(text.slice(0,30)) + '<span style="color:#6c7086;font-size:8px;margin-left:2px">▼</span>';
+    sp.title = text;
+    attachObjectButtonBehavior(sp, {oop, text, sourceWinId: id});
+    return sp;
+  }
+
   function updateTitlebar(obj) {
     const left  = win.querySelector(`#${id}-tb-left`);
     const right = win.querySelector(`#${id}-tb-right`);
     left.innerHTML = ''; right.innerHTML = '';
     if (!obj) { left.innerHTML = '<span style="color:#6c7086;font-size:10px;font-style:italic">Object Browser</span>'; return; }
 
-    // Left: self▼ < superclass▼ <0xOOP>
-    const selfChip = makeChip(obj.inspection || obj.classObject?.inspection || 'self', obj.oop, id);
-    left.appendChild(selfChip);
+    // Left: □ inspection▼ < □ ClassName▼  <0xOOP>
+    left.appendChild(tbChip(obj.inspection || 'self', obj.oop, '▤'));
     if (obj.classObject?.oop) {
       const lt = document.createElement('span'); lt.className='insp-sep'; lt.textContent=' < '; left.appendChild(lt);
-      const clsChip = makeChip(obj.classObject.inspection||'class', obj.classObject.oop, id);
-      left.appendChild(clsChip);
+      left.appendChild(tbChip(obj.classObject.inspection||'class', obj.classObject.oop, '▤'));
     }
     const oopSp = document.createElement('span'); oopSp.className='insp-oop';
     oopSp.textContent = ' <0x' + (obj.oop||0).toString(16) + '>'; left.appendChild(oopSp);
 
-    // Right: printString▼ :: Class▼
-    if (obj.inspection) {
-      const psChip = makeChip(obj.inspection, obj.oop, id);
-      right.appendChild(psChip);
-    }
+    // Right: :: □ printString▼  :: □ Class▼
     if (obj.classObject?.oop) {
+      const sep1 = document.createElement('span'); sep1.className='insp-sep'; sep1.textContent=':: '; right.appendChild(sep1);
+      right.appendChild(tbChip(obj.inspection||'self', obj.oop, '▤'));
       const sep2 = document.createElement('span'); sep2.className='insp-sep'; sep2.textContent=' :: '; right.appendChild(sep2);
-      const cls2 = makeChip(obj.classObject.inspection||'class', obj.classObject.oop, id);
-      right.appendChild(cls2);
+      right.appendChild(tbChip(obj.classObject.inspection||'class', obj.classObject.oop, '▤'));
     }
   }
 
   body.style.minHeight = '0';
-  body.innerHTML = `
+  body.innerHTML = compactMode ? `
+    <div style="display:flex;flex:1;min-height:0;overflow:hidden">
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div class="inspector-strip" id="${id}-itabs" style="display:none">
+          <div class="inspector-tab active" data-itab="instvars">Instance Variables</div>
+          <div class="inspector-tab" data-itab="constants">Constants</div>
+          <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
+          <div class="inspector-tab" data-itab="instances">Instances</div>
+          <div class="inspector-tab" data-itab="modules">Included Modules</div>
+          <div class="inspector-tab" data-itab="stone-ver">Stone Version Report</div>
+          <div class="inspector-tab" data-itab="gem-ver">Gem Version Report</div>
+          <div class="inspector-tab dim" data-itab="control">Control Panel</div>
+          <div class="inspector-tab" data-itab="code">Code</div>
+        </div>
+        <div class="inspector-body" id="${id}-ibody">
+          <p style="color:#6c7086;padding:12px">Loading object…</p>
+        </div>
+      </div>
+      <div id="${id}-mb" class="hidden" style="width:300px;border-left:1px solid #313244;display:flex;flex-direction:column;background:#181825;flex-shrink:0">
+        <div class="mb-header">
+          <span id="${id}-mb-class">Methods</span>
+          <button class="mb-close" id="${id}-mb-close">✕</button>
+        </div>
+        <div class="mb-split">
+          <div class="mb-cats" id="${id}-mb-cats"></div>
+          <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <div class="mb-sels" id="${id}-mb-sels"></div>
+            <div class="mb-src">
+              <textarea id="${id}-mb-src" readonly placeholder="Select a method…"></textarea>
+              <div class="mb-statusbar" id="${id}-mb-status">No method selected</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ` : `
     <div style="display:flex;flex:1;min-height:0;overflow:hidden">
       <div class="win-sidebar">
         <h2>Roots</h2>
@@ -1189,8 +1500,8 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
               <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
               <div class="inspector-tab" data-itab="instances">Instances</div>
               <div class="inspector-tab" data-itab="modules">Included Modules</div>
-              <div class="inspector-tab" data-itab="stone-ver">Stone Version</div>
-              <div class="inspector-tab" data-itab="gem-ver">Gem Version</div>
+              <div class="inspector-tab" data-itab="stone-ver">Stone Version Report</div>
+              <div class="inspector-tab" data-itab="gem-ver">Gem Version Report</div>
               <div class="inspector-tab dim" data-itab="control">Control Panel</div>
               <div class="inspector-tab" data-itab="code">Code</div>
             </div>
@@ -1198,7 +1509,6 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
               <p style="color:#6c7086;padding:12px">Select a root object to begin.</p>
             </div>
           </div>
-          <!-- method browser (Code tab) -->
           <div id="${id}-mb" class="hidden" style="width:300px;border-left:1px solid #313244;display:flex;flex-direction:column;background:#181825;flex-shrink:0">
             <div class="mb-header">
               <span id="${id}-mb-class">Methods</span>
@@ -1237,30 +1547,98 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
 
   // populate roots sidebar
   const rootsUl = body.querySelector(`#${id}-roots`);
-  for (const [label, oop] of Object.entries(roots)) {
-    const li = document.createElement('li');
-    li.textContent = label;
-    li.dataset.oop = oop;
-    li.addEventListener('click', () => { history = [{label, oop}]; loadObj(oop, label); });
-    rootsUl.appendChild(li);
+  if (rootsUl) {
+    for (const [label, oop] of Object.entries(roots)) {
+      const li = document.createElement('li');
+      li.textContent = label;
+      li.dataset.oop = oop;
+      li.addEventListener('click', () => { history = [{label, oop}]; loadObj(oop, label); });
+      rootsUl.appendChild(li);
+    }
   }
 
   // inspector tab switching
-  body.querySelector(`#${id}-itabs`).addEventListener('click', e => {
-    const tab = e.target.closest('.inspector-tab');
-    if (!tab) return;
+  function getCodeTarget(obj) {
+    if (!obj?.oop) return null;
+    if (obj.superclassObject?.oop) {
+      return {oop: obj.oop, label: obj.inspection || 'class'};
+    }
+    if (obj.classObject?.oop) {
+      return {oop: obj.classObject.oop, label: obj.classObject.inspection || 'class'};
+    }
+    return {oop: obj.oop, label: obj.inspection || 'object'};
+  }
+
+  function getVisibleInspectorTabs(obj) {
+    const visible = new Set(['instvars']);
+    const isBehaviorLike = !!obj?.superclassObject?.oop;
+    const systemOop = startupIds.systemId || roots['System'];
+    const isSystemBehavior = isBehaviorLike && obj?.oop === systemOop;
+
+    if (isBehaviorLike) {
+      visible.add('constants');
+      visible.add('hierarchy');
+      visible.add('instances');
+      visible.add('modules');
+      visible.add('code');
+    }
+    if (isSystemBehavior) {
+      visible.add('stone-ver');
+      visible.add('gem-ver');
+      visible.add('control');
+    }
+    return visible;
+  }
+
+  function applyItabVisibility(obj) {
+    const itabs = body.querySelector(`#${id}-itabs`);
+    const mb = body.querySelector(`#${id}-mb`);
+    const visible = getVisibleInspectorTabs(obj);
+    const allTabs = Array.from(itabs.querySelectorAll('.inspector-tab'));
+    let activeVisible = false;
+
+    allTabs.forEach(tab => {
+      const show = visible.has(tab.dataset.itab);
+      tab.style.display = show ? '' : 'none';
+      if (!show) {
+        tab.classList.remove('active');
+        return;
+      }
+      if (tab.dataset.itab === currentItab) activeVisible = true;
+    });
+
+    if (!activeVisible) {
+      currentItab = allTabs.find(tab => visible.has(tab.dataset.itab))?.dataset.itab || 'instvars';
+    }
+
+    allTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.itab === currentItab && visible.has(tab.dataset.itab)));
+    if (mb) mb.classList.toggle('hidden', currentItab !== 'code');
+    itabs.style.display = allTabs.filter(tab => visible.has(tab.dataset.itab)).length > 1 ? 'flex' : 'none';
+  }
+
+  function activateItab(itabName) {
+    const targetTab = body.querySelector(`#${id}-itabs [data-itab="${itabName}"]`);
+    if (!targetTab || targetTab.style.display === 'none') return false;
     body.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    currentItab = tab.dataset.itab;
+    targetTab.classList.add('active');
+    currentItab = itabName;
     if (currentItab === 'code') {
       body.querySelector(`#${id}-mb`).classList.remove('hidden');
-      if (currentObjData?.classObject?.oop && !mbClassOop) {
-        openMB(currentObjData.classObject.oop, currentObjData.classObject.inspection||'class');
+      const codeTarget = getCodeTarget(currentObjData);
+      if (codeTarget?.oop && mbClassOop !== codeTarget.oop) {
+        openMB(codeTarget.oop, codeTarget.label);
       }
     } else {
       body.querySelector(`#${id}-mb`).classList.add('hidden');
     }
     showItab();
+    return true;
+  }
+
+  body.querySelector(`#${id}-itabs`).addEventListener('click', e => {
+    const tab = e.target.closest('.inspector-tab');
+    if (!tab) return;
+    activateItab(tab.dataset.itab);
   });
 
   // method browser close
@@ -1274,59 +1652,65 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
   // eval
   const evalCode = body.querySelector(`#${id}-eval-code`);
   const evalRes  = body.querySelector(`#${id}-eval-res`);
-  body.querySelector(`#${id}-eval-btn`).addEventListener('click', doEval);
-  evalCode.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') doEval(); });
+  body.querySelector(`#${id}-eval-btn`)?.addEventListener('click', doEval);
+  evalCode?.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') doEval(); });
 
   // tx buttons
   async function txAction(route, label) {
     const resEl = body.querySelector(`#${id}-tx-res`);
-    resEl.classList.remove('hidden','error'); resEl.textContent = label + '…';
+    if (resEl) {
+      resEl.classList.remove('hidden','error');
+      resEl.textContent = label + '…';
+    }
     try {
       const d = await api(route);
-      resEl.textContent = d.success ? (label + ' ok') : 'Error: ' + (d.exception||'');
-      if (!d.success) resEl.classList.add('error');
+      if (resEl) {
+        resEl.textContent = d.success ? (label + ' ok') : 'Error: ' + (d.exception||'');
+        if (!d.success) resEl.classList.add('error');
+      }
       setStatus(d.success, d.success ? label : d.exception||'error');
-    } catch(e) { resEl.classList.add('error'); resEl.textContent = e.message; setStatus(false, e.message); }
+    } catch(e) {
+      if (resEl) {
+        resEl.classList.add('error');
+        resEl.textContent = e.message;
+      }
+      setStatus(false, e.message);
+    }
   }
-  body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
+  body.querySelector(`#${id}-abort`)?.addEventListener('click', async () => {
     await txAction('/transaction/abort','aborted');
     if (currentOop) loadObj(currentOop, history[history.length-1]?.label);
   });
-  body.querySelector(`#${id}-commit`).addEventListener('click', () => txAction('/transaction/commit','committed'));
-  body.querySelector(`#${id}-continue`).addEventListener('click', () => txAction('/transaction/continue','continued'));
+  body.querySelector(`#${id}-commit`)?.addEventListener('click', () => txAction('/transaction/commit','committed'));
+  body.querySelector(`#${id}-continue`)?.addEventListener('click', () => txAction('/transaction/continue','continued'));
 
   async function loadObj(oop, label) {
     currentOop = oop;
     currentObjData = null;
     instPage = 0;
+    upsertWindowState(id, {kind: 'object', object: null});
+    syncObjectWindowArrows(id);
     renderBc();
     body.querySelectorAll(`#${id}-roots li`).forEach(li => li.classList.toggle('active', parseInt(li.dataset.oop) === oop));
     const ibody = body.querySelector(`#${id}-ibody`);
     ibody.innerHTML = '<span class="spinner"></span>';
     body.querySelector(`#${id}-itabs`).style.display = 'none';
-    evalRes.textContent = '';
+    if (evalRes) evalRes.textContent = '';
     updateTitlebar(null);
     try {
       const d = await api(`/object/index/${oop}?depth=2`);
       if (!d.success) throw new Error(d.exception);
       currentObjData = d.result;
+      upsertWindowState(id, {kind: 'object', object: currentObjData});
       updateTitlebar(currentObjData);
-      // Show Associations tab for hash/dict objects
-      const itabs = body.querySelector(`#${id}-itabs`);
-      let assocTab = itabs.querySelector('[data-itab="assoc"]');
-      if (currentObjData.basetype === 'hash') {
-        if (!assocTab) {
-          assocTab = document.createElement('div');
-          assocTab.className = 'inspector-tab';
-          assocTab.dataset.itab = 'assoc';
-          assocTab.textContent = 'Associations';
-          itabs.insertBefore(assocTab, itabs.firstChild);
-        }
+      syncObjectWindowArrows(id);
+      applyItabVisibility(currentObjData);
+      const requestedTab = preferredInitialTab || currentItab;
+      if (requestedTab && activateItab(requestedTab)) {
+        preferredInitialTab = null;
       } else {
-        if (assocTab) assocTab.remove();
+        showItab();
       }
-      itabs.style.display = 'flex';
-      showItab();
     } catch(e) {
       ibody.innerHTML = `<p style="color:#f38ba8;padding:10px">Error: ${escHtml(e.message)}</p>`;
     }
@@ -1334,6 +1718,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
 
   function renderBc() {
     const bc = body.querySelector(`#${id}-bc`);
+    if (!bc) return;
     bc.innerHTML = '';
     history.forEach((item, i) => {
       if (i > 0) { const s = document.createElement('span'); s.className = 'sep'; s.textContent = ' › '; bc.appendChild(s); }
@@ -1348,14 +1733,11 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
   async function showItab() {
     const ibody = body.querySelector(`#${id}-ibody`);
     if (!currentObjData && currentItab !== 'stone-ver' && currentItab !== 'gem-ver' && currentItab !== 'control') return;
+    ibody.className = 'inspector-body';
+    ibody.style.overflow = 'auto';
     ibody.innerHTML = '';
 
     if (currentItab === 'instvars') { ibody.appendChild(renderCard(currentObjData)); return; }
-
-    if (currentItab === 'assoc') {
-      renderAssociations(ibody, currentObjData);
-      return;
-    }
 
     if (currentItab === 'constants') {
       ibody.innerHTML = '<span class="spinner"></span>';
@@ -1439,8 +1821,6 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
     }
 
     if (currentItab === 'control') {
-      ibody.classList.remove('inspector-body');
-      ibody.style.overflow = 'auto';
       renderControlPanel(ibody);
       return;
     }
@@ -1538,6 +1918,24 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
     ibody.appendChild(wrap);
   }
 
+  function assocChip(text, oop) {
+    // Inline association chip: □ Text▼  (like "□ User▼" in the reference)
+    const sp = document.createElement('span');
+    sp.style.cssText = 'display:inline-flex;align-items:center;gap:2px;background:#232336;border:1px solid #45475a;border-radius:3px;padding:0 4px;font-size:10px;font-family:monospace;cursor:pointer;color:#cdd6f4;vertical-align:middle;';
+    sp.innerHTML = '<span style="font-size:9px;color:#a6adc8">▤</span>' + escHtml(text.slice(0,30)) + '<span style="color:#6c7086;font-size:8px;margin-left:2px">▼</span>';
+    attachObjectButtonBehavior(sp, {oop, text, sourceWinId: id});
+    return sp;
+  }
+
+  function hashBraceChip(label, oop) {
+    // { ▼ or } ▼  chip for hash objects
+    const sp = document.createElement('span');
+    sp.style.cssText = 'display:inline-flex;align-items:center;background:#232336;border:1px solid #45475a;border-radius:3px;padding:0 3px;font-size:11px;font-family:monospace;cursor:pointer;color:#89dceb;vertical-align:middle;';
+    sp.innerHTML = escHtml(label) + '<span style="color:#6c7086;font-size:8px;margin-left:1px">▼</span>';
+    attachObjectButtonBehavior(sp, {oop, text: label, sourceWinId: id});
+    return sp;
+  }
+
   function renderAssociations(ibody, obj) {
     ibody.innerHTML = '';
     const entries = obj.instVars || {};
@@ -1549,46 +1947,22 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
     for (const [, [keyV, valV]] of Object.entries(entries)) {
       const row = document.createElement('div'); row.className = 'assoc-row';
 
-      // Key label (symbol key like :MaglevRecord)
-      const keyLabel = document.createElement('span'); keyLabel.className = 'assoc-key-label';
-      const kIsLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(keyV?.basetype);
+      // Key: symbol keys shown as plain text (":MaglevRecord"), object keys as chip
+      const kIsLeaf = isLeafBasetype(keyV?.basetype);
       const kText = keyV?.inspection || (keyV?.oop != null ? `oop:${keyV.oop}` : 'nil');
       if (!kIsLeaf && keyV?.oop) {
-        const kChip = makeChip(kText, keyV.oop, id);
-        row.appendChild(kChip);
+        row.appendChild(assocChip(kText, keyV.oop));
       } else {
-        keyLabel.textContent = kText;
-        row.appendChild(keyLabel);
+        const keyLabel = document.createElement('span'); keyLabel.className = 'assoc-key-label';
+        keyLabel.textContent = kText; row.appendChild(keyLabel);
       }
 
       // Arrow
-      const arr = document.createElement('span'); arr.className = 'assoc-arrow'; arr.textContent = ' ⇒ ';
+      const arr = document.createElement('span'); arr.className = 'assoc-arrow'; arr.textContent = ' => ';
       row.appendChild(arr);
 
-      // Value — render as chip(s) — if it's a hash/array show { ... } style
-      if (!valV || valV.basetype === 'nilclass') {
-        const nil = document.createElement('span'); nil.style.color='#6c7086'; nil.textContent='nil';
-        row.appendChild(nil);
-      } else {
-        const vText = valV.inspection || (valV.oop != null ? `oop:${valV.oop}` : 'nil');
-        const vIsLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valV.basetype);
-        if (!vIsLeaf && valV.oop) {
-          // For hash/array types show { ... }▼ prefix chip then class chip
-          if (valV.basetype === 'hash' || valV.basetype === 'array') {
-            const open = document.createElement('span'); open.className='insp-sep'; open.textContent = valV.basetype==='hash' ? '{ ' : '[ ';
-            row.appendChild(open);
-            const ellipsis = document.createElement('span'); ellipsis.style.color='#6c7086'; ellipsis.textContent='…';
-            row.appendChild(ellipsis);
-            const close = document.createElement('span'); close.className='insp-sep'; close.textContent = valV.basetype==='hash' ? ' }' : ' ]';
-            row.appendChild(close);
-          }
-          const vChip = makeChip(vText.slice(0,60), valV.oop, id);
-          row.appendChild(vChip);
-        } else {
-          const vSpan = document.createElement('span'); vSpan.style.color='#a6e3a1'; vSpan.style.fontFamily='monospace'; vSpan.textContent=vText;
-          row.appendChild(vSpan);
-        }
-      }
+      // Value chips
+      appendValChips(row, valV);
 
       wrap.appendChild(row);
     }
@@ -1600,6 +1974,33 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
     ibody.appendChild(wrap);
   }
 
+  function appendValChips(row, valV) {
+    if (!valV || valV.basetype === 'nilclass') {
+      const nil = document.createElement('span'); nil.style.cssText='color:#6c7086;font-family:monospace;font-size:11px'; nil.textContent='nil';
+      row.appendChild(nil); return;
+    }
+    const vText = valV.inspection || (valV.oop != null ? `oop:${valV.oop}` : 'nil');
+    const vIsLeaf = isLeafBasetype(valV.basetype);
+    if (vIsLeaf || !valV.oop) {
+      const sp = document.createElement('span'); sp.style.cssText='color:#a6e3a1;font-family:monospace;font-size:11px'; sp.textContent=vText;
+      row.appendChild(sp); return;
+    }
+    if (valV.basetype === 'hash') {
+      // Render as: {▼  ...  }▼  with each instVar as  □ ClassName▼ => value , ...
+      row.appendChild(hashBraceChip('{', valV.oop));
+      const elipsis = document.createElement('span'); elipsis.style.cssText='color:#6c7086;font-size:11px;margin:0 2px'; elipsis.textContent=' … ';
+      row.appendChild(elipsis);
+      row.appendChild(hashBraceChip('}', valV.oop));
+    } else if (valV.basetype === 'array') {
+      row.appendChild(hashBraceChip('[', valV.oop));
+      const elipsis = document.createElement('span'); elipsis.style.cssText='color:#6c7086;font-size:11px;margin:0 2px'; elipsis.textContent=' … ';
+      row.appendChild(elipsis);
+      row.appendChild(hashBraceChip(']', valV.oop));
+    } else {
+      row.appendChild(assocChip(vText.slice(0,40), valV.oop));
+    }
+  }
+
   function renderCard(obj) {
     const wrap = document.createElement('div');
     const card = document.createElement('div'); card.className = 'obj-card';
@@ -1609,7 +2010,8 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
     const cn = document.createElement('span'); cn.className = 'class-name';
     const cname = obj.classObject?.inspection || '';
     cn.textContent = cname;
-    if (cname && obj.classObject?.oop) { cn.title='Browse methods'; cn.addEventListener('click', () => openMB(obj.classObject.oop, cname)); }
+    const codeTarget = getCodeTarget(obj);
+    if (cname && codeTarget?.oop) { cn.title='Browse methods'; cn.addEventListener('click', () => openMB(codeTarget.oop, codeTarget.label)); }
     const ins = document.createElement('span'); ins.className = 'inspection'; ins.textContent = obj.inspection || '';
     const oopSp = document.createElement('span'); oopSp.className = 'oop'; oopSp.textContent = `oop:${obj.oop}`;
     hdr.append(bt, cn, ins, oopSp);
@@ -1626,7 +2028,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
         const tr = document.createElement('tr');
         const tdK = document.createElement('td'); tdK.className = 'col-key';
         const ktext = nameV.inspection || `@${idx}`;
-        const kLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(nameV.basetype);
+        const kLeaf = isLeafBasetype(nameV.basetype);
         if (isDictLike && nameV.oop != null && !kLeaf) {
           tdK.appendChild(makeChip(ktext, nameV.oop, id));
         } else { tdK.textContent = ktext; }
@@ -1647,7 +2049,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
       const aC = document.createElement('a'); aC.className='link-oop'; aC.textContent = obj.classObject.inspection || `oop:${obj.classObject.oop}`;
       aC.addEventListener('click', () => { const l2=obj.classObject.inspection||'class'; history.push({label:l2,oop:obj.classObject.oop}); loadObj(obj.classObject.oop,l2); });
       const aM = document.createElement('a'); aM.className='link-oop'; aM.style.color='#cba6f7'; aM.textContent='Browse methods ›';
-      aM.addEventListener('click', () => openMB(obj.classObject.oop, obj.classObject.inspection||'class'));
+      aM.addEventListener('click', () => { if (codeTarget?.oop) openMB(codeTarget.oop, codeTarget.label); });
       cr.append(lbl, aC, aM); wrap.appendChild(cr);
     }
     return wrap;
@@ -1656,7 +2058,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
   function makeValCell(valV, label) {
     const td = document.createElement('td'); td.className = 'col-val';
     if (!valV) { td.textContent = 'nil'; return td; }
-    const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(valV.basetype);
+    const isLeaf = isLeafBasetype(valV.basetype);
     const text = valV.inspection || (valV.oop != null ? `oop:${valV.oop}` : 'nil');
     if (!isLeaf && valV.oop != null) {
       const chip = makeChip(text, valV.oop, id);
@@ -1683,6 +2085,11 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
       mbData = d.result || {};
       const cats = Object.keys(mbData).sort();
       catsEl.innerHTML = '';
+      if (!cats.length) {
+        catsEl.innerHTML = '<div class="mb-cat" style="color:#6c7086">(no methods)</div>';
+        statusEl.textContent = className + ' — 0 categories';
+        return;
+      }
       cats.forEach(cat => {
         const el = document.createElement('div'); el.className = 'mb-cat'; el.textContent = cat || '(uncategorized)';
         el.addEventListener('click', () => {
@@ -1716,6 +2123,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
   }
 
   async function doEval() {
+    if (!evalCode || !evalRes) return;
     if (!currentOop) return;
     const code = evalCode.value.trim(); if (!code) return;
     evalRes.textContent = ''; evalRes.className = 'eval-result';
@@ -1728,7 +2136,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
       if (isExc) { evalRes.className='eval-result error'; evalRes.textContent='⚑ '+(rv.inspection||'Exception'); }
       else {
         evalRes.textContent = rv.inspection || 'nil';
-        const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(rv.basetype);
+        const isLeaf = isLeafBasetype(rv.basetype);
         if (!isLeaf && rv.oop) {
           const chip = makeChip(rv.inspection||'result', rv.oop, id);
           evalRes.appendChild(document.createTextNode(' ')); evalRes.appendChild(chip);
@@ -1749,6 +2157,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function openWorkspace() {
   const {win, body, id} = createWindow({title:'Workspace', width:520, height:440, taskbarLabel:'Workspace'});
+  upsertWindowState(id, {kind: 'workspace'});
   // The outer div must be display:flex;flex-direction:column so ws-history can flex:1
   // and ws-input-row / txbar stay at the bottom.
   body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;min-height:0';
@@ -1801,12 +2210,12 @@ function openWorkspace() {
       if (isExc) { resEl.className='ws-result error'; textSpan.textContent='⚑ '+(rv.inspection||'Exception'); }
       else {
         textSpan.textContent = '=> ' + (rv.inspection||'nil');
-        const isLeaf = ['string','symbol','fixnum','float','boolean','nilclass'].includes(rv.basetype);
+        const isLeaf = isLeafBasetype(rv.basetype);
         if (!isLeaf && rv.oop) {
           const chip = makeChip(rv.inspection||'result', rv.oop, id);
           resEl.appendChild(chip);
           const nav = document.createElement('span'); nav.className='ws-nav'; nav.textContent='inspect →';
-          nav.addEventListener('click', () => openObjectBrowser(rv.oop, rv.inspection||'result'));
+          nav.addEventListener('click', () => openLinkedObjectWindow({oop: rv.oop, text: rv.inspection||'result', sourceWinId: id}));
           resEl.appendChild(nav);
         }
       }
@@ -1821,6 +2230,7 @@ function openWorkspace() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function openWebBrowser(initialUrl) {
   const {win, body, id} = createWindow({title:'Web Browser', width:700, height:520, taskbarLabel:'Web Browser'});
+  upsertWindowState(id, {kind: 'web-browser'});
   const defaultUrl = initialUrl || 'https://pandas.pydata.org';
   body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;min-height:0';
   body.innerHTML = `
@@ -1851,6 +2261,7 @@ function openDebugger(threadOop, threadName) {
     title: 'Debugger — ' + (threadName||'').slice(0,40),
     width: 660, height: 600, taskbarLabel: 'Debugger'
   });
+  upsertWindowState(id, {kind: 'debugger', threadOop});
 
   let currentFrameIdx = 0;
   let frames = [];
@@ -1995,7 +2406,8 @@ function openDebugger(threadOop, threadName) {
 // SYMBOL LIST WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function openSymbolList(px, py, pw, ph) {
-  const {win, body, id} = createWindow({title:'Symbol List Browser', width: pw||640, height: ph||520, taskbarLabel:'Symbol List', x: px, y: py});
+  const {win, body, id} = createWindow({title:'Symbol List Browser', width: pw||480, height: ph||460, taskbarLabel:'Symbol List', x: px, y: py});
+  upsertWindowState(id, {kind: 'symbol-list'});
 
   let slUser=null, slDict=null, slKey=null, slKeyOop=null;
 
@@ -2047,7 +2459,7 @@ function openSymbolList(px, py, pw, ph) {
 
   body.querySelector(`#${id}-inspect`).addEventListener('click', () => {
     if (!slKeyOop) return;
-    openObjectBrowser(slKeyOop, slKey||'object');
+    openLinkedObjectWindow({oop: slKeyOop, text: slKey||'object', sourceWinId: id});
   });
   body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
     try { const d=await api('/transaction/abort'); setStatus(d.success,d.success?'aborted':d.exception); if (d.success&&slUser) loadDicts(slUser); } catch(e){setStatus(false,e.message);}
@@ -2170,7 +2582,7 @@ function openSymbolList(px, py, pw, ph) {
         const tr=document.createElement('tr');
         const tk=document.createElement('td');tk.className='col-key';tk.textContent=nv.inspection||'';
         const tv=document.createElement('td');tv.className='col-val';
-        const isLeaf=['string','symbol','fixnum','float','boolean','nilclass'].includes(vv.basetype);
+        const isLeaf = isLeafBasetype(vv.basetype);
         if(!isLeaf&&vv.oop){
           const chip = makeChip(vv.inspection||`oop:${vv.oop}`, vv.oop, id);
           tv.appendChild(chip);
@@ -2189,6 +2601,591 @@ function openSymbolList(px, py, pw, ph) {
   }
 
   setTimeout(loadUsers, 1500);
+  return win;
+}
+
+function parseMethodReference(ref) {
+  const split = String(ref || '').indexOf('>>');
+  if (split < 0) return null;
+  let className = String(ref).slice(0, split).trim();
+  const selector = String(ref).slice(split + 2).trim();
+  const meta = className.endsWith(' class');
+  if (meta) className = className.slice(0, -6).trim();
+  return className && selector ? {className, selector, meta} : null;
+}
+
+function openTextWindow(title, text, taskbarLabel='Report', px, py, pw=560, ph=380) {
+  const {body} = createWindow({title, width: pw, height: ph, x: px, y: py, taskbarLabel});
+  body.innerHTML = `<textarea class="qv-preview" readonly></textarea>`;
+  body.querySelector('textarea').value = text || '';
+}
+
+function openMethodQueryWindow(title, results) {
+  const {body} = createWindow({title, width: 760, height: 520, taskbarLabel:'Method Query'});
+  body.innerHTML = `
+    <div class="qv-wrap">
+      <div class="qv-list"></div>
+      <div class="qv-main">
+        <div class="qv-toolbar">
+          <span class="qv-title">Select a result</span>
+          <button class="btn-ghost" id="qv-open" disabled>Open In Browser</button>
+        </div>
+        <textarea class="qv-preview" readonly></textarea>
+      </div>
+    </div>
+  `;
+
+  const listEl = body.querySelector('.qv-list');
+  const titleEl = body.querySelector('.qv-title');
+  const previewEl = body.querySelector('.qv-preview');
+  const openBtn = body.querySelector('#qv-open');
+  let currentRef = null;
+
+  async function selectRef(ref, row) {
+    currentRef = ref;
+    listEl.querySelectorAll('.qv-item').forEach(el => el.classList.remove('active'));
+    row?.classList.add('active');
+    const parsed = parseMethodReference(ref);
+    if (!parsed) {
+      titleEl.textContent = ref;
+      previewEl.value = ref;
+      openBtn.disabled = true;
+      return;
+    }
+    openBtn.disabled = false;
+    titleEl.textContent = parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`;
+    previewEl.value = 'Loading…';
+    try {
+      const d = await apiWithParams('/class-browser/source', {
+        class: parsed.className,
+        selector: parsed.selector,
+        meta: parsed.meta ? 1 : 0,
+      });
+      if (!d.success) throw new Error(d.exception);
+      previewEl.value = d.source || '';
+    } catch (e) {
+      previewEl.value = 'Error: ' + e.message;
+    }
+  }
+
+  openBtn.addEventListener('click', () => {
+    const parsed = parseMethodReference(currentRef);
+    if (!parsed) return;
+    openClassBrowser({className: parsed.className, method: parsed.selector, meta: parsed.meta});
+  });
+
+  if (!results.length) {
+    listEl.innerHTML = '<div class="cb-empty">(no matches)</div>';
+    previewEl.value = '';
+    return;
+  }
+
+  results.forEach(ref => {
+    const row = document.createElement('div');
+    row.className = 'qv-item';
+    row.textContent = ref;
+    row.addEventListener('click', () => selectRef(ref, row));
+    row.addEventListener('dblclick', () => {
+      const parsed = parseMethodReference(ref);
+      if (parsed) openClassBrowser({className: parsed.className, method: parsed.selector, meta: parsed.meta});
+    });
+    listEl.appendChild(row);
+  });
+  selectRef(results[0], listEl.querySelector('.qv-item'));
+}
+
+function openVersionsWindow(title, versions) {
+  const {body} = createWindow({title, width: 760, height: 520, taskbarLabel:'Versions'});
+  body.innerHTML = `
+    <div class="qv-wrap">
+      <div class="qv-list"></div>
+      <div class="qv-main">
+        <div class="qv-toolbar">
+          <span class="qv-title">Select a version</span>
+        </div>
+        <textarea class="qv-preview" readonly></textarea>
+      </div>
+    </div>
+  `;
+
+  const listEl = body.querySelector('.qv-list');
+  const titleEl = body.querySelector('.qv-title');
+  const previewEl = body.querySelector('.qv-preview');
+
+  function selectVersion(version, row) {
+    listEl.querySelectorAll('.qv-item').forEach(el => el.classList.remove('active'));
+    row?.classList.add('active');
+    titleEl.textContent = version.label;
+    previewEl.value = version.source || '';
+  }
+
+  if (!versions.length) {
+    listEl.innerHTML = '<div class="cb-empty">(no versions)</div>';
+    return;
+  }
+
+  versions.forEach(version => {
+    const row = document.createElement('div');
+    row.className = 'qv-item';
+    row.textContent = version.label;
+    row.addEventListener('click', () => selectVersion(version, row));
+    listEl.appendChild(row);
+  });
+  selectVersion(versions[0], listEl.querySelector('.qv-item'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLASS BROWSER WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openClassBrowser(options = {}) {
+  const {win, body, id} = createWindow({
+    title:'Class Browser',
+    width: options.width || 960,
+    height: options.height || 660,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Class Browser'
+  });
+  upsertWindowState(id, {kind: 'class-browser'});
+
+  let currentDict = options.dictionary || null;
+  let currentClass = options.className || null;
+  let currentProtocol = options.protocol || '-- all --';
+  let currentMethod = options.method || null;
+  let currentMeta = !!options.meta;
+
+  body.innerHTML = `
+    <div class="cb-wrap">
+      <div class="cb-toolbar">
+        <button class="btn-ghost" id="${id}-find">Find Class</button>
+        <button class="btn-ghost" id="${id}-refresh">Refresh</button>
+        <button class="btn-ghost" id="${id}-browse-class">Browse Class</button>
+        <button class="btn-ghost" id="${id}-hierarchy">Hierarchy</button>
+        <button class="btn-ghost" id="${id}-versions">Versions</button>
+        <button class="btn-ghost" id="${id}-references">References</button>
+        <button class="btn-ghost" id="${id}-senders">Senders</button>
+        <button class="btn-ghost" id="${id}-implementors">Implementors</button>
+        <button class="btn" id="${id}-compile">Compile</button>
+        <label class="cb-meta"><input type="checkbox" id="${id}-meta"> Class side</label>
+      </div>
+      <div class="cb-lists">
+        <div class="cb-pane">
+          <div class="cb-pane-label">Dictionaries</div>
+          <div class="cb-list" id="${id}-dicts"></div>
+        </div>
+        <div class="cb-pane">
+          <div class="cb-pane-label">Classes</div>
+          <div class="cb-list" id="${id}-classes"></div>
+        </div>
+        <div class="cb-pane">
+          <div class="cb-pane-label">Categories</div>
+          <div class="cb-list" id="${id}-protocols"></div>
+        </div>
+        <div class="cb-pane">
+          <div class="cb-pane-label">Methods</div>
+          <div class="cb-list" id="${id}-methods"></div>
+        </div>
+      </div>
+      <div class="cb-source-wrap">
+        <div class="cb-source-hdr">
+          <span>Source</span>
+          <span class="cb-source-note" id="${id}-source-note"></span>
+        </div>
+        <textarea class="cb-source" id="${id}-source" spellcheck="false"></textarea>
+        <div class="cb-status" id="${id}-status">Loading…</div>
+      </div>
+    </div>
+  `;
+
+  const els = {
+    dicts: body.querySelector(`#${id}-dicts`),
+    classes: body.querySelector(`#${id}-classes`),
+    protocols: body.querySelector(`#${id}-protocols`),
+    methods: body.querySelector(`#${id}-methods`),
+    source: body.querySelector(`#${id}-source`),
+    sourceNote: body.querySelector(`#${id}-source-note`),
+    status: body.querySelector(`#${id}-status`),
+    meta: body.querySelector(`#${id}-meta`),
+  };
+  els.meta.checked = currentMeta;
+
+  function setBrowserStatus(message, tone='') {
+    els.status.textContent = message || '';
+    els.status.className = 'cb-status' + (tone ? ` ${tone}` : '');
+  }
+
+  function setSourceNote(text) {
+    els.sourceNote.textContent = text || '';
+  }
+
+  function renderList(container, items, active, onSelect) {
+    container.innerHTML = '';
+    if (!items.length) {
+      container.innerHTML = '<div class="cb-empty">(empty)</div>';
+      return;
+    }
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'cb-item' + (item === active ? ' active' : '');
+      row.textContent = item;
+      row.title = item;
+      row.addEventListener('click', () => onSelect(item));
+      container.appendChild(row);
+    });
+  }
+
+  function showLoading(container) {
+    container.innerHTML = '<div class="cb-empty"><span class="spinner"></span></div>';
+  }
+
+  function clearSource() {
+    els.source.value = '';
+    setSourceNote('');
+  }
+
+  async function loadClassSource(selector='') {
+    if (!currentClass) {
+      clearSource();
+      return;
+    }
+    const label = selector
+      ? (currentMeta ? `${currentClass} class >> ${selector}` : `${currentClass} >> ${selector}`)
+      : (currentMeta ? `${currentClass} class` : currentClass);
+    setSourceNote(label);
+    els.source.value = 'Loading…';
+    try {
+      const d = await apiWithParams('/class-browser/source', {
+        class: currentClass,
+        selector,
+        meta: currentMeta ? 1 : 0,
+      });
+      if (!d.success) throw new Error(d.exception);
+      els.source.value = d.source || '';
+      setBrowserStatus(label, 'ok');
+    } catch (e) {
+      els.source.value = 'Error: ' + e.message;
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function loadMethods() {
+    if (!currentClass) {
+      els.methods.innerHTML = '<div class="cb-empty">(select a class)</div>';
+      clearSource();
+      return;
+    }
+    showLoading(els.methods);
+    try {
+      const d = await apiWithParams('/class-browser/methods', {
+        class: currentClass,
+        protocol: currentProtocol,
+        meta: currentMeta ? 1 : 0,
+      });
+      if (!d.success) throw new Error(d.exception);
+      const methods = d.methods || [];
+      if (!methods.includes(currentMethod)) currentMethod = null;
+      renderList(els.methods, methods, currentMethod, async method => {
+        currentMethod = method;
+        renderList(els.methods, methods, currentMethod, async item => {
+          currentMethod = item;
+          await loadClassSource(currentMethod);
+        });
+        await loadClassSource(currentMethod);
+      });
+      if (currentMethod) {
+        await loadClassSource(currentMethod);
+      } else {
+        await loadClassSource('');
+      }
+    } catch (e) {
+      els.methods.innerHTML = `<div class="cb-empty" style="color:#f38ba8">${escHtml(e.message)}</div>`;
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function loadProtocols() {
+    if (!currentClass) {
+      els.protocols.innerHTML = '<div class="cb-empty">(select a class)</div>';
+      els.methods.innerHTML = '<div class="cb-empty">(select a class)</div>';
+      clearSource();
+      return;
+    }
+    showLoading(els.protocols);
+    try {
+      const d = await apiWithParams('/class-browser/categories', {
+        class: currentClass,
+        meta: currentMeta ? 1 : 0,
+      });
+      if (!d.success) throw new Error(d.exception);
+      const protocols = d.categories || ['-- all --'];
+      if (!protocols.includes(currentProtocol)) currentProtocol = '-- all --';
+      renderList(els.protocols, protocols, currentProtocol, async protocol => {
+        currentProtocol = protocol;
+        currentMethod = null;
+        renderList(els.protocols, protocols, currentProtocol, async item => {
+          currentProtocol = item;
+          currentMethod = null;
+          await loadMethods();
+        });
+        await loadMethods();
+      });
+      await loadMethods();
+    } catch (e) {
+      els.protocols.innerHTML = `<div class="cb-empty" style="color:#f38ba8">${escHtml(e.message)}</div>`;
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function loadClasses() {
+    if (!currentDict) {
+      els.classes.innerHTML = '<div class="cb-empty">(select a dictionary)</div>';
+      els.protocols.innerHTML = '<div class="cb-empty">(select a class)</div>';
+      els.methods.innerHTML = '<div class="cb-empty">(select a class)</div>';
+      clearSource();
+      return;
+    }
+    showLoading(els.classes);
+    try {
+      const d = await apiWithParams('/class-browser/classes', {dictionary: currentDict});
+      if (!d.success) throw new Error(d.exception);
+      const classes = d.classes || [];
+      if (!classes.includes(currentClass)) currentClass = classes[0] || null;
+      renderList(els.classes, classes, currentClass, async className => {
+        currentClass = className;
+        currentProtocol = '-- all --';
+        currentMethod = null;
+        renderList(els.classes, classes, currentClass, async item => {
+          currentClass = item;
+          currentProtocol = '-- all --';
+          currentMethod = null;
+          await loadProtocols();
+        });
+        await loadProtocols();
+      });
+      await loadProtocols();
+    } catch (e) {
+      els.classes.innerHTML = `<div class="cb-empty" style="color:#f38ba8">${escHtml(e.message)}</div>`;
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function loadDictionaries() {
+    showLoading(els.dicts);
+    try {
+      const d = await api('/class-browser/dictionaries');
+      if (!d.success) throw new Error(d.exception);
+      const dictionaries = d.dictionaries || [];
+      if (!dictionaries.includes(currentDict)) currentDict = currentDict || dictionaries[0] || null;
+      if (!dictionaries.includes(currentDict)) currentDict = dictionaries[0] || null;
+      renderList(els.dicts, dictionaries, currentDict, async dictName => {
+        currentDict = dictName;
+        currentClass = null;
+        currentProtocol = '-- all --';
+        currentMethod = null;
+        renderList(els.dicts, dictionaries, currentDict, async item => {
+          currentDict = item;
+          currentClass = null;
+          currentProtocol = '-- all --';
+          currentMethod = null;
+          await loadClasses();
+        });
+        await loadClasses();
+      });
+      await loadClasses();
+    } catch (e) {
+      els.dicts.innerHTML = `<div class="cb-empty" style="color:#f38ba8">${escHtml(e.message)}</div>`;
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function locateAndSelectClass(className, methodName = null, meta = currentMeta) {
+    currentMeta = !!meta;
+    els.meta.checked = currentMeta;
+    const d = await apiWithParams('/class-browser/class-location', {class: className});
+    if (!d.success) throw new Error(d.exception);
+    if (!d.dictionary) throw new Error(`Class not found: ${className}`);
+    currentDict = d.dictionary;
+    currentClass = className;
+    currentProtocol = '-- all --';
+    currentMethod = methodName;
+    await loadDictionaries();
+  }
+
+  async function refreshBrowser() {
+    const saved = {
+      dict: currentDict,
+      className: currentClass,
+      protocol: currentProtocol,
+      method: currentMethod,
+      meta: currentMeta,
+    };
+    currentDict = saved.dict;
+    currentClass = saved.className;
+    currentProtocol = saved.protocol;
+    currentMethod = saved.method;
+    currentMeta = saved.meta;
+    els.meta.checked = currentMeta;
+    await loadDictionaries();
+  }
+
+  async function runSelectorQuery(mode, promptTitle, forcePrompt=false) {
+    let selector = !forcePrompt && currentMethod ? currentMethod : '';
+    if (!selector) selector = prompt(promptTitle, currentMethod || '');
+    selector = String(selector || '').trim();
+    if (!selector) return;
+    setBrowserStatus('Searching…');
+    try {
+      const d = await apiWithParams('/class-browser/query', {
+        selector,
+        mode,
+        rootClassName: currentClass || '',
+        hierarchyScope: 'full',
+      });
+      if (!d.success) throw new Error(d.exception);
+      if (!d.results.length) {
+        setBrowserStatus('No matches found');
+        return;
+      }
+      openMethodQueryWindow(`${promptTitle} (${d.results.length})`, d.results);
+      setBrowserStatus(`${d.results.length} matches`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function runReferenceQuery() {
+    const token = prompt('References to class or variable name:', currentClass || '');
+    const selector = String(token || '').trim();
+    if (!selector) return;
+    setBrowserStatus('Searching…');
+    try {
+      const d = await apiWithParams('/class-browser/query', {
+        selector,
+        mode: 'references',
+        rootClassName: currentClass || '',
+      });
+      if (!d.success) throw new Error(d.exception);
+      if (!d.results.length) {
+        setBrowserStatus('No matches found');
+        return;
+      }
+      openMethodQueryWindow(`References to ${selector} (${d.results.length})`, d.results);
+      setBrowserStatus(`${d.results.length} matches`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function showHierarchy() {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    try {
+      const d = await apiWithParams('/class-browser/hierarchy', {class: currentClass});
+      if (!d.success) throw new Error(d.exception);
+      openTextWindow(`${currentClass} Hierarchy`, (d.hierarchy || []).join('\n'), 'Hierarchy', undefined, undefined, 420, 320);
+      setBrowserStatus('Hierarchy loaded', 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function showVersions() {
+    if (!currentClass || !currentMethod) {
+      setBrowserStatus('Select a method first', 'error');
+      return;
+    }
+    try {
+      const d = await apiWithParams('/class-browser/versions', {
+        class: currentClass,
+        selector: currentMethod,
+        meta: currentMeta ? 1 : 0,
+      });
+      if (!d.success) throw new Error(d.exception);
+      if (!d.versions.length) {
+        setBrowserStatus('No versions available');
+        return;
+      }
+      openVersionsWindow(`${currentClass} >> ${currentMethod} Versions`, d.versions);
+      setBrowserStatus(`${d.versions.length} versions`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function compileSource() {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    setBrowserStatus('Compiling…');
+    try {
+      const d = await apiPost('/class-browser/compile', {
+        className: currentClass,
+        category: currentProtocol === '-- all --' ? 'as yet unclassified' : currentProtocol,
+        source: els.source.value,
+        meta: els.meta.checked,
+      });
+      if (!d.success) throw new Error(d.exception || 'Compilation failed');
+      setBrowserStatus(d.result || 'Compiled', 'ok');
+      await loadProtocols();
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  body.querySelector(`#${id}-find`).addEventListener('click', async () => {
+    const name = prompt('Class name:', currentClass || '');
+    const className = String(name || '').trim();
+    if (!className) return;
+    try {
+      await locateAndSelectClass(className);
+      setBrowserStatus(`Selected ${className}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  });
+  body.querySelector(`#${id}-refresh`).addEventListener('click', () => refreshBrowser());
+  body.querySelector(`#${id}-browse-class`).addEventListener('click', () => loadClassSource(''));
+  body.querySelector(`#${id}-hierarchy`).addEventListener('click', () => showHierarchy());
+  body.querySelector(`#${id}-versions`).addEventListener('click', () => showVersions());
+  body.querySelector(`#${id}-references`).addEventListener('click', () => runReferenceQuery());
+  body.querySelector(`#${id}-senders`).addEventListener('click', () => runSelectorQuery('senders', 'Senders of selector:'));
+  body.querySelector(`#${id}-implementors`).addEventListener('click', () => runSelectorQuery('implementors', 'Implementors of selector:'));
+  body.querySelector(`#${id}-compile`).addEventListener('click', () => compileSource());
+  els.meta.addEventListener('change', async () => {
+    currentMeta = els.meta.checked;
+    currentProtocol = '-- all --';
+    currentMethod = null;
+    await loadProtocols();
+  });
+
+  (async () => {
+    try {
+      if (currentClass && !currentDict) {
+        await locateAndSelectClass(currentClass, currentMethod, currentMeta);
+      } else {
+        await loadDictionaries();
+      }
+      setBrowserStatus(currentClass ? `Loaded ${currentClass}` : 'Ready');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  })();
+
   return win;
 }
 
@@ -2218,7 +3215,7 @@ function openModal(title, fields, onOk) {
     const lbl=document.createElement('label');lbl.textContent=f.label;lbl.style.cssText='display:block;margin-bottom:2px';fd.appendChild(lbl);
     const el=f.type==='textarea'?document.createElement('textarea'):document.createElement('input');
     if(f.type!=='textarea')el.type='text';
-    el.placeholder=f.placeholder||'';el.id=f.id;el.style.marginBottom='6px';fd.appendChild(el);
+    el.placeholder=f.placeholder||'';el.id=f.id;el.style.marginBottom='6px';el.value=f.value||'';fd.appendChild(el);
   }
   document.getElementById('modal-overlay').classList.add('visible');
   if(fields.length)document.getElementById(fields[0].id)?.focus();
@@ -2233,14 +3230,32 @@ function openModal(title, fields, onOk) {
 // ── startup ───────────────────────────────────────────────────────────────────
 async function startup() {
   await init();
-  // Place the two default windows side-by-side, filling the viewport.
   const vw = window.innerWidth;
-  const vh = window.innerHeight - 32; // subtract taskbar height
-  const half = Math.max(360, Math.floor(vw / 2) - 2);
-  openObjectBrowser(undefined, undefined, 0, 0, half, vh);
-  openSymbolList(half + 2, 0, vw - half - 2, vh);
-  // Reset cascade for user-opened windows
-  cascadeX = 60; cascadeY = 60;
+  const vh = Math.max(420, window.innerHeight - 42);
+
+  const hashOop = startupIds.persistentRootId || roots['UserGlobals'] || roots['Globals'];
+  const hashLabel = 'Persistent Root';
+  const hashW = Math.min(vw - 32, Math.max(900, Math.floor(vw * 0.72)));
+  const hashH = Math.min(300, Math.max(220, Math.floor(vh * 0.34)));
+  const hashX = Math.max(16, vw - hashW - 16);
+  const hashY = 10;
+
+  const systemW = Math.min(vw - 32, Math.max(980, Math.floor(vw * 0.9)));
+  const systemH = Math.min(340, Math.max(280, Math.floor(vh * 0.46)));
+  const systemX = 20;
+  const systemY = Math.min(Math.max(180, hashY + hashH + 34), Math.max(20, vh - systemH - 20));
+
+  if (hashOop) {
+    openObjectBrowser(hashOop, hashLabel, hashX, hashY, hashW, hashH, {initialTab: 'instvars', compact: true});
+  } else {
+    openObjectBrowser(undefined, undefined, 10, 10, 520, 480);
+  }
+
+  if (startupIds.systemId || roots['System']) {
+    openObjectBrowser(startupIds.systemId || roots['System'], 'System', systemX, systemY, systemW, systemH, {initialTab: 'control', compact: true});
+  }
+
+  cascadeX = 80; cascadeY = 80;
   setTimeout(startThreadPoller, 5000);
 }
 startup();

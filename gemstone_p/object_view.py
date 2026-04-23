@@ -78,10 +78,10 @@ def _basetype_from_cname(cname: str) -> str:
 # Smalltalk source for our field escape block (backslash, newline, pipe)
 _ENCODE_SRC = escaped_field_encoder_source("encode")
 
-# One eval returns 3 pipe-separated fields on one line:
-#   className | printString(truncated) | classOop
+# One eval returns 5 pipe-separated fields on one line:
+#   className | printString(truncated) | classOop | superclassPrintString | superclassOop
 _META_SCRIPT = """\
-| obj encode cname ps classOop |
+| obj encode cname ps classOop superObj superPs superOop |
 obj := {obj_expr}.
 {encode_src}
 cname := [obj class name] on: Error do: [:e | 'Object'].
@@ -90,31 +90,43 @@ ps := ps size > 200
   ifTrue: [ps copyFrom: 1 to: 200]
   ifFalse: [ps].
 classOop := [obj class asOop printString] on: Error do: [:e | '20'].
-(encode value: cname), '|', (encode value: ps), '|', classOop
+superObj := [obj superclass] on: Error do: [:e | nil].
+superPs := superObj isNil
+  ifTrue: ['']
+  ifFalse: [[superObj printString] on: Error do: [:e | '(error)']].
+superPs := superPs size > 200
+  ifTrue: [superPs copyFrom: 1 to: 200]
+  ifFalse: [superPs].
+superOop := superObj isNil
+  ifTrue: ['']
+  ifFalse: [[superObj asOop printString] on: Error do: [:e | '']].
+(encode value: cname), '|', (encode value: ps), '|', classOop, '|', (encode value: superPs), '|', superOop
 """
 
 
-def _fetch_meta(session: GemStoneSession, oop: int) -> tuple[str, str, int]:
-    """Return (class_name, print_string, class_oop) in one eval."""
+def _fetch_meta(session: GemStoneSession, oop: int) -> tuple[str, str, int, str, int]:
+    """Return (class_name, print_string, class_oop, superclass_print_string, superclass_oop)."""
     if oop == OOP_NIL:
-        return "UndefinedObject", "nil", OOP_NIL
+        return "UndefinedObject", "nil", OOP_NIL, "", OOP_NIL
     if oop == OOP_TRUE:
-        return "True", "true", OOP_NIL
+        return "True", "true", OOP_NIL, "", OOP_NIL
     if oop == OOP_FALSE:
-        return "False", "false", OOP_NIL
+        return "False", "false", OOP_NIL, "", OOP_NIL
     try:
         script = _META_SCRIPT.format(
             obj_expr=object_for_oop_expr(oop),
             encode_src=_ENCODE_SRC,
         )
         raw = _str(session.eval(script))
-        parts = raw.split("|", 2)
+        parts = raw.split("|", 4)
         cname = decode_escaped_field(parts[0]) if len(parts) > 0 else "Object"
         ps    = decode_escaped_field(parts[1]) if len(parts) > 1 else ""
         class_oop = int(parts[2]) if len(parts) > 2 and parts[2].strip().isdigit() else OOP_NIL
-        return cname, ps, class_oop
+        super_ps = decode_escaped_field(parts[3]) if len(parts) > 3 else ""
+        super_oop = int(parts[4]) if len(parts) > 4 and parts[4].strip().isdigit() else OOP_NIL
+        return cname, ps, class_oop, super_ps, super_oop
     except Exception as exc:
-        return "Object", f"(error: {exc})", OOP_NIL
+        return "Object", f"(error: {exc})", OOP_NIL, "", OOP_NIL
 
 
 # --------------------------------------------------------------------------- #
@@ -414,7 +426,7 @@ def object_view(
         params = {}
 
     # Fetch class name, printString, and class OOP in one GCI call.
-    cname, inspection, class_oop = _fetch_meta(session, oop)
+    cname, inspection, class_oop, superclass_ps, superclass_oop = _fetch_meta(session, oop)
     basetype = _basetype_from_cname(cname)
 
     obj: dict[str, Any] = {
@@ -432,7 +444,7 @@ def object_view(
 
     # Class object — one recursive call, depth-1 (stops quickly at depth=0)
     if class_oop != OOP_NIL:
-        class_cname, class_ps, _ = _fetch_meta(session, class_oop)
+        class_cname, class_ps, _, _, _ = _fetch_meta(session, class_oop)
         obj["classObject"] = {
             "oop": class_oop,
             "inspection": class_ps,
@@ -441,6 +453,16 @@ def object_view(
         }
     else:
         obj["classObject"] = {"oop": None, "inspection": "", "basetype": "object", "loaded": False}
+
+    if superclass_oop != OOP_NIL:
+        obj["superclassObject"] = {
+            "oop": superclass_oop,
+            "inspection": superclass_ps,
+            "basetype": "object",
+            "loaded": False,
+        }
+    else:
+        obj["superclassObject"] = {"oop": None, "inspection": "", "basetype": "object", "loaded": False}
 
     range_from = int(ranges.get("instVars", [1, 20])[0])
     range_to   = int(ranges.get("instVars", [1, 20])[1])

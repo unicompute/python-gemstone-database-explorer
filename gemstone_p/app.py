@@ -22,18 +22,98 @@ import os
 from flask import Flask, jsonify, request, render_template
 
 from gemstone_p import session as gs_session
-from gemstone_p.object_view import object_view, eval_in_context, _escape_st
+from gemstone_p.object_view import object_view, eval_in_context, _escape_st, _eval_str
+from gemstone_py._smalltalk_batch import (
+    object_for_oop_expr,
+    escaped_field_encoder_source,
+    decode_escaped_field,
+)
 
-# Smalltalk snippet: find AllUsers via several fallback paths, bind to `allUsers`
+def _indent_st(source: str, prefix: str = "  ") -> str:
+    return "\n".join(f"{prefix}{line}" if line else line for line in source.splitlines())
+
+
+def _valid_user_collection_expr(var_name: str) -> str:
+    return (
+        f"(({var_name} notNil) and: [\n"
+        f"  (({var_name} respondsTo: #userId) and: [{var_name} respondsTo: #symbolList])\n"
+        f"    ifTrue: [true]\n"
+        f"    ifFalse: [\n"
+        f"      | foundValidUser |\n"
+        f"      foundValidUser := false.\n"
+        f"      [{var_name} do: [:each |\n"
+        f"        ((each respondsTo: #userId) and: [each respondsTo: #symbolList]) ifTrue: [foundValidUser := true]\n"
+        f"      ]] on: Error do: [:e | foundValidUser := false].\n"
+        f"      foundValidUser\n"
+        f"    ]\n"
+        f"])"
+    )
+
+
+def _load_user_collection_expr(source_expr: str) -> str:
+    return (
+        f"allUsers := [{source_expr}] on: Error do: [:e | nil].\n"
+        "((allUsers notNil) and: [(allUsers respondsTo: #userId) and: [allUsers respondsTo: #symbolList]]) ifTrue: [\n"
+        "  allUsers := Array with: allUsers\n"
+        "].\n"
+        f"({_valid_user_collection_expr('allUsers')}) ifFalse: [\n"
+        "  allUsers := nil\n"
+        "]."
+    )
+
+
+# Smalltalk snippet: find a trustworthy AllUsers collection, bind it to `allUsers`
 _ALL_USERS_EXPR = (
-    "allUsers := [Globals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+    "allUsers := nil.\n"
     "allUsers isNil ifTrue: [\n"
-    "  allUsers := [UserGlobals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil]\n"
+    f"{_indent_st(_load_user_collection_expr('System myUserProfile symbolList objectNamed: #AllUsers'))}\n"
     "].\n"
     "allUsers isNil ifTrue: [\n"
-    "  allUsers := [System myUserProfile symbolList objectNamed: #AllUsers] on: Error do: [:e | nil]\n"
+    f"{_indent_st(_load_user_collection_expr('Globals at: #AllUsers ifAbsent: [nil]'))}\n"
+    "].\n"
+    "allUsers isNil ifTrue: [\n"
+    f"{_indent_st(_load_user_collection_expr('UserGlobals at: #AllUsers ifAbsent: [nil]'))}\n"
+    "].\n"
+    "allUsers isNil ifTrue: [\n"
+    f"{_indent_st(_load_user_collection_expr('System myUserProfile'))}\n"
     "]."
 )
+
+def _all_users_detect_user_expr(escaped_user: str) -> str:
+    return (
+        "allUsers isNil ifTrue: [nil] ifFalse: [\n"
+        f"  allUsers detect: [:x | (([x userId] on: Error do: [:e | x printString]) asString) = '{escaped_user}'] ifNone: [nil]\n"
+        "]"
+    )
+
+
+_ENCODE_SRC = escaped_field_encoder_source("encode")
+
+
+def _behavior_prelude(oop: int, obj_var: str = "obj", behavior_var: str = "behavior") -> str:
+    return (
+        f"{obj_var} := {object_for_oop_expr(oop)}.\n"
+        f"{behavior_var} := (([{obj_var} isBehavior] on: Error do: [:e | false])\n"
+        f"  ifTrue: [{obj_var}]\n"
+        f"  ifFalse: [[{obj_var} class] on: Error do: [:e | {obj_var}]]).\n"
+    )
+
+
+def _decode_field(value: str) -> str:
+    return decode_escaped_field(value)
+
+
+def _as_bool_arg(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _cb_dict_expr(dict_name: str) -> str:
+    return f"(System myUserProfile symbolList objectNamed: '{_escape_st(dict_name)}' asSymbol)"
+
+
+def _cb_behavior_expr(class_name: str, meta: bool = False) -> str:
+    expr = f"(System myUserProfile symbolList objectNamed: '{_escape_st(class_name)}' asSymbol)"
+    return f"({expr} class)" if meta else expr
 
 
 def create_app() -> Flask:
@@ -123,17 +203,40 @@ def create_app() -> Flask:
     def code_selectors(oop: int):
         try:
             with gs_session.request_session() as session:
-                raw = session.eval(
-                    f"| obj dict |"
-                    f"obj := ObjectMemory objectForOop: {oop}."
-                    f"dict := Dictionary new."
-                    f"obj class methodDictionary keysDo: [:sel |"
-                    f"  | cat | cat := (obj class compiledMethodAt: sel) category."
-                    f"  (dict includesKey: cat) ifFalse: [dict at: cat put: OrderedCollection new]."
-                    f"  (dict at: cat) add: sel asString]."
-                    f"dict"
+                raw = _eval_str(
+                    session,
+                    f"| obj behavior encode result |\n"
+                    f"{_behavior_prelude(oop)}"
+                    f"{_ENCODE_SRC}\n"
+                    "result := ''.\n"
+                    "[behavior categoryNames do: [:cat |\n"
+                    "  | selectors |\n"
+                    "  selectors := ([behavior selectorsIn: cat] on: Error do: [:e | #()]).\n"
+                    "  selectors ifNil: [selectors := #()].\n"
+                    "  selectors do: [:sel |\n"
+                    "    result := result , 'C|' , (encode value: cat asString) , '|' , (encode value: sel asString) , String lf asString\n"
+                    "  ]\n"
+                    "]] on: Error do: [:e | ].\n"
+                    "[behavior selectors asArray do: [:sel |\n"
+                    "  result := result , 'A|' , (encode value: sel asString) , String lf asString\n"
+                    "]] on: Error do: [:e | ].\n"
+                    "result"
                 )
-                result = {str(k): list(v) for k, v in raw.items()} if hasattr(raw, "items") else {}
+                categories: dict[str, list[str]] = {}
+                all_smalltalk: list[str] = []
+                for line in str(raw).splitlines():
+                    if line.startswith("C|"):
+                        _, cat, selector_name = line.split("|", 2)
+                        categories.setdefault(_decode_field(cat), []).append(_decode_field(selector_name))
+                    elif line.startswith("A|"):
+                        _, selector_name = line.split("|", 1)
+                        all_smalltalk.append(_decode_field(selector_name))
+                result = {
+                    category: sorted(set(selectors))
+                    for category, selectors in categories.items()
+                }
+                if all_smalltalk:
+                    result["(all Smalltalk)"] = sorted(set(all_smalltalk))
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -149,17 +252,363 @@ def create_app() -> Flask:
         selector = request.args.get("selector", "")
         try:
             with gs_session.request_session() as session:
-                raw = session.eval(
-                    f"| obj method |"
-                    f"obj := ObjectMemory objectForOop: {oop}."
-                    f"method := obj class compiledMethodAt: '{_escape_st(selector)}' ifAbsent: [nil]."
-                    f"method isNil ifTrue: [''] ifFalse: [method sourceString]"
+                source = _eval_str(
+                    session,
+                    f"| obj behavior method |\n"
+                    f"{_behavior_prelude(oop)}"
+                    f"method := ([behavior compiledMethodAt: '{_escape_st(selector)}' asSymbol ifAbsent: [nil]] on: Error do: [:e | nil]).\n"
+                    "method isNil ifTrue: [\n"
+                    f"  method := ([behavior lookupSelector: '{_escape_st(selector)}' asSymbol] on: Error do: [:e | nil])\n"
+                    "].\n"
+                    "method isNil ifTrue: [''] ifFalse: [[method sourceString] on: Error do: [:e | '']]"
                 )
-                source = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
         return jsonify(success=True, result=source)
+
+    # ------------------------------------------------------------------ #
+    # Class Browser                                                       #
+    # Mirrors the bridge/browser workflow from GbsBrowser                 #
+    # ------------------------------------------------------------------ #
+
+    @app.get("/class-browser/dictionaries")
+    def class_browser_dictionaries():
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    "[ | stream |\n"
+                    "stream := WriteStream on: String new.\n"
+                    "System myUserProfile symbolList do: [:dict |\n"
+                    "  stream nextPutAll: (([dict name] on: Error do: [:e | dict printString]) asString); lf\n"
+                    "].\n"
+                    "stream contents\n"
+                    "] value"
+                )
+                dictionaries = [line.strip() for line in str(raw).splitlines() if line.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, dictionaries=dictionaries)
+
+    @app.get("/class-browser/class-location")
+    def class_browser_class_location():
+        class_name = request.args.get("class", "").strip()
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    "[ | found |\n"
+                    "found := ''.\n"
+                    "System myUserProfile symbolList do: [:dict |\n"
+                    f"  ((found isEmpty) and: [dict includesKey: '{_escape_st(class_name)}' asSymbol]) ifTrue: [\n"
+                    f"    | value |\n"
+                    f"    value := dict at: '{_escape_st(class_name)}' asSymbol.\n"
+                    "    (value isBehavior) ifTrue: [ found := dict name asString ]\n"
+                    "  ]\n"
+                    "].\n"
+                    "found\n"
+                    "] value"
+                )
+                dictionary = str(raw).strip()
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, dictionary=dictionary)
+
+    @app.get("/class-browser/classes")
+    def class_browser_classes():
+        dictionary = request.args.get("dictionary", "").strip()
+        if not dictionary:
+            return jsonify(success=False, exception="missing dictionary"), 400
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    "[ | dict stream classNames |\n"
+                    f"dict := {_cb_dict_expr(dictionary)}.\n"
+                    "stream := WriteStream on: String new.\n"
+                    "dict ifNil: [ '' ] ifNotNil: [\n"
+                    "  classNames := dict keys select: [:each | (dict at: each) isBehavior].\n"
+                    "  classNames asSortedCollection do: [:cls | stream nextPutAll: cls asString; lf].\n"
+                    "  stream contents\n"
+                    "]\n"
+                    "] value"
+                )
+                classes = [line.strip() for line in str(raw).splitlines() if line.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, classes=classes)
+
+    @app.get("/class-browser/categories")
+    def class_browser_categories():
+        class_name = request.args.get("class", "").strip()
+        meta = _as_bool_arg(request.args.get("meta"))
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    "[ | cls stream |\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    "stream := WriteStream on: String new.\n"
+                    "cls ifNil: [ '' ] ifNotNil: [\n"
+                    "  cls categoryNames asSortedCollection do: [:cat | stream nextPutAll: cat asString; lf].\n"
+                    "  stream contents\n"
+                    "]\n"
+                    "] value"
+                )
+                categories = [line.strip() for line in str(raw).splitlines() if line.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, categories=["-- all --", *categories])
+
+    @app.get("/class-browser/methods")
+    def class_browser_methods():
+        class_name = request.args.get("class", "").strip()
+        protocol = request.args.get("protocol", "-- all --").strip() or "-- all --"
+        meta = _as_bool_arg(request.args.get("meta"))
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    "[ | cls stream sels |\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    "stream := WriteStream on: String new.\n"
+                    "cls ifNil: [ '' ] ifNotNil: [\n"
+                    f"  sels := '{_escape_st(protocol)}' = '-- all --'\n"
+                    "    ifTrue: [ cls selectors ]\n"
+                    f"    ifFalse: [ cls selectorsIn: '{_escape_st(protocol)}' asSymbol ].\n"
+                    "  sels ifNil: [ sels := #() ].\n"
+                    "  sels asSortedCollection do: [:sel | stream nextPutAll: sel asString; lf].\n"
+                    "  stream contents\n"
+                    "]\n"
+                    "] value"
+                )
+                methods = [line.strip() for line in str(raw).splitlines() if line.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, methods=methods)
+
+    @app.get("/class-browser/source")
+    def class_browser_source():
+        class_name = request.args.get("class", "").strip()
+        selector = request.args.get("selector", "").strip()
+        meta = _as_bool_arg(request.args.get("meta"))
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        try:
+            with gs_session.request_session() as session:
+                source = _eval_str(
+                    session,
+                    f"| cls meth |\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    "cls ifNil: [ '' ] ifNotNil: [\n"
+                    f"  '{_escape_st(selector)}' isEmpty\n"
+                    "    ifTrue: [\n"
+                    "      (cls respondsTo: #definition)\n"
+                    "        ifTrue: [[cls definition asString] on: Error do: [:e | cls printString]]\n"
+                    "        ifFalse: [cls printString]\n"
+                    "    ]\n"
+                    "    ifFalse: [\n"
+                    f"      meth := cls compiledMethodAt: '{_escape_st(selector)}' asSymbol ifAbsent: [nil].\n"
+                    "      meth ifNil: [ '' ] ifNotNil: [[meth sourceString] on: Error do: [:e | '']]\n"
+                    "    ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, source=str(source))
+
+    @app.get("/class-browser/hierarchy")
+    def class_browser_hierarchy():
+        class_name = request.args.get("class", "").strip()
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    "[ | cls stream |\n"
+                    f"cls := {_cb_behavior_expr(class_name, False)}.\n"
+                    "stream := WriteStream on: String new.\n"
+                    "cls ifNotNil: [ cls withAllSuperclasses reverseDo: [:c | stream nextPutAll: c name asString; lf ] ].\n"
+                    "stream contents\n"
+                    "] value"
+                )
+                hierarchy = [line.strip() for line in str(raw).splitlines() if line.strip()]
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, hierarchy=hierarchy)
+
+    @app.get("/class-browser/versions")
+    def class_browser_versions():
+        class_name = request.args.get("class", "").strip()
+        selector = request.args.get("selector", "").strip()
+        meta = _as_bool_arg(request.args.get("meta"))
+        if not class_name or not selector:
+            return jsonify(success=False, exception="missing class or selector"), 400
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls sel stream versions src encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    f"sel := '{_escape_st(selector)}' asSymbol.\n"
+                    "stream := WriteStream on: String new.\n"
+                    "cls ifNil: [ '' ] ifNotNil: [\n"
+                    "  versions := (cls respondsTo: #allVersionsOf:)\n"
+                    "    ifTrue: [[cls allVersionsOf: sel] on: Error do: [#()]]\n"
+                    "    ifFalse: [#()].\n"
+                    "  versions isEmpty\n"
+                    "    ifTrue: [\n"
+                    "      src := [[(cls compiledMethodAt: sel) sourceString] on: Error do: [:e | '']].\n"
+                    "      src isEmpty ifFalse: [\n"
+                    "        stream nextPutAll: (encode value: 'version 1'); nextPut: $|; nextPutAll: (encode value: src); lf\n"
+                    "      ]\n"
+                    "    ]\n"
+                    "    ifFalse: [\n"
+                    "      1 to: versions size do: [:ix |\n"
+                    "        | method |\n"
+                    "        method := versions at: ix.\n"
+                    "        src := [[method sourceString] on: Error do: [:e | '']].\n"
+                    "        stream nextPutAll: (encode value: 'version ', ix printString); nextPut: $|; nextPutAll: (encode value: src); lf\n"
+                    "      ]\n"
+                    "    ]\n"
+                    "].\n"
+                    "stream contents"
+                )
+                versions = []
+                for line in str(raw).splitlines():
+                    if "|" not in line:
+                        continue
+                    label, _, source = line.partition("|")
+                    versions.append({"label": _decode_field(label), "source": _decode_field(source)})
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, versions=versions)
+
+    @app.get("/class-browser/query")
+    def class_browser_query():
+        selector = request.args.get("selector", "").strip()
+        mode = request.args.get("mode", "").strip()
+        root_class_name = request.args.get("rootClassName", "").strip()
+        scope = request.args.get("hierarchyScope", "full").strip() or "full"
+        valid_modes = {"implementors", "senders", "references", "hierarchyImplementors", "hierarchySenders"}
+        if not selector:
+            return jsonify(success=False, exception="missing selector"), 400
+        if mode not in valid_modes:
+            return jsonify(success=False, exception="unsupported query mode"), 400
+
+        escaped_selector = _escape_st(selector)
+        escaped_scope = _escape_st(scope)
+        selector_expr = (
+            "sels := OrderedCollection new.\n"
+            "      [ cls selectors do: [:candidate |\n"
+            "          (candidate asString = token) ifTrue: [ sels add: candidate ]\n"
+            "        ] ] on: Error do: [:e | ]."
+            if mode in {"implementors", "hierarchyImplementors"}
+            else "sels := OrderedCollection new.\n"
+                 "      [ cls selectors do: [:candidate |\n"
+                 "          | src |\n"
+                 "          src := [ (cls compiledMethodAt: candidate) sourceString ] on: Error do: [:e | '' ].\n"
+                 "          (src notNil and: [ src asString includesSubstring: token ]) ifTrue: [ sels add: candidate ]\n"
+                 "        ] ] on: Error do: [:e | ]."
+        )
+        class_filter_expr = (
+            "      (rootClass notNil) ifTrue: [\n"
+            "        | withinHierarchy isSuper isThis isSub |\n"
+            "        withinHierarchy := (cls withAllSuperclasses includes: rootClass)\n"
+            "          or: [ rootClass withAllSuperclasses includes: cls ].\n"
+            "        isSuper := (cls ~~ rootClass) and: [ rootClass withAllSuperclasses includes: cls ].\n"
+            "        isThis := cls == rootClass.\n"
+            "        isSub := (cls ~~ rootClass) and: [ cls withAllSuperclasses includes: rootClass ].\n"
+            "        withinHierarchy ifFalse: [ sels := #() ].\n"
+            "        withinHierarchy ifTrue: [\n"
+            "          (scope = 'super' and: [ isSuper not ]) ifTrue: [ sels := #() ].\n"
+            "          (scope = 'this' and: [ isThis not ]) ifTrue: [ sels := #() ].\n"
+            "          (scope = 'sub' and: [ isSub not ]) ifTrue: [ sels := #() ]\n"
+            "        ]\n"
+            "      ].\n"
+            if mode in {"hierarchyImplementors", "hierarchySenders"}
+            else ""
+        )
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(
+                    session,
+                    "[ | sel token classes stream rootClass scope |\n"
+                    f"sel := '{escaped_selector}' asSymbol.\n"
+                    f"token := '{escaped_selector}'.\n"
+                    f"scope := '{escaped_scope}'.\n"
+                    "stream := WriteStream on: String new.\n"
+                    "classes := IdentitySet new.\n"
+                    f"rootClass := {'nil' if not root_class_name else _cb_behavior_expr(root_class_name, False)}.\n"
+                    "System myUserProfile symbolList do: [:dict |\n"
+                    "  dict keysAndValuesDo: [:k :v | (v isBehavior) ifTrue: [ classes add: v ] ]\n"
+                    "].\n"
+                    "classes asArray do: [:cls |\n"
+                    "  | sels |\n"
+                    f"  {selector_expr}\n"
+                    f"{class_filter_expr}"
+                    "  sels do: [:s | stream nextPutAll: cls name asString; nextPutAll: '>>'; nextPutAll: s asString; lf ]\n"
+                    "].\n"
+                    "stream contents\n"
+                    "] value"
+                )
+                results = sorted(line.strip() for line in str(raw).splitlines() if line.strip())
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        return jsonify(success=True, results=results)
+
+    @app.post("/class-browser/compile")
+    def class_browser_compile():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        category = str(data.get("category", "as yet unclassified")).strip() or "as yet unclassified"
+        source = str(data.get("source", ""))
+        meta = bool(data.get("meta"))
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        clean_source = source.replace("\r\n", "\n").replace("\r", "\n")
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                result = _eval_str(
+                    session,
+                    f"| cls source result |\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'Error: class not found'\n"
+                    "] ifFalse: [\n"
+                    f"  source := '{_escape_st(clean_source)}'.\n"
+                    f"  result := [ cls compileMethod: source category: '{_escape_st(category)}' asSymbol ] on: Error do: [:e | 'Error: ' , e messageText ].\n"
+                    "  (result isKindOf: Array)\n"
+                    "    ifTrue: ['Error: Compilation failed']\n"
+                    "    ifFalse: [ result isString ifTrue: [ result ] ifFalse: [ 'Success' ] ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = str(result)
+        if message in {"", "None"}:
+            message = "Success"
+        success = not message.startswith("Error:")
+        return jsonify(success=success, result=message if success else None, exception=None if success else message)
 
     # ------------------------------------------------------------------ #
     # Transaction control                                                  #
@@ -199,7 +648,7 @@ def create_app() -> Flask:
                     f"allUsers isNil ifFalse: [\n"
                     f"  allUsers do: [:u |\n"
                     f"    | uid |\n"
-                    f"    uid := [u userId] on: Error do: [:e | u printString].\n"
+                    f"    uid := ([u userId] on: Error do: [:e | u printString]) asString.\n"
                     f"    stream := stream , uid , String lf asString\n"
                     f"  ]\n"
                     f"].\n"
@@ -220,14 +669,12 @@ def create_app() -> Flask:
                 raw = session.eval(
                     f"| allUsers u stream |\n"
                     f"{_ALL_USERS_EXPR}\n"
-                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
-                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
-                    f"].\n"
+                    f"u := {_all_users_detect_user_expr(escaped_user)}.\n"
                     f"stream := ''.\n"
                     f"u isNil ifFalse: [\n"
                     f"  u symbolList do: [:d |\n"
                     f"    | dname |\n"
-                    f"    dname := [d name] on: Error do: [:e | d printString].\n"
+                    f"    dname := ([d name] on: Error do: [:e | d printString]) asString.\n"
                     f"    stream := stream , dname , String lf asString\n"
                     f"  ]\n"
                     f"].\n"
@@ -248,16 +695,8 @@ def create_app() -> Flask:
                 escaped_dict = _escape_st(dictionary)
                 raw = session.eval(
                     f"| allUsers u dict stream |\n"
-                    f"allUsers := [Globals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil].\n"
-                    f"allUsers isNil ifTrue: [\n"
-                    f"  allUsers := [UserGlobals at: #AllUsers ifAbsent: [nil]] on: Error do: [:e | nil]\n"
-                    f"].\n"
-                    f"allUsers isNil ifTrue: [\n"
-                    f"  allUsers := [System myUserProfile symbolList objectNamed: #AllUsers] on: Error do: [:e | nil]\n"
-                    f"].\n"
-                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
-                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
-                    f"].\n"
+                    f"{_ALL_USERS_EXPR}\n"
+                    f"u := {_all_users_detect_user_expr(escaped_user)}.\n"
                     f"stream := ''.\n"
                     f"u isNil ifFalse: [\n"
                     f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
@@ -286,13 +725,11 @@ def create_app() -> Flask:
                 raw_oop = session.eval_oop(
                     f"| allUsers u dict |\n"
                     f"{_ALL_USERS_EXPR}\n"
-                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
-                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
-                    f"].\n"
+                    f"u := {_all_users_detect_user_expr(escaped_user)}.\n"
                     f"u isNil ifTrue: [nil] ifFalse: [\n"
                     f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
                     f"  dict isNil ifTrue: [nil] ifFalse: [\n"
-                    f"    dict at: '{escaped_key}' asSymbol ifAbsent: [nil]\n"
+                    f"    dict at: '{escaped_key}' ifAbsent: [dict at: '{escaped_key}' asSymbol ifAbsent: [nil]]\n"
                     f"  ]\n"
                     f"]"
                 )
@@ -320,9 +757,7 @@ def create_app() -> Flask:
                 session.eval(
                     f"| allUsers u newDict |\n"
                     f"{_ALL_USERS_EXPR}\n"
-                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
-                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
-                    f"].\n"
+                    f"u := {_all_users_detect_user_expr(escaped_user)}.\n"
                     f"u isNil ifFalse: [\n"
                     f"  newDict := SymbolDictionary new.\n"
                     f"  newDict name: '{escaped_name}' asSymbol.\n"
@@ -348,9 +783,7 @@ def create_app() -> Flask:
                 session.eval(
                     f"| allUsers u |\n"
                     f"{_ALL_USERS_EXPR}\n"
-                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
-                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
-                    f"].\n"
+                    f"u := {_all_users_detect_user_expr(escaped_user)}.\n"
                     f"u isNil ifFalse: [\n"
                     f"  u symbolList removeKey: '{escaped_name}' asSymbol ifAbsent: []\n"
                     f"]"
@@ -378,9 +811,7 @@ def create_app() -> Flask:
                 session.eval(
                     f"| allUsers u dict val |\n"
                     f"{_ALL_USERS_EXPR}\n"
-                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
-                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
-                    f"].\n"
+                    f"u := {_all_users_detect_user_expr(escaped_user)}.\n"
                     f"u isNil ifFalse: [\n"
                     f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
                     f"  dict isNil ifFalse: [\n"
@@ -410,9 +841,7 @@ def create_app() -> Flask:
                 session.eval(
                     f"| allUsers u dict |\n"
                     f"{_ALL_USERS_EXPR}\n"
-                    f"u := allUsers isNil ifTrue: [nil] ifFalse: [\n"
-                    f"  allUsers detect: [:x | x userId = '{escaped_user}'] ifNone: [nil]\n"
-                    f"].\n"
+                    f"u := {_all_users_detect_user_expr(escaped_user)}.\n"
                     f"u isNil ifFalse: [\n"
                     f"  dict := u symbolList detect: [:d | d name asString = '{escaped_dict}'] ifNone: [nil].\n"
                     f"  dict isNil ifFalse: [\n"
@@ -440,7 +869,7 @@ def create_app() -> Flask:
                     f"    stream := 'Found AllUsers: ', allUsers class name, ' size=', allUsers size printString, String lf asString.\n"
                     f"    allUsers do: [:u |\n"
                     f"      | uid |\n"
-                    f"      uid := [u userId] on: Error do: [:e | '(no userId: ', e messageText, ')'].\n"
+                    f"      uid := ([u userId] on: Error do: [:e | '(no userId: ', e messageText, ')']) asString.\n"
                     f"      stream := stream , '  user: ' , uid , String lf asString\n"
                     f"    ].\n"
                     f"    result := stream\n"
@@ -688,14 +1117,13 @@ def create_app() -> Flask:
     def object_constants(oop: int):
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str
                 raw = _eval_str(session,
-                    f"| obj result |\n"
-                    f"obj := ObjectMemory objectForOop: {oop}.\n"
+                    f"| obj behavior result |\n"
+                    f"{_behavior_prelude(oop)}"
                     f"result := ''.\n"
-                    f"[obj class classPool do: [:assoc |\n"
-                    f"  result := result , assoc key asString , '|' , assoc value printString , String lf asString\n"
-                    f"]] on: Error do: [:e | result := result , '(error: ' , e messageText , ')'].\n"
+                    f"[behavior classPool keysAndValuesDo: [:key :value |\n"
+                    f"  result := result , key asString , '|' , value printString , String lf asString\n"
+                    f"]] on: Error do: [:e | result := ''].\n"
                     f"result"
                 )
                 pairs = []
@@ -711,14 +1139,13 @@ def create_app() -> Flask:
     def object_hierarchy(oop: int):
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str
                 raw = _eval_str(session,
-                    f"| obj cls result |\n"
-                    f"obj := ObjectMemory objectForOop: {oop}.\n"
-                    f"cls := obj class.\n"
+                    f"| obj behavior cls result |\n"
+                    f"{_behavior_prelude(oop)}"
+                    f"cls := behavior.\n"
                     f"result := ''.\n"
                     f"[cls notNil] whileTrue: [\n"
-                    f"  result := result , cls name , String lf asString.\n"
+                    f"  result := result , cls name asString , String lf asString.\n"
                     f"  cls := cls superclass\n"
                     f"].\n"
                     f"result"
@@ -732,12 +1159,11 @@ def create_app() -> Flask:
     def object_included_modules(oop: int):
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str, object_for_oop_expr
                 raw = _eval_str(session,
-                    f"| obj result |\n"
-                    f"obj := {object_for_oop_expr(oop)}.\n"
+                    f"| obj behavior result |\n"
+                    f"{_behavior_prelude(oop)}"
                     f"result := ''.\n"
-                    f"[obj class withAllSuperclasses do: [:cls |\n"
+                    f"[behavior withAllSuperclasses do: [:cls |\n"
                     f"  (cls respondsTo: #includedModules) ifTrue: [\n"
                     f"    cls includedModules do: [:m |\n"
                     f"      result := result , m asOop printString , '|' , m name , String lf asString\n"
@@ -763,17 +1189,16 @@ def create_app() -> Flask:
         limit = int(request.args.get("limit", 50))
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str
                 raw = _eval_str(session,
-                    f"| obj result col |\n"
-                    f"obj := ObjectMemory objectForOop: {oop}.\n"
+                    f"| obj behavior result col |\n"
+                    f"{_behavior_prelude(oop)}"
                     f"result := ''.\n"
-                    f"[col := obj class allInstances.\n"
+                    f"[col := behavior allInstances.\n"
                     f" col size > {limit} ifTrue: [col := col copyFrom: 1 to: {limit}].\n"
                     f" col do: [:inst |\n"
                     f"   result := result , inst oop printString , '|' , inst printString , String lf asString\n"
                     f" ]\n"
-                    f"] on: Error do: [:e | result := '(error: ' , e messageText , ')'].\n"
+                    f"] on: Error do: [:e | result := ''].\n"
                     f"result"
                 )
                 instances = []
@@ -842,15 +1267,12 @@ def create_app() -> Flask:
     def object_stone_version_report():
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str
                 raw = _eval_str(session,
                     "| result |\n"
                     "result := ''.\n"
-                    "[SystemRepository versionReport do: [:assoc |\n"
-                    "  result := result , assoc key asString , '|' , assoc value printString , String lf asString\n"
-                    "]] on: Error do: [:e | \n"
-                    "  result := 'version|' , SystemRepository versionString , String lf asString\n"
-                    "].\n"
+                    "[System stoneVersionReport keysAndValuesDo: [:key :value |\n"
+                    "  result := result , key asString , '|' , value printString , String lf asString\n"
+                    "]] on: Error do: [:e | result := ''].\n"
                     "result"
                 )
                 pairs = []
@@ -866,15 +1288,12 @@ def create_app() -> Flask:
     def object_gem_version_report():
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str
                 raw = _eval_str(session,
                     "| result |\n"
                     "result := ''.\n"
-                    "[GemStone versionReport do: [:assoc |\n"
-                    "  result := result , assoc key asString , '|' , assoc value printString , String lf asString\n"
-                    "]] on: Error do: [:e | \n"
-                    "  result := 'version|' , GemStone version , String lf asString\n"
-                    "].\n"
+                    "[System gemVersionReport keysAndValuesDo: [:key :value |\n"
+                    "  result := result , key asString , '|' , value printString , String lf asString\n"
+                    "]] on: Error do: [:e | result := ''].\n"
                     "result"
                 )
                 pairs = []
@@ -894,9 +1313,16 @@ def create_app() -> Flask:
     def version():
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str
-                stone_ver = _eval_str(session, "SystemRepository versionString")
-                gem_ver = _eval_str(session, "GemStone version")
+                stone_ver = _eval_str(
+                    session,
+                    "[System stoneVersionReport at: 'gsVersion' ifAbsent: [System stoneVersionReport at: #gsVersion ifAbsent: ['']]] "
+                    "on: Error do: [:e | '']"
+                )
+                gem_ver = _eval_str(
+                    session,
+                    "[System gemVersionReport at: 'gsVersion' ifAbsent: [System gemVersionReport at: #gsVersion ifAbsent: ['']]] "
+                    "on: Error do: [:e | '']"
+                )
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, stone=str(stone_ver), gem=str(gem_ver))
