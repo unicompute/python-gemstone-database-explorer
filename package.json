@@ -1,0 +1,13 @@
+{
+  "name": "python-gemstone-database-explorer-ui-tests",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:mock": "playwright test",
+    "test:ui:live": "node tests/ui/check_live_env.js && playwright test -c playwright.live.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}

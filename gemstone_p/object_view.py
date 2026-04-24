@@ -15,9 +15,18 @@ string is much faster than N individual perform/perform_oop calls.
 
 from __future__ import annotations
 
+import ctypes
 from typing import Any
 
-from gemstone_py import GemStoneSession, OOP_NIL, OOP_TRUE, OOP_FALSE
+from gemstone_py import (
+    GemStoneError,
+    GemStoneSession,
+    GciErrSType,
+    OOP_ILLEGAL,
+    OOP_NIL,
+    OOP_TRUE,
+    OOP_FALSE,
+)
 from gemstone_py._smalltalk_batch import (
     object_for_oop_expr,
     escaped_field_encoder_source,
@@ -33,6 +42,8 @@ _DICT_CLASS_NAMES = {
 _ARRAY_CLASS_NAMES = {
     "Array", "OrderedCollection", "SortedCollection", "Bag", "ByteArray",
 }
+_CLASS_TABS = ["instvars", "constants", "modules", "code", "hierarchy", "instances"]
+_SYSTEM_TABS = [*_CLASS_TABS, "stone-ver", "gem-ver", "control"]
 
 
 # --------------------------------------------------------------------------- #
@@ -69,6 +80,187 @@ def _basetype_from_cname(cname: str) -> str:
     if cname in _ARRAY_CLASS_NAMES:
         return "array"
     return "object"
+
+
+def _custom_tab(
+    tab_id: str,
+    caption: str,
+    kind: str,
+    field: str,
+    size_field: str | None = None,
+    range_name: str | None = None,
+    page_size: int | None = None,
+) -> dict[str, Any]:
+    tab = {"id": tab_id, "caption": caption, "kind": kind, "field": field}
+    if size_field:
+        tab["sizeField"] = size_field
+    if range_name:
+        tab["rangeName"] = range_name
+    if page_size:
+        tab["pageSize"] = int(page_size)
+    return tab
+
+
+def _entry_name(entry: Any) -> str:
+    if not isinstance(entry, list) or not entry:
+        return ""
+    name_view = entry[0] if isinstance(entry[0], dict) else {}
+    raw = _str(name_view.get("inspection", "")).strip()
+    return raw[1:] if raw.startswith("@") else raw
+
+
+def _find_named_entry(entries: dict[int, Any], *names: str) -> Any | None:
+    wanted = {name.strip().lower() for name in names}
+    for entry in entries.values():
+        if _entry_name(entry).lower() in wanted:
+            return entry
+    return None
+
+
+def _range_bounds(
+    ranges: dict,
+    range_name: str,
+    default_from: int = 1,
+    default_to: int = 20,
+) -> tuple[int, int]:
+    raw_range = ranges.get(range_name, [default_from, default_to])
+    low = int(raw_range[0]) if raw_range and raw_range[0] is not None else default_from
+    high = int(raw_range[1]) if len(raw_range) > 1 and raw_range[1] is not None else default_to
+    if low < 1:
+        low = 1
+    if high < low:
+        high = low
+    return low, high
+
+
+def _association_dict_custom_tab(
+    session: GemStoneSession,
+    value_view: dict[str, Any],
+    *,
+    tab_id: str,
+    caption: str,
+    field_name: str,
+    size_field: str,
+    range_name: str | None = None,
+    basetype_override: str | None = None,
+    default_tab: str | None = None,
+    ranges: dict,
+    params: dict,
+) -> dict[str, Any] | None:
+    if value_view.get("basetype") != "hash":
+        return None
+    value_oop = value_view.get("oop")
+    if value_oop in (None, OOP_NIL):
+        return None
+
+    page_size = 20
+    range_key = range_name or tab_id
+    range_from, range_to = _range_bounds(ranges, range_key, 1, page_size)
+    entry_count, entry_values = _dict_entries(session, int(value_oop), range_from, range_to, 0, params)
+    return {
+        "basetype": basetype_override,
+        "defaultTab": default_tab,
+        "tabs": [
+            _custom_tab(
+                tab_id,
+                caption,
+                "association-dict",
+                field_name,
+                size_field,
+                range_name=range_key,
+                page_size=page_size,
+            )
+        ],
+        "fields": {field_name: (entry_count, entry_values)},
+    }
+
+
+def _maglev_record_custom_tabs(
+    session: GemStoneSession,
+    basetype: str,
+    entries: dict[int, Any],
+    ranges: dict,
+    params: dict,
+) -> dict[str, Any] | None:
+    if basetype != "object":
+        return None
+
+    maglev_attributes = _find_named_entry(entries, "maglev_attributes", "@maglev_attributes")
+    if not (
+        isinstance(maglev_attributes, list)
+        and len(maglev_attributes) > 1
+        and isinstance(maglev_attributes[1], dict)
+    ):
+        return None
+
+    return _association_dict_custom_tab(
+        session,
+        maglev_attributes[1],
+        tab_id="attributes",
+        caption="Attributes",
+        field_name="attributes",
+        size_field="attributesSize",
+        basetype_override="maglevRecordBase",
+        default_tab="attributes",
+        ranges=ranges,
+        params=params,
+    )
+
+
+_CUSTOM_TAB_ADAPTERS = [_maglev_record_custom_tabs]
+
+
+def _tab_metadata(
+    session: GemStoneSession,
+    oop: int,
+    basetype: str,
+    inspection: str,
+    superclass_oop: int,
+    entries: dict[int, Any],
+    ranges: dict,
+    params: dict,
+) -> tuple[str, list[str], str, list[dict[str, Any]], dict[str, tuple[int, dict[int, Any]]]]:
+    custom_tabs: list[dict[str, Any]] = []
+    extra_fields: dict[str, tuple[int, dict[int, Any]]] = {}
+    custom_default_tab: str | None = None
+
+    for adapter in _CUSTOM_TAB_ADAPTERS:
+        resolved = adapter(session, basetype, entries, ranges, params)
+        if not resolved:
+            continue
+        resolved_basetype = resolved.get("basetype")
+        if resolved_basetype:
+            basetype = resolved_basetype
+        if custom_default_tab is None and resolved.get("defaultTab"):
+            custom_default_tab = str(resolved["defaultTab"])
+        custom_tabs.extend(resolved.get("tabs", []))
+        extra_fields.update(resolved.get("fields", {}))
+
+    is_behavior = superclass_oop != OOP_NIL
+    try:
+        system_oop = session.resolve("System") if is_behavior else None
+    except Exception:
+        system_oop = None
+
+    if oop == system_oop:
+        basetype = "systemClass"
+        available_tabs = list(_SYSTEM_TABS)
+        default_tab = "control"
+    elif is_behavior:
+        if basetype == "object":
+            basetype = "class"
+        available_tabs = list(_CLASS_TABS)
+        default_tab = "code"
+    else:
+        available_tabs = ["instvars"]
+        default_tab = "instvars"
+
+    if custom_tabs:
+        available_tabs = ["instvars", *(tab["id"] for tab in custom_tabs), *[tab for tab in available_tabs if tab != "instvars"]]
+        if custom_default_tab:
+            default_tab = custom_default_tab
+
+    return basetype, available_tabs, default_tab, custom_tabs, extra_fields
 
 
 # --------------------------------------------------------------------------- #
@@ -412,6 +604,95 @@ def _eval_str(session: GemStoneSession, smalltalk: str) -> str:
     return _str(session.eval(smalltalk))
 
 
+def _browser_target_label(class_name: str, meta: bool) -> str:
+    return f"{class_name} class" if meta else class_name
+
+
+def _fallback_browser_target(oop: int, inspection: str) -> dict[str, Any] | None:
+    label = _str(inspection).strip()
+    if not label:
+        return None
+    meta = False
+    class_name = label
+    if label.endswith(" class"):
+        meta = True
+        class_name = label[:-6].strip()
+    if not class_name:
+        return None
+    return {
+        "oop": oop,
+        "className": class_name,
+        "dictionary": "",
+        "meta": meta,
+        "label": _browser_target_label(class_name, meta),
+    }
+
+
+def _behavior_browser_targets(session: GemStoneSession, *oops: int) -> dict[int, dict[str, Any]]:
+    target_oops = sorted({int(oop) for oop in oops if oop not in (None, OOP_NIL)})
+    if not target_oops:
+        return {}
+
+    try:
+        raw = _eval_str(
+            session,
+            "[ | targets rows encode |\n"
+            f"{_ENCODE_SRC}\n"
+            f"targets := Set withAll: #({' '.join(str(oop) for oop in target_oops)}).\n"
+            "rows := OrderedCollection new.\n"
+            "System myUserProfile symbolList do: [:dict |\n"
+            "  | dictName |\n"
+            "  dictName := (([dict name] on: Error do: [:e | dict printString]) asString).\n"
+            "  dict keysAndValuesDo: [:key :value |\n"
+            "    ([value isBehavior] on: Error do: [:e | false]) ifTrue: [\n"
+            "      | valueOop metaOop |\n"
+            "      valueOop := value asOop.\n"
+            "      (targets includes: valueOop) ifTrue: [\n"
+            "        rows add: ((encode value: valueOop printString), '|', (encode value: dictName), '|', (encode value: key asString), '|0')\n"
+            "      ].\n"
+            "      metaOop := ([value class asOop] on: Error do: [:e | nil]).\n"
+            "      (metaOop notNil and: [targets includes: metaOop]) ifTrue: [\n"
+            "        rows add: ((encode value: metaOop printString), '|', (encode value: dictName), '|', (encode value: key asString), '|1')\n"
+            "      ]\n"
+            "    ]\n"
+            "  ]\n"
+            "].\n"
+            "String streamContents: [:stream |\n"
+            "  rows do: [:row | stream nextPutAll: row; lf ]\n"
+            "]\n"
+            "] value"
+        )
+    except Exception:
+        return {}
+
+    result: dict[int, dict[str, Any]] = {}
+    for line in _str(raw).splitlines():
+        if not line:
+            continue
+        parts = line.split("|", 3)
+        if len(parts) != 4:
+            continue
+        try:
+            target_oop = int(_decode(parts[0]))
+        except Exception:
+            continue
+        if target_oop in result:
+            continue
+        dictionary = _decode(parts[1]).strip()
+        class_name = _decode(parts[2]).strip()
+        meta = _decode(parts[3]).strip() == "1"
+        if not class_name:
+            continue
+        result[target_oop] = {
+            "oop": target_oop,
+            "className": class_name,
+            "dictionary": dictionary,
+            "meta": meta,
+            "label": _browser_target_label(class_name, meta),
+        }
+    return result
+
+
 def object_view(
     session: GemStoneSession,
     oop: int,
@@ -441,6 +722,18 @@ def object_view(
 
     obj["loaded"] = True
     obj["exception"] = False
+    behavior_targets = _behavior_browser_targets(session, oop, class_oop, superclass_oop)
+
+    def attach_browser_target(view: dict[str, Any], target_oop: int | None, fallback_inspection: str) -> dict[str, Any] | None:
+        if target_oop in (None, OOP_NIL):
+            return None
+        target = behavior_targets.get(int(target_oop)) or _fallback_browser_target(int(target_oop), fallback_inspection)
+        if not target:
+            return None
+        view["className"] = target["className"]
+        view["dictionary"] = target["dictionary"]
+        view["meta"] = target["meta"]
+        return target
 
     # Class object — one recursive call, depth-1 (stops quickly at depth=0)
     if class_oop != OOP_NIL:
@@ -453,6 +746,7 @@ def object_view(
         }
     else:
         obj["classObject"] = {"oop": None, "inspection": "", "basetype": "object", "loaded": False}
+    attach_browser_target(obj["classObject"], class_oop, obj["classObject"]["inspection"])
 
     if superclass_oop != OOP_NIL:
         obj["superclassObject"] = {
@@ -463,6 +757,19 @@ def object_view(
         }
     else:
         obj["superclassObject"] = {"oop": None, "inspection": "", "basetype": "object", "loaded": False}
+    attach_browser_target(obj["superclassObject"], superclass_oop, obj["superclassObject"]["inspection"])
+
+    code_target_oop = oop if superclass_oop != OOP_NIL else class_oop
+    code_target_inspection = inspection if superclass_oop != OOP_NIL else obj["classObject"]["inspection"]
+    obj["classBrowserTarget"] = (
+        behavior_targets.get(int(code_target_oop))
+        if code_target_oop not in (None, OOP_NIL)
+        else None
+    ) or (
+        _fallback_browser_target(int(code_target_oop), code_target_inspection)
+        if code_target_oop not in (None, OOP_NIL)
+        else None
+    )
 
     range_from = int(ranges.get("instVars", [1, 20])[0])
     range_to   = int(ranges.get("instVars", [1, 20])[1])
@@ -476,30 +783,80 @@ def object_view(
     else:
         count, entries = _named_inst_vars(session, oop, range_from, range_to, depth - 1, params)
 
+    basetype, available_tabs, default_tab, custom_tabs, extra_fields = _tab_metadata(
+        session, oop, basetype, inspection, superclass_oop, entries, ranges, params
+    )
+    obj["basetype"] = basetype
     obj["instVarsSize"] = count
     obj["instVars"] = entries
-    obj["customTabs"] = []
+    obj["availableTabs"] = available_tabs
+    obj["defaultTab"] = default_tab
+    obj["customTabs"] = custom_tabs
+    for field_name, (field_count, field_entries) in extra_fields.items():
+        obj[f"{field_name}Size"] = field_count
+        obj[field_name] = field_entries
     return obj
 
 
 def eval_in_context(
     session: GemStoneSession, oop: int, code: str, language: str
-) -> tuple[bool, int | str]:
+) -> dict[str, Any]:
     """Evaluate `code` in the context of the object at `oop`."""
+    def valid_remote_oop(raw: object) -> int | None:
+        try:
+            value = int(raw)
+        except Exception:
+            return None
+        return value if value > OOP_NIL else None
+
     escaped = _escape_st(code)
     obj_expr = object_for_oop_expr(oop)
+    source = (
+        f"| receiver |\n"
+        f"receiver := {obj_expr}.\n"
+        f"receiver evaluate: '{escaped}'"
+    )
     try:
-        result_oop = session.eval_oop(
-            f"| receiver |\n"
-            f"receiver := {obj_expr}.\n"
-            f"[receiver evaluate: '{escaped}'] on: Error do: [:e | e]"
-        )
-        is_exc_oop = session.eval_oop(
-            f"| receiver |\n"
-            f"receiver := {obj_expr}.\n"
-            f"[((receiver evaluate: '{escaped}') isKindOf: Error)] on: Error do: [:e | true]"
-        )
-        is_exc = (is_exc_oop == OOP_TRUE)
-        return is_exc, result_oop
+        if language != "smalltalk":
+            return {
+                "isException": False,
+                "resultOop": session.eval_oop(source),
+                "errorText": "",
+                "debugThreadOop": None,
+                "exceptionOop": None,
+            }
+
+        lib = session._require_login()
+        result_oop = int(lib.GciExecuteStr(source.encode("utf-8"), ctypes.c_uint64(OOP_NIL)))
+        err = GciErrSType()
+        lib.GciErr(ctypes.byref(err))
+        exception_oop = valid_remote_oop(err.exceptionObj)
+        debug_thread_oop = valid_remote_oop(err.context)
+        has_pending_error = bool(err.number) or debug_thread_oop is not None or exception_oop is not None
+        if not has_pending_error and result_oop != OOP_ILLEGAL:
+            return {
+                "isException": False,
+                "resultOop": result_oop,
+                "errorText": "",
+                "debugThreadOop": None,
+                "exceptionOop": None,
+            }
+        return {
+            "isException": True,
+            "resultOop": exception_oop,
+            "errorText": (
+                str(GemStoneError.from_err_struct(err))
+                if has_pending_error and err.number
+                else "GemStone execution failed"
+            ),
+            "debugThreadOop": debug_thread_oop,
+            "exceptionOop": exception_oop,
+        }
     except Exception as exc:
-        return True, str(exc)
+        return {
+            "isException": True,
+            "resultOop": None,
+            "errorText": str(exc),
+            "debugThreadOop": None,
+            "exceptionOop": None,
+        }

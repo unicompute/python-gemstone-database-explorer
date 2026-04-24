@@ -56,6 +56,32 @@ Options:
 
 Open `http://127.0.0.1:9292/` in a browser.
 
+## UI Smoke Tests
+
+Install the Playwright dev dependency once:
+
+```bash
+npm install
+```
+
+Run the deterministic mock-backed browser smoke suite:
+
+```bash
+npm run test:ui
+```
+
+Run the live GemStone browser suite against a real session:
+
+```bash
+export GEMSTONE=/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin
+export GS_USERNAME=DataCurator
+export GS_PASSWORD=swordfish
+
+npm run test:ui:live
+```
+
+The live suite starts the real Flask app on `127.0.0.1:4192` and now covers read-only browsing, a real debugger flow, and a transactional class-browser write flow in `UserGlobals` that aborts its changes before the test ends.
+
 ## Documentation
 
 - [Configuration](docs/configuration.md)

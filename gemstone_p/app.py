@@ -103,17 +103,94 @@ def _decode_field(value: str) -> str:
     return decode_escaped_field(value)
 
 
+def _smalltalk_error_text(value) -> str | None:
+    text = str(value or "").strip()
+    if text.lower().startswith("error:"):
+        return text.split(":", 1)[1].strip() or text
+    return None
+
+
 def _as_bool_arg(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _fallback_ref(oop: int | None, inspection: str, basetype: str = "object") -> dict:
+    return {
+        "oop": oop,
+        "inspection": inspection,
+        "basetype": basetype,
+        "loaded": False,
+    }
+
+
+def _debug_object_ref(session, oop_value: str | int | None, fallback_inspection: str = "") -> dict:
+    try:
+        oop = int(str(oop_value or "").strip())
+    except Exception:
+        return _fallback_ref(None, fallback_inspection)
+
+    try:
+        ref = object_view(session, oop, depth=0)
+    except Exception:
+        ref = _fallback_ref(oop, fallback_inspection)
+
+    if fallback_inspection and not str(ref.get("inspection", "")).strip():
+        ref["inspection"] = fallback_inspection
+    ref["loaded"] = False
+    return ref
 
 
 def _cb_dict_expr(dict_name: str) -> str:
     return f"(System myUserProfile symbolList objectNamed: '{_escape_st(dict_name)}' asSymbol)"
 
 
-def _cb_behavior_expr(class_name: str, meta: bool = False) -> str:
-    expr = f"(System myUserProfile symbolList objectNamed: '{_escape_st(class_name)}' asSymbol)"
-    return f"({expr} class)" if meta else expr
+def _cb_class_expr(class_name: str, dictionary: str | None = None) -> str:
+    escaped_name = _escape_st(class_name)
+    dict_name = str(dictionary or "").strip()
+    if dict_name:
+        return f"({_cb_dict_expr(dict_name)} at: '{escaped_name}' asSymbol ifAbsent: [nil])"
+    return f"(System myUserProfile symbolList objectNamed: '{escaped_name}' asSymbol)"
+
+
+def _cb_behavior_expr(class_name: str, meta: bool = False, dictionary: str | None = None) -> str:
+    expr = _cb_class_expr(class_name, dictionary)
+    return f"({expr} ifNil: [nil] ifNotNil: [:cls | cls class])" if meta else expr
+
+
+def _cb_error_payload_message(payload: object, fallback: str) -> str | None:
+    text = str(payload or "")
+    if text.startswith("ERROR|"):
+        return _decode_field(text.split("|", 1)[1]) or fallback
+    return None
+
+
+_DEBUG_SOURCE_HINTS: dict[int, str] = {}
+
+
+def _remember_debug_source_hint(thread_oop: object, source: str) -> None:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return
+    text = str(source or "").strip()
+    if oop > 20 and text:
+        _DEBUG_SOURCE_HINTS[oop] = text
+
+
+def _debug_source_hint(thread_oop: object) -> str:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return ""
+    return _DEBUG_SOURCE_HINTS.get(oop, "")
+
+
+def _forget_debug_source_hint(thread_oop: object) -> None:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return
+    _DEBUG_SOURCE_HINTS.pop(oop, None)
 
 
 def create_app() -> Flask:
@@ -176,19 +253,45 @@ def create_app() -> Flask:
     # Mirrors GET /object/evaluate/:id in mdbe/app.rb                     #
     # ------------------------------------------------------------------ #
 
-    @app.get("/object/evaluate/<int:oop>")
+    @app.route("/object/evaluate/<int:oop>", methods=["GET", "POST"])
     def object_evaluate(oop: int):
-        code = request.args.get("code", "")
-        language = request.args.get("language", "smalltalk")
-        depth = int(request.args.get("depth", 2))
-        ranges = _parse_ranges(request.args)
+        payload = _request_json_dict() if request.method == "POST" else {}
+        params = payload if request.method == "POST" else dict(request.args)
+        code = str(payload.get("code", "") if request.method == "POST" else request.args.get("code", ""))
+        language = str(payload.get("language", "smalltalk") if request.method == "POST" else request.args.get("language", "smalltalk"))
+        depth = _int_arg(payload.get("depth", 2) if request.method == "POST" else request.args.get("depth", 2), 2)
+        ranges = _request_ranges()
         try:
-            with gs_session.request_session() as session:
-                is_exc, result_oop_or_err = eval_in_context(session, oop, code, language)
-                if isinstance(result_oop_or_err, int):
-                    result_view = object_view(session, result_oop_or_err, 1 if is_exc else depth, ranges, dict(request.args))
+            with gs_session.request_session(read_only=False) as session:
+                eval_result = eval_in_context(session, oop, code, language)
+                is_exc = bool(eval_result.get("isException"))
+                result_oop = eval_result.get("resultOop")
+                if isinstance(result_oop, int):
+                    result_view = object_view(
+                        session,
+                        result_oop,
+                        1 if is_exc else depth,
+                        ranges,
+                        params,
+                    )
                 else:
-                    result_view = {"oop": None, "inspection": str(result_oop_or_err), "basetype": "object", "loaded": False}
+                    result_view = {
+                        "oop": None,
+                        "inspection": str(eval_result.get("errorText") or "Evaluation failed"),
+                        "basetype": "object",
+                        "loaded": False,
+                    }
+                if is_exc:
+                    exception_text = (
+                        result_view.get("inspection")
+                        or str(eval_result.get("errorText") or "Exception")
+                    )
+                    result_view["debugThreadOop"] = eval_result.get("debugThreadOop")
+                    result_view["debugExceptionOop"] = eval_result.get("exceptionOop")
+                    result_view["exceptionText"] = exception_text
+                    result_view["sourcePreview"] = code
+                    result_view["autoOpenDebugger"] = bool(eval_result.get("debugThreadOop"))
+                    _remember_debug_source_hint(eval_result.get("debugThreadOop"), code)
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -292,6 +395,196 @@ def create_app() -> Flask:
 
         return jsonify(success=True, dictionaries=dictionaries)
 
+    @app.post("/class-browser/add-dictionary")
+    def class_browser_add_dictionary():
+        data = request.get_json(force=True) or {}
+        name = str(data.get("name", "")).strip()
+        if not name:
+            return jsonify(success=False, exception="missing dictionary"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| sym dictName existing newDict opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"dictName := '{_escape_st(name)}'.\n"
+                    "sym := System myUserProfile symbolList.\n"
+                    "existing := [sym objectNamed: dictName asSymbol] on: Error do: [:e | nil].\n"
+                    "existing notNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'dictionary already exists')\n"
+                    "] ifFalse: [\n"
+                    "  opResult := [\n"
+                    "    newDict := SymbolDictionary new.\n"
+                    "    newDict name: dictName asString.\n"
+                    "    sym add: newDict.\n"
+                    "    true\n"
+                    "  ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "  ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "    opResult\n"
+                    "  ] ifFalse: [\n"
+                    "    'OK|' , (encode value: dictName)\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Dictionary creation failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        created_dict = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else name
+        return jsonify(
+            success=True,
+            result=f"Added {created_dict}",
+            dictionary=created_dict,
+        )
+
+    @app.post("/class-browser/rename-dictionary")
+    def class_browser_rename_dictionary():
+        data = request.get_json(force=True) or {}
+        dictionary = str(data.get("dictionary", "")).strip()
+        target_dictionary = str(data.get("targetDictionary", "")).strip()
+        if not dictionary or not target_dictionary:
+            return jsonify(success=False, exception="missing dictionary"), 400
+        if dictionary == target_dictionary:
+            return jsonify(success=False, exception="choose a different dictionary name"), 200
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| sym oldName newName dict existing opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"oldName := '{_escape_st(dictionary)}'.\n"
+                    f"newName := '{_escape_st(target_dictionary)}'.\n"
+                    "sym := System myUserProfile symbolList.\n"
+                    "dict := [sym objectNamed: oldName asSymbol] on: Error do: [:e | nil].\n"
+                    "dict isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'dictionary not found')\n"
+                    "] ifFalse: [\n"
+                    "  existing := [sym objectNamed: newName asSymbol] on: Error do: [:e | nil].\n"
+                    "  ((existing notNil) and: [existing ~~ dict]) ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'target dictionary already exists')\n"
+                    "  ] ifFalse: [\n"
+                    "    opResult := [\n"
+                    "      sym removeKey: oldName asSymbol ifAbsent: [].\n"
+                    "      sym at: newName asSymbol put: dict.\n"
+                    "      [dict name: newName asString] on: Error do: [:e | ].\n"
+                    "      true\n"
+                    "    ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "    ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "      opResult\n"
+                    "    ] ifFalse: [\n"
+                    "      'OK|' , (encode value: newName)\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Dictionary rename failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        renamed_dict = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else target_dictionary
+        return jsonify(
+            success=True,
+            result=f"Renamed {dictionary} to {renamed_dict}",
+            dictionary=renamed_dict,
+        )
+
+    @app.post("/class-browser/remove-dictionary")
+    def class_browser_remove_dictionary():
+        data = request.get_json(force=True) or {}
+        dictionary = str(data.get("dictionary", "")).strip()
+        if not dictionary:
+            return jsonify(success=False, exception="missing dictionary"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| sym dictName existing opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"dictName := '{_escape_st(dictionary)}'.\n"
+                    "sym := System myUserProfile symbolList.\n"
+                    "existing := [sym objectNamed: dictName asSymbol] on: Error do: [:e | nil].\n"
+                    "existing isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'dictionary not found')\n"
+                    "] ifFalse: [\n"
+                    "  opResult := [\n"
+                    "    sym removeKey: dictName asSymbol ifAbsent: [].\n"
+                    "    true\n"
+                    "  ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "  ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "    opResult\n"
+                    "  ] ifFalse: [\n"
+                    "    'OK|' , (encode value: dictName)\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Dictionary removal failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        removed_dict = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else dictionary
+        return jsonify(
+            success=True,
+            result=f"Removed {removed_dict}",
+            dictionary=removed_dict,
+        )
+
+    @app.post("/class-browser/inspect-target")
+    def class_browser_inspect_target():
+        data = request.get_json(force=True) or {}
+        mode = str(data.get("mode", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        class_name = str(data.get("className", "")).strip()
+        selector = str(data.get("selector", "")).strip()
+        meta = bool(data.get("meta"))
+        if mode == "dictionary":
+            if not dictionary:
+                return jsonify(success=False, exception="missing dictionary"), 400
+            expr = _cb_dict_expr(dictionary)
+            label = dictionary
+        elif mode == "class":
+            if not class_name:
+                return jsonify(success=False, exception="missing class"), 400
+            expr = _cb_behavior_expr(class_name, meta, dictionary)
+            label = f"{class_name} class" if meta else class_name
+        elif mode == "instances":
+            if not class_name:
+                return jsonify(success=False, exception="missing class"), 400
+            expr = f"({_cb_behavior_expr(class_name, False, dictionary)} allInstances)"
+            label = f"{class_name} allInstances"
+        elif mode == "method":
+            if not class_name or not selector:
+                return jsonify(success=False, exception="missing class or selector"), 400
+            expr = (
+                "[ | cls |\n"
+                f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                "cls ifNil: [ nil ] ifNotNil: [\n"
+                f"  [cls compiledMethodAt: '{_escape_st(selector)}' asSymbol ifAbsent: [nil]] on: Error do: [:e | nil]\n"
+                "]\n"
+                "] value"
+            )
+            label = f"{class_name} class >> {selector}" if meta else f"{class_name} >> {selector}"
+        else:
+            return jsonify(success=False, exception="unsupported inspect target"), 400
+
+        try:
+            with gs_session.request_session() as session:
+                oop = int(session.eval_oop(expr))
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        if oop <= 20:
+            return jsonify(success=False, exception=f"nothing to inspect for {label}"), 200
+        return jsonify(success=True, oop=oop, label=label)
+
     @app.get("/class-browser/class-location")
     def class_browser_class_location():
         class_name = request.args.get("class", "").strip()
@@ -301,23 +594,35 @@ def create_app() -> Flask:
             with gs_session.request_session() as session:
                 raw = _eval_str(
                     session,
-                    "[ | found |\n"
-                    "found := ''.\n"
+                    "[ | rows encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    "rows := OrderedCollection new.\n"
                     "System myUserProfile symbolList do: [:dict |\n"
-                    f"  ((found isEmpty) and: [dict includesKey: '{_escape_st(class_name)}' asSymbol]) ifTrue: [\n"
-                    f"    | value |\n"
+                    f"  (dict includesKey: '{_escape_st(class_name)}' asSymbol) ifTrue: [\n"
+                    f"    | value dictName |\n"
                     f"    value := dict at: '{_escape_st(class_name)}' asSymbol.\n"
-                    "    (value isBehavior) ifTrue: [ found := dict name asString ]\n"
+                    "    (value isBehavior) ifTrue: [\n"
+                    "      dictName := (([dict name] on: Error do: [:e | dict printString]) asString).\n"
+                    "      rows add: (encode value: dictName)\n"
+                    "    ]\n"
                     "  ]\n"
                     "].\n"
-                    "found\n"
+                    "(String streamContents: [:stream |\n"
+                    "  rows asSortedCollection do: [:row | stream nextPutAll: row; lf ]\n"
+                    "])\n"
                     "] value"
                 )
-                dictionary = str(raw).strip()
+                matches = []
+                for line in str(raw).splitlines():
+                    dictionary = _decode_field(line.strip())
+                    if not dictionary:
+                        continue
+                    matches.append({"className": class_name, "dictionary": dictionary})
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
-        return jsonify(success=True, dictionary=dictionary)
+        dictionary = matches[0]["dictionary"] if len(matches) == 1 else ""
+        return jsonify(success=True, dictionary=dictionary, matches=matches)
 
     @app.get("/class-browser/classes")
     def class_browser_classes():
@@ -347,6 +652,7 @@ def create_app() -> Flask:
     @app.get("/class-browser/categories")
     def class_browser_categories():
         class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
         meta = _as_bool_arg(request.args.get("meta"))
         if not class_name:
             return jsonify(success=False, exception="missing class"), 400
@@ -355,7 +661,7 @@ def create_app() -> Flask:
                 raw = _eval_str(
                     session,
                     "[ | cls stream |\n"
-                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
                     "stream := WriteStream on: String new.\n"
                     "cls ifNil: [ '' ] ifNotNil: [\n"
                     "  cls categoryNames asSortedCollection do: [:cat | stream nextPutAll: cat asString; lf].\n"
@@ -372,6 +678,7 @@ def create_app() -> Flask:
     @app.get("/class-browser/methods")
     def class_browser_methods():
         class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
         protocol = request.args.get("protocol", "-- all --").strip() or "-- all --"
         meta = _as_bool_arg(request.args.get("meta"))
         if not class_name:
@@ -381,7 +688,7 @@ def create_app() -> Flask:
                 raw = _eval_str(
                     session,
                     "[ | cls stream sels |\n"
-                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
                     "stream := WriteStream on: String new.\n"
                     "cls ifNil: [ '' ] ifNotNil: [\n"
                     f"  sels := '{_escape_st(protocol)}' = '-- all --'\n"
@@ -402,6 +709,7 @@ def create_app() -> Flask:
     @app.get("/class-browser/source")
     def class_browser_source():
         class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
         selector = request.args.get("selector", "").strip()
         meta = _as_bool_arg(request.args.get("meta"))
         if not class_name:
@@ -411,7 +719,7 @@ def create_app() -> Flask:
                 source = _eval_str(
                     session,
                     f"| cls meth |\n"
-                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
                     "cls ifNil: [ '' ] ifNotNil: [\n"
                     f"  '{_escape_st(selector)}' isEmpty\n"
                     "    ifTrue: [\n"
@@ -433,20 +741,47 @@ def create_app() -> Flask:
     @app.get("/class-browser/hierarchy")
     def class_browser_hierarchy():
         class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
         if not class_name:
             return jsonify(success=False, exception="missing class"), 400
         try:
             with gs_session.request_session() as session:
                 raw = _eval_str(
                     session,
-                    "[ | cls stream |\n"
-                    f"cls := {_cb_behavior_expr(class_name, False)}.\n"
-                    "stream := WriteStream on: String new.\n"
-                    "cls ifNotNil: [ cls withAllSuperclasses reverseDo: [:c | stream nextPutAll: c name asString; lf ] ].\n"
-                    "stream contents\n"
+                    "[ | cls rows symbolList encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    "rows := OrderedCollection new.\n"
+                    "symbolList := System myUserProfile symbolList.\n"
+                    "cls ifNotNil: [ cls withAllSuperclasses reverseDo: [:c |\n"
+                    "  | clsName dictName |\n"
+                    "  clsName := [c name asString] on: Error do: [:e | c printString].\n"
+                    "  dictName := ''.\n"
+                    "  symbolList do: [:dict |\n"
+                    "    | value |\n"
+                    "    dictName isEmpty ifTrue: [\n"
+                    "      value := [dict at: clsName asSymbol ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    "      value == c ifTrue: [\n"
+                    "        dictName := ([[dict name] on: Error do: [:e | dict printString]] asString)\n"
+                    "      ]\n"
+                    "    ]\n"
+                    "  ].\n"
+                    "  rows add: ((encode value: clsName), Character tab asString, (encode value: dictName))\n"
+                    "] ].\n"
+                    "(String streamContents: [:stream |\n"
+                    "  rows do: [:line | stream nextPutAll: line; lf ]\n"
+                    "])\n"
                     "] value"
                 )
-                hierarchy = [line.strip() for line in str(raw).splitlines() if line.strip()]
+                hierarchy = []
+                for line in str(raw).splitlines():
+                    if "\t" not in line:
+                        continue
+                    cls_name, _, dict_name = line.partition("\t")
+                    hierarchy.append({
+                        "className": _decode_field(cls_name),
+                        "dictionary": _decode_field(dict_name),
+                    })
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -455,6 +790,7 @@ def create_app() -> Flask:
     @app.get("/class-browser/versions")
     def class_browser_versions():
         class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
         selector = request.args.get("selector", "").strip()
         meta = _as_bool_arg(request.args.get("meta"))
         if not class_name or not selector:
@@ -465,7 +801,7 @@ def create_app() -> Flask:
                     session,
                     f"| cls sel stream versions src encode |\n"
                     f"{_ENCODE_SRC}\n"
-                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
                     f"sel := '{_escape_st(selector)}' asSymbol.\n"
                     "stream := WriteStream on: String new.\n"
                     "cls ifNil: [ '' ] ifNotNil: [\n"
@@ -506,8 +842,10 @@ def create_app() -> Flask:
         selector = request.args.get("selector", "").strip()
         mode = request.args.get("mode", "").strip()
         root_class_name = request.args.get("rootClassName", "").strip()
+        root_dictionary = request.args.get("rootDictionary", "").strip()
+        query_meta = _as_bool_arg(request.args.get("meta"))
         scope = request.args.get("hierarchyScope", "full").strip() or "full"
-        valid_modes = {"implementors", "senders", "references", "hierarchyImplementors", "hierarchySenders"}
+        valid_modes = {"implementors", "senders", "references", "methodText", "hierarchyImplementors", "hierarchySenders"}
         if not selector:
             return jsonify(success=False, exception="missing selector"), 400
         if mode not in valid_modes:
@@ -550,87 +888,950 @@ def create_app() -> Flask:
             with gs_session.request_session() as session:
                 raw = _eval_str(
                     session,
-                    "[ | sel token classes stream rootClass scope |\n"
+                    "[ | sel token classes stream rootClass scope encode queryMeta |\n"
+                    f"{_ENCODE_SRC}\n"
                     f"sel := '{escaped_selector}' asSymbol.\n"
                     f"token := '{escaped_selector}'.\n"
                     f"scope := '{escaped_scope}'.\n"
+                    f"queryMeta := {'true' if query_meta else 'false'}.\n"
                     "stream := WriteStream on: String new.\n"
-                    "classes := IdentitySet new.\n"
-                    f"rootClass := {'nil' if not root_class_name else _cb_behavior_expr(root_class_name, False)}.\n"
+                    "classes := OrderedCollection new.\n"
+                    f"rootClass := {'nil' if not root_class_name else _cb_behavior_expr(root_class_name, query_meta, root_dictionary)}.\n"
                     "System myUserProfile symbolList do: [:dict |\n"
-                    "  dict keysAndValuesDo: [:k :v | (v isBehavior) ifTrue: [ classes add: v ] ]\n"
+                    "  | dictName |\n"
+                    "  dictName := ([[dict name] on: Error do: [:e | dict printString]] asString).\n"
+                    "  dict keysAndValuesDo: [:k :v |\n"
+                    "    (v isBehavior) ifTrue: [\n"
+                    "      | cls |\n"
+                    "      cls := queryMeta ifTrue: [v class] ifFalse: [v].\n"
+                    "      classes add: { dictName. k asString. cls }\n"
+                    "    ]\n"
+                    "  ]\n"
                     "].\n"
-                    "classes asArray do: [:cls |\n"
-                    "  | sels |\n"
+                    "classes asArray do: [:entry |\n"
+                    "  | cls dictName className sels |\n"
+                    "  dictName := entry first.\n"
+                    "  className := entry second.\n"
+                    "  cls := entry third.\n"
                     f"  {selector_expr}\n"
                     f"{class_filter_expr}"
-                    "  sels do: [:s | stream nextPutAll: cls name asString; nextPutAll: '>>'; nextPutAll: s asString; lf ]\n"
+                    "  sels do: [:s |\n"
+                    "    stream nextPutAll: (encode value: dictName); nextPut: $|; nextPutAll: (encode value: className); nextPut: $|; nextPutAll: (encode value: (queryMeta ifTrue: ['1'] ifFalse: ['0'])); nextPut: $|; nextPutAll: (encode value: s asString); lf\n"
+                    "  ]\n"
                     "].\n"
                     "stream contents\n"
                     "] value"
                 )
-                results = sorted(line.strip() for line in str(raw).splitlines() if line.strip())
+                results = []
+                for line in str(raw).splitlines():
+                    fields = line.split("|")
+                    if len(fields) < 4:
+                        continue
+                    dictionary = _decode_field(fields[0])
+                    class_name = _decode_field(fields[1])
+                    is_meta = _decode_field(fields[2]) == "1"
+                    selector_name = _decode_field(fields[3])
+                    results.append({
+                        "label": f"{class_name}{' class' if is_meta else ''}>>{selector_name}",
+                        "className": class_name,
+                        "selector": selector_name,
+                        "meta": is_meta,
+                        "dictionary": dictionary,
+                    })
+                results.sort(key=lambda item: item["label"])
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
         return jsonify(success=True, results=results)
 
-    @app.post("/class-browser/compile")
-    def class_browser_compile():
+    @app.post("/class-browser/add-class")
+    def class_browser_add_class():
         data = request.get_json(force=True) or {}
         class_name = str(data.get("className", "")).strip()
-        category = str(data.get("category", "as yet unclassified")).strip() or "as yet unclassified"
-        source = str(data.get("source", ""))
-        meta = bool(data.get("meta"))
-        if not class_name:
-            return jsonify(success=False, exception="missing class"), 400
-        clean_source = source.replace("\r\n", "\n").replace("\r", "\n")
+        dictionary = str(data.get("dictionary", "")).strip()
+        superclass_name = str(data.get("superclassName", "Object")).strip() or "Object"
+        superclass_dictionary = str(data.get("superclassDictionary", "")).strip()
+        if not class_name or not dictionary:
+            return jsonify(success=False, exception="missing class or dictionary"), 400
         try:
             with gs_session.request_session(read_only=False) as session:
-                result = _eval_str(
+                raw = _eval_str(
                     session,
-                    f"| cls source result |\n"
-                    f"cls := {_cb_behavior_expr(class_name, meta)}.\n"
-                    "cls isNil ifTrue: [\n"
-                    "  'Error: class not found'\n"
+                    f"| dict super existing created encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"dict := {_cb_dict_expr(dictionary)}.\n"
+                    f"super := {_cb_behavior_expr(superclass_name, False, superclass_dictionary)}.\n"
+                    "dict isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'dictionary not found')\n"
                     "] ifFalse: [\n"
-                    f"  source := '{_escape_st(clean_source)}'.\n"
-                    f"  result := [ cls compileMethod: source category: '{_escape_st(category)}' asSymbol ] on: Error do: [:e | 'Error: ' , e messageText ].\n"
-                    "  (result isKindOf: Array)\n"
-                    "    ifTrue: ['Error: Compilation failed']\n"
-                    "    ifFalse: [ result isString ifTrue: [ result ] ifFalse: [ 'Success' ] ]\n"
+                    "  super isNil ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'superclass not found')\n"
+                    "  ] ifFalse: [\n"
+                    f"    existing := [dict at: '{_escape_st(class_name)}' asSymbol ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    "    existing notNil ifTrue: [\n"
+                    "      'ERROR|' , (encode value: 'class already exists')\n"
+                    "    ] ifFalse: [\n"
+                    "      created := [\n"
+                    f"        super subclass: '{_escape_st(class_name)}' asSymbol\n"
+                    "          instVarNames: #()\n"
+                    "          classVars: #()\n"
+                    "          classInstVars: #()\n"
+                    "          poolDictionaries: #()\n"
+                    "          inDictionary: dict\n"
+                    "          options: #()\n"
+                    "      ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText) ].\n"
+                    "      ((created isString) and: [created beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "        created\n"
+                    "      ] ifFalse: [\n"
+                    f"        'OK|' , (encode value: '{_escape_st(class_name)}') , '|' , (encode value: '{_escape_st(dictionary)}') , '|' , (encode value: '{_escape_st(superclass_name)}')\n"
+                    "      ]\n"
+                    "    ]\n"
+                    "  ]\n"
                     "]"
                 )
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
-        message = str(result)
-        if message in {"", "None"}:
-            message = "Success"
+        payload = str(raw or "")
+        if payload.startswith("ERROR|"):
+            message = _decode_field(payload.split("|", 1)[1]) or "Class creation failed"
+            return jsonify(success=False, exception=message), 200
+
+        fields = payload.split("|", 3)
+        if len(fields) >= 4 and fields[0] == "OK":
+            created_class = _decode_field(fields[1]) or class_name
+            created_dict = _decode_field(fields[2]) or dictionary
+            created_super = _decode_field(fields[3]) or superclass_name
+            return jsonify(
+                success=True,
+                result=f"Created {created_class} in {created_dict}",
+                className=created_class,
+                dictionary=created_dict,
+                superclassName=created_super,
+            )
+
+        message = payload if payload not in {"", "None"} else f"Created {class_name} in {dictionary}"
+        return jsonify(
+            success=True,
+            result=message,
+            className=class_name,
+            dictionary=dictionary,
+            superclassName=superclass_name,
+        )
+
+    @app.post("/class-browser/rename-class")
+    def class_browser_rename_class():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        target_class_name = str(data.get("targetClassName", "")).strip()
+        if not class_name or not dictionary or not target_class_name:
+            return jsonify(success=False, exception="missing class or dictionary"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls dict existing opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    f"dict := {_cb_dict_expr(dictionary)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    "  dict isNil ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'dictionary not found')\n"
+                    "  ] ifFalse: [\n"
+                    f"    existing := [dict at: '{_escape_st(target_class_name)}' asSymbol ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    "    ((existing notNil) and: [existing ~~ cls]) ifTrue: [\n"
+                    "      'ERROR|' , (encode value: 'target class already exists in dictionary')\n"
+                    "    ] ifFalse: [\n"
+                    f"      opResult := [cls rename: '{_escape_st(target_class_name)}'. true] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "      ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "        opResult\n"
+                    "      ] ifFalse: [\n"
+                    f"        'OK|' , (encode value: '{_escape_st(target_class_name)}') , '|' , (encode value: '{_escape_st(dictionary)}')\n"
+                    "      ]\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Class rename failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        fields = str(raw or "").split("|", 2)
+        renamed_class = _decode_field(fields[1]) if len(fields) > 1 else target_class_name
+        renamed_dict = _decode_field(fields[2]) if len(fields) > 2 else dictionary
+        return jsonify(
+            success=True,
+            result=f"Renamed {class_name} to {renamed_class}",
+            className=renamed_class,
+            dictionary=renamed_dict,
+        )
+
+    @app.post("/class-browser/add-category")
+    def class_browser_add_category():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        category = str(data.get("category", "")).strip()
+        meta = bool(data.get("meta"))
+        if not class_name or not category:
+            return jsonify(success=False, exception="missing class or category"), 400
+        if category == "-- all --":
+            return jsonify(success=False, exception="choose a real category name"), 200
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls categoryName existing opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    f"categoryName := '{_escape_st(category)}'.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    "  existing := [[cls categoryNames collect: [:each | each asString]] on: Error do: [:e | #()]].\n"
+                    "  (existing includes: categoryName) ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'category already exists')\n"
+                    "  ] ifFalse: [\n"
+                    "    opResult := [[cls addCategory: categoryName asSymbol. true] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)]].\n"
+                    "    ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "      opResult\n"
+                    "    ] ifFalse: [\n"
+                    "      'OK|' , (encode value: categoryName)\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Category creation failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        added_category = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else category
+        return jsonify(
+            success=True,
+            result=f"Added category {added_category}",
+            category=added_category,
+        )
+
+    @app.post("/class-browser/rename-category")
+    def class_browser_rename_category():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        category = str(data.get("category", "")).strip()
+        target_category = str(data.get("targetCategory", "")).strip()
+        meta = bool(data.get("meta"))
+        if not class_name or not category or not target_category:
+            return jsonify(success=False, exception="missing class or category"), 400
+        if category == "-- all --":
+            return jsonify(success=False, exception="select a category first"), 200
+        if category == target_category:
+            return jsonify(success=False, exception="choose a different category name"), 200
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls sels moved targetCategory opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    f"targetCategory := '{_escape_st(target_category)}'.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    f"  sels := [cls selectorsIn: '{_escape_st(category)}' asSymbol] on: Error do: [:e | #()].\n"
+                    "  sels isEmpty ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'category is empty or not found')\n"
+                    "  ] ifFalse: [\n"
+                    "    moved := 0.\n"
+                    "    opResult := [sels do: [:sel |\n"
+                    "      | src compileResult |\n"
+                    "      src := [[(cls compiledMethodAt: sel) sourceString] on: Error do: [:e | '']] ifNil: [''].\n"
+                    "      src isEmpty ifTrue: [ Error signal: 'method source unavailable' ].\n"
+                    "      compileResult := cls compileMethod: src category: targetCategory asSymbol.\n"
+                    "      (compileResult isKindOf: Array) ifTrue: [ Error signal: 'Category rename failed' ].\n"
+                    "      moved := moved + 1\n"
+                    "    ]] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "    ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "      opResult\n"
+                    "    ] ifFalse: [\n"
+                    "      'OK|' , (encode value: moved printString) , '|' , (encode value: targetCategory)\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Category rename failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        fields = str(raw or "").split("|", 2)
+        moved_count = _decode_field(fields[1]) if len(fields) > 1 else "0"
+        moved_category = _decode_field(fields[2]) if len(fields) > 2 else target_category
+        return jsonify(
+            success=True,
+            result=f"Renamed {category} to {moved_category}",
+            category=moved_category,
+            movedCount=int(moved_count or "0"),
+        )
+
+    @app.post("/class-browser/add-instance-variable")
+    def class_browser_add_instance_variable():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        variable_name = str(data.get("variableName", "")).strip()
+        if not class_name or not variable_name:
+            return jsonify(success=False, exception="missing class or variable name"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    "  opResult := [\n"
+                    "    (cls respondsTo: #addInstVarName:) ifFalse: [ Error signal: 'instance variable edits unsupported' ].\n"
+                    f"    cls addInstVarName: '{_escape_st(variable_name)}' asSymbol.\n"
+                    "    true\n"
+                    "  ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "  ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "    opResult\n"
+                    "  ] ifFalse: [\n"
+                    f"    'OK|' , (encode value: '{_escape_st(variable_name)}')\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Instance variable creation failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        added_name = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else variable_name
+        return jsonify(
+            success=True,
+            result=f"Added instance variable {added_name}",
+            variableName=added_name,
+        )
+
+    @app.post("/class-browser/add-class-variable")
+    def class_browser_add_class_variable():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        variable_name = str(data.get("variableName", "")).strip()
+        if not class_name or not variable_name:
+            return jsonify(success=False, exception="missing class or variable name"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    "  opResult := [\n"
+                    "    (cls respondsTo: #addClassVarName:) ifFalse: [ Error signal: 'class variable edits unsupported' ].\n"
+                    f"    cls addClassVarName: '{_escape_st(variable_name)}' asSymbol.\n"
+                    "    true\n"
+                    "  ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "  ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "    opResult\n"
+                    "  ] ifFalse: [\n"
+                    f"    'OK|' , (encode value: '{_escape_st(variable_name)}')\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Class variable creation failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        added_name = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else variable_name
+        return jsonify(
+            success=True,
+            result=f"Added class variable {added_name}",
+            variableName=added_name,
+        )
+
+    @app.post("/class-browser/add-class-instance-variable")
+    def class_browser_add_class_instance_variable():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        variable_name = str(data.get("variableName", "")).strip()
+        if not class_name or not variable_name:
+            return jsonify(success=False, exception="missing class or variable name"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls meta opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    "meta := cls ifNil: [nil] ifNotNil: [:base | base class].\n"
+                    "meta isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    "  opResult := [\n"
+                    "    (meta respondsTo: #addInstVarName:) ifFalse: [ Error signal: 'class instance variable edits unsupported' ].\n"
+                    f"    meta addInstVarName: '{_escape_st(variable_name)}' asSymbol.\n"
+                    "    true\n"
+                    "  ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "  ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "    opResult\n"
+                    "  ] ifFalse: [\n"
+                    f"    'OK|' , (encode value: '{_escape_st(variable_name)}')\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Class instance variable creation failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        added_name = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else variable_name
+        return jsonify(
+            success=True,
+            result=f"Added class instance variable {added_name}",
+            variableName=added_name,
+        )
+
+    @app.post("/class-browser/move-class")
+    def class_browser_move_class():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        target_dictionary = str(data.get("targetDictionary", "")).strip()
+        if not class_name or not dictionary or not target_dictionary:
+            return jsonify(success=False, exception="missing class or dictionary"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls oldDict newDict existing opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    f"oldDict := {_cb_dict_expr(dictionary)}.\n"
+                    f"newDict := {_cb_dict_expr(target_dictionary)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    "  newDict isNil ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'target dictionary not found')\n"
+                    "  ] ifFalse: [\n"
+                    f"    existing := [newDict at: '{_escape_st(class_name)}' asSymbol ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    "    ((existing notNil) and: [existing ~~ cls]) ifTrue: [\n"
+                    "      'ERROR|' , (encode value: 'target dictionary already contains a different class with that name')\n"
+                    "    ] ifFalse: [\n"
+                    f"      opResult := [[oldDict removeKey: '{_escape_st(class_name)}' asSymbol ifAbsent: []]. newDict at: '{_escape_st(class_name)}' asSymbol put: cls. true] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "      ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "        opResult\n"
+                    "      ] ifFalse: [\n"
+                    f"        'OK|' , (encode value: '{_escape_st(class_name)}') , '|' , (encode value: '{_escape_st(target_dictionary)}')\n"
+                    "      ]\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Class move failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        fields = str(raw or "").split("|", 2)
+        moved_class = _decode_field(fields[1]) if len(fields) > 1 else class_name
+        moved_dict = _decode_field(fields[2]) if len(fields) > 2 else target_dictionary
+        return jsonify(
+            success=True,
+            result=f"Moved {moved_class} to {moved_dict}",
+            className=moved_class,
+            dictionary=moved_dict,
+        )
+
+    @app.post("/class-browser/remove-class")
+    def class_browser_remove_class():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        if not class_name or not dictionary:
+            return jsonify(success=False, exception="missing class or dictionary"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    "  opResult := [cls removeFromSystem. true] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "  ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "    opResult\n"
+                    "  ] ifFalse: [\n"
+                    f"    'OK|' , (encode value: '{_escape_st(class_name)}')\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Class removal failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        removed_class = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else class_name
+        return jsonify(
+            success=True,
+            result=f"Removed {removed_class}",
+            className=removed_class,
+        )
+
+    @app.post("/class-browser/move-method")
+    def class_browser_move_method():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        selector = str(data.get("selector", "")).strip()
+        category = str(data.get("category", "")).strip()
+        meta = bool(data.get("meta"))
+        if not class_name or not selector or not category:
+            return jsonify(success=False, exception="missing class, selector, or category"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls meth src compileResult targetCategory encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    f"targetCategory := '{_escape_st(category)}'.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    f"  meth := [cls compiledMethodAt: '{_escape_st(selector)}' asSymbol ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    "  meth isNil ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'method not found')\n"
+                    "  ] ifFalse: [\n"
+                    "    src := [[meth sourceString] on: Error do: [:e | '']] ifNil: [''].\n"
+                    "    src isEmpty ifTrue: [\n"
+                    "      'ERROR|' , (encode value: 'method source unavailable')\n"
+                    "    ] ifFalse: [\n"
+                    "      compileResult := [cls compileMethod: src category: targetCategory asSymbol] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "      ((compileResult isString) and: [compileResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "        compileResult\n"
+                    "      ] ifFalse: [\n"
+                    "        (compileResult isKindOf: Array) ifTrue: [\n"
+                    "          'ERROR|' , (encode value: 'Method move failed')\n"
+                    "        ] ifFalse: [\n"
+                    f"          'OK|' , (encode value: '{_escape_st(selector)}') , '|' , (encode value: targetCategory)\n"
+                    "        ]\n"
+                    "      ]\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Method move failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        fields = str(raw or "").split("|", 2)
+        moved_selector = _decode_field(fields[1]) if len(fields) > 1 else selector
+        moved_category = _decode_field(fields[2]) if len(fields) > 2 else category
+        return jsonify(
+            success=True,
+            result=f"Moved {moved_selector} to {moved_category}",
+            selector=moved_selector,
+            category=moved_category,
+        )
+
+    @app.post("/class-browser/remove-method")
+    def class_browser_remove_method():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        selector = str(data.get("selector", "")).strip()
+        meta = bool(data.get("meta"))
+        if not class_name or not selector:
+            return jsonify(success=False, exception="missing class or selector"), 400
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    f"  (([cls includesSelector: '{_escape_st(selector)}' asSymbol] on: Error do: [:e | false]) not) ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'method not found')\n"
+                    "  ] ifFalse: [\n"
+                    f"    opResult := [cls removeSelector: '{_escape_st(selector)}' asSymbol. true] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "    ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "      opResult\n"
+                    "    ] ifFalse: [\n"
+                    f"      'OK|' , (encode value: '{_escape_st(selector)}')\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Method removal failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        removed_selector = _decode_field(str(raw or "").split("|", 1)[1]) if "|" in str(raw or "") else selector
+        return jsonify(
+            success=True,
+            result=f"Removed {removed_selector}",
+            selector=removed_selector,
+        )
+
+    @app.post("/class-browser/remove-category")
+    def class_browser_remove_category():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        category = str(data.get("category", "")).strip()
+        meta = bool(data.get("meta"))
+        if not class_name or not category:
+            return jsonify(success=False, exception="missing class or category"), 400
+        if category == "-- all --":
+            return jsonify(success=False, exception="select a category first"), 200
+        target_category = "as yet unclassified"
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls sels moved targetCategory opResult encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    f"targetCategory := '{_escape_st(target_category)}'.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    f"  sels := [cls selectorsIn: '{_escape_st(category)}' asSymbol] on: Error do: [:e | #()].\n"
+                    "  sels isEmpty ifTrue: [\n"
+                    "    'ERROR|' , (encode value: 'category is empty or not found')\n"
+                    "  ] ifFalse: [\n"
+                    "    moved := 0.\n"
+                    "    opResult := [sels do: [:sel |\n"
+                    "      | src compileResult |\n"
+                    "      src := [[(cls compiledMethodAt: sel) sourceString] on: Error do: [:e | '']] ifNil: [''].\n"
+                    "      src isEmpty ifTrue: [ Error signal: 'method source unavailable' ].\n"
+                    "      compileResult := cls compileMethod: src category: targetCategory asSymbol.\n"
+                    "      (compileResult isKindOf: Array) ifTrue: [ Error signal: 'Category move failed' ].\n"
+                    "      moved := moved + 1\n"
+                    "    ]] on: Error do: [:e | 'ERROR|' , (encode value: e messageText)].\n"
+                    "    ((opResult isString) and: [opResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "      opResult\n"
+                    "    ] ifFalse: [\n"
+                    "      'OK|' , (encode value: moved printString) , '|' , (encode value: targetCategory)\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = _cb_error_payload_message(raw, "Category removal failed")
+        if message:
+            return jsonify(success=False, exception=message), 200
+
+        fields = str(raw or "").split("|", 2)
+        moved_count = _decode_field(fields[1]) if len(fields) > 1 else "0"
+        moved_category = _decode_field(fields[2]) if len(fields) > 2 else target_category
+        return jsonify(
+            success=True,
+            result=f"Moved {moved_count} method{'s' if moved_count != '1' else ''} to {moved_category}",
+            category=moved_category,
+            movedCount=int(moved_count or "0"),
+        )
+
+    @app.post("/class-browser/compile")
+    def class_browser_compile():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        category = str(data.get("category", "as yet unclassified")).strip() or "as yet unclassified"
+        selector = str(data.get("selector", "")).strip()
+        source = str(data.get("source", ""))
+        meta = bool(data.get("meta"))
+        source_kind = str(data.get("sourceKind", "method")).strip() or "method"
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        if source_kind != "method":
+            return jsonify(
+                success=False,
+                exception="Class definitions are browse-only here; use Add Class or New Method",
+            ), 200
+        clean_source = source.replace("\r\n", "\n").replace("\r", "\n")
+        old_selector_expr = "nil" if not selector else f"'{_escape_st(selector)}' asSymbol"
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                raw = _eval_str(
+                    session,
+                    f"| cls source compileResult oldSel newSel protocolName message encode |\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    "cls isNil ifTrue: [\n"
+                    "  'ERROR|' , (encode value: 'class not found')\n"
+                    "] ifFalse: [\n"
+                    f"  source := '{_escape_st(clean_source)}'.\n"
+                    f"  oldSel := {old_selector_expr}.\n"
+                    f"  compileResult := [ cls compileMethod: source category: '{_escape_st(category)}' asSymbol ] on: Error do: [:e | 'ERROR|' , (encode value: e messageText) ].\n"
+                    "  ((compileResult isString) and: [compileResult beginsWith: 'ERROR|']) ifTrue: [\n"
+                    "    compileResult\n"
+                    "  ] ifFalse: [\n"
+                    "    (compileResult isKindOf: Array) ifTrue: [\n"
+                    "      'ERROR|' , (encode value: 'Compilation failed')\n"
+                    "    ] ifFalse: [\n"
+                    "      newSel := [ compileResult selector ] on: Error do: [ nil ].\n"
+                    "      (newSel isNil and: [ compileResult isSymbol ]) ifTrue: [ newSel := compileResult ].\n"
+                    "      newSel isNil ifTrue: [ newSel := oldSel ].\n"
+                    "      ((newSel notNil) and: [ (oldSel notNil) and: [ newSel ~= oldSel and: [ cls includesSelector: oldSel ] ] ]) ifTrue: [\n"
+                    "        [ cls removeSelector: oldSel ] on: Error do: [:e | ]\n"
+                    "      ].\n"
+                    f"      protocolName := newSel isNil ifTrue: ['{_escape_st(category)}'] ifFalse: [[ cls categoryOfSelector: newSel ] on: Error do: [:e | '{_escape_st(category)}' ]].\n"
+                    f"      protocolName ifNil: [ protocolName := '{_escape_st(category)}' ].\n"
+                    "      message := ((compileResult isString) and: [ compileResult beginsWith: 'ERROR|' not ]) ifTrue: [ compileResult asString ] ifFalse: [ 'Success' ].\n"
+                    "      'OK|' , (encode value: (newSel ifNil: [''] ifNotNil: [ newSel asString ])) , '|' , (encode value: protocolName asString) , '|' , (encode value: (oldSel ifNil: [''] ifNotNil: [ oldSel asString ])) , '|' , (encode value: message)\n"
+                    "    ]\n"
+                    "  ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        payload = str(raw or "")
+        if payload.startswith("ERROR|"):
+            message = _decode_field(payload.split("|", 1)[1]) or "Compilation failed"
+            return jsonify(success=False, exception=message), 200
+
+        fields = payload.split("|", 4)
+        if len(fields) >= 5 and fields[0] == "OK":
+            selector_name = _decode_field(fields[1])
+            protocol_name = _decode_field(fields[2]) or category
+            previous_selector = _decode_field(fields[3])
+            message = _decode_field(fields[4]) or "Success"
+            return jsonify(
+                success=True,
+                result=message,
+                selector=selector_name or None,
+                category=protocol_name,
+                previousSelector=previous_selector or None,
+            )
+
+        message = payload if payload not in {"", "None"} else "Success"
         success = not message.startswith("Error:")
         return jsonify(success=success, result=message if success else None, exception=None if success else message)
+
+    @app.get("/class-browser/file-out")
+    def class_browser_file_out():
+        mode = request.args.get("mode", "class").strip() or "class"
+        class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
+        selector = request.args.get("selector", "").strip()
+        meta = _as_bool_arg(request.args.get("meta"))
+        valid_modes = {"class", "class-methods", "dictionary", "dictionary-methods", "method"}
+        if mode not in valid_modes:
+            return jsonify(success=False, exception="unsupported file-out mode"), 400
+        if mode in {"class", "class-methods", "method"} and not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        if mode.startswith("dictionary") and not dictionary:
+            return jsonify(success=False, exception="missing dictionary"), 400
+        if mode == "method" and not selector:
+            return jsonify(success=False, exception="missing selector"), 400
+
+        meta_suffix = "-class" if meta and mode.startswith("class") else ""
+        default_filename = {
+            "class": f"{class_name}{meta_suffix}.st",
+            "class-methods": f"{class_name}{meta_suffix}-methods.st",
+            "dictionary": f"{dictionary}.st",
+            "dictionary-methods": f"{dictionary}-methods.st",
+            "method": f"{class_name}{meta_suffix}-{selector}.st",
+        }[mode]
+
+        if mode == "class":
+            script = (
+                "[ | cls stream |\n"
+                f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                "stream := WriteStream on: String new.\n"
+                "cls ifNil: [ '' ] ifNotNil: [\n"
+                "  (cls respondsTo: #definition) ifTrue: [ stream nextPutAll: cls definition asString; lf; lf ].\n"
+                "  cls selectors asSortedCollection do: [:sel |\n"
+                "    | src |\n"
+                "    src := [ (cls compiledMethodAt: sel) sourceString ] on: Error do: [:e | '' ].\n"
+                "    src isEmpty ifFalse: [ stream nextPutAll: src; lf; lf ]\n"
+                "  ].\n"
+                "  stream contents\n"
+                "]\n"
+                "] value"
+            )
+        elif mode == "class-methods":
+            script = (
+                "[ | cls stream |\n"
+                f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                "stream := WriteStream on: String new.\n"
+                "cls ifNil: [ '' ] ifNotNil: [\n"
+                "  cls selectors asSortedCollection do: [:sel |\n"
+                "    | src |\n"
+                "    src := [ (cls compiledMethodAt: sel) sourceString ] on: Error do: [:e | '' ].\n"
+                "    src isEmpty ifFalse: [ stream nextPutAll: src; lf; lf ]\n"
+                "  ].\n"
+                "  stream contents\n"
+                "]\n"
+                "] value"
+            )
+        elif mode == "dictionary":
+            script = (
+                "[ | dict stream classes |\n"
+                f"dict := {_cb_dict_expr(dictionary)}.\n"
+                "stream := WriteStream on: String new.\n"
+                "dict ifNil: [ '' ] ifNotNil: [\n"
+                "  classes := dict keys select: [:k | (dict at: k) isBehavior].\n"
+                "  classes asSortedCollection do: [:nm |\n"
+                "    | cls |\n"
+                "    cls := dict at: nm.\n"
+                "    (cls respondsTo: #definition) ifTrue: [ stream nextPutAll: cls definition asString; lf; lf ].\n"
+                "    cls selectors asSortedCollection do: [:sel |\n"
+                "      | src |\n"
+                "      src := [ (cls compiledMethodAt: sel) sourceString ] on: Error do: [:e | '' ].\n"
+                "      src isEmpty ifFalse: [ stream nextPutAll: src; lf; lf ]\n"
+                "    ]\n"
+                "  ].\n"
+                "  stream contents\n"
+                "]\n"
+                "] value"
+            )
+        elif mode == "dictionary-methods":
+            script = (
+                "[ | dict stream classes |\n"
+                f"dict := {_cb_dict_expr(dictionary)}.\n"
+                "stream := WriteStream on: String new.\n"
+                "dict ifNil: [ '' ] ifNotNil: [\n"
+                "  classes := dict keys select: [:k | (dict at: k) isBehavior].\n"
+                "  classes asSortedCollection do: [:nm |\n"
+                "    | cls |\n"
+                "    cls := dict at: nm.\n"
+                "    cls selectors asSortedCollection do: [:sel |\n"
+                "      | src |\n"
+                "      src := [ (cls compiledMethodAt: sel) sourceString ] on: Error do: [:e | '' ].\n"
+                "      src isEmpty ifFalse: [ stream nextPutAll: src; lf; lf ]\n"
+                "    ]\n"
+                "  ].\n"
+                "  stream contents\n"
+                "]\n"
+                "] value"
+            )
+        else:
+            script = (
+                "[ | cls src |\n"
+                f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                "cls ifNil: [ '' ] ifNotNil: [\n"
+                f"  src := [ (cls compiledMethodAt: '{_escape_st(selector)}' asSymbol) sourceString ] on: Error do: [:e | '' ].\n"
+                "  src ifNil: [ '' ] ifNotNil: [ src asString ]\n"
+                "]\n"
+                "] value"
+            )
+
+        try:
+            with gs_session.request_session() as session:
+                source = _eval_str(session, script)
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(success=True, filename=default_filename, source=str(source))
+
+    @app.post("/class-browser/create-accessors")
+    def class_browser_create_accessors():
+        data = request.get_json(force=True) or {}
+        class_name = str(data.get("className", "")).strip()
+        dictionary = str(data.get("dictionary", "")).strip()
+        variable_name = str(data.get("variableName", "")).strip()
+        if not class_name or not variable_name:
+            return jsonify(success=False, exception="missing class or variable name"), 400
+
+        getter = f"{variable_name}\n^ {variable_name}"
+        setter = f"{variable_name}: anObject\n{variable_name} := anObject"
+        try:
+            with gs_session.request_session(read_only=False) as session:
+                result = _eval_str(
+                    session,
+                    f"| cls getter setter |\n"
+                    f"cls := {_cb_behavior_expr(class_name, False, dictionary)}.\n"
+                    "cls isNil ifTrue: [ 'Error: class not found' ] ifFalse: [\n"
+                    f"  getter := '{_escape_st(getter)}'.\n"
+                    f"  setter := '{_escape_st(setter)}'.\n"
+                    "  [\n"
+                    "    cls compileMethod: getter category: 'accessing' asSymbol.\n"
+                    "    cls compileMethod: setter category: 'accessing' asSymbol.\n"
+                    "    'Success'\n"
+                    "  ] on: Error do: [:e | 'Error: ' , e messageText ]\n"
+                    "]"
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+
+        message = str(result or "Success")
+        success = not message.startswith("Error:")
+        return jsonify(
+            success=success,
+            result=message if success else None,
+            exception=None if success else message,
+            category="accessing" if success else None,
+            getterSelector=variable_name if success else None,
+            setterSelector=f"{variable_name}:" if success else None,
+        )
 
     # ------------------------------------------------------------------ #
     # Transaction control                                                  #
     # ------------------------------------------------------------------ #
 
-    @app.get("/transaction/commit")
+    @app.route("/transaction/commit", methods=["GET", "POST"])
     def transaction_commit():
         try:
             with gs_session.request_session(read_only=False) as session:
                 session.commit()
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
+        return jsonify(success=True, result="committed")
 
-    @app.get("/transaction/abort")
+    @app.route("/transaction/abort", methods=["GET", "POST"])
     def transaction_abort():
         try:
             with gs_session.request_session(read_only=False) as session:
                 session.abort()
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
+        return jsonify(success=True, result="aborted")
 
     # ------------------------------------------------------------------ #
     # Symbol List Browser                                                  #
@@ -735,8 +1936,20 @@ def create_app() -> Flask:
                 )
                 from gemstone_py import OOP_NIL
                 if raw_oop == OOP_NIL:
-                    return jsonify(success=True, oop=None, inspection="nil", basetype="nilclass",
-                                   instVars={}, instVarsSize=0, loaded=True, customTabs=[])
+                    return jsonify(
+                        success=True,
+                        oop=None,
+                        inspection="nil",
+                        basetype="nilclass",
+                        instVars={},
+                        instVarsSize=0,
+                        loaded=True,
+                        classObject={"oop": None, "inspection": "", "basetype": "object", "loaded": False},
+                        superclassObject={"oop": None, "inspection": "", "basetype": "object", "loaded": False},
+                        availableTabs=["instvars"],
+                        defaultTab="instvars",
+                        customTabs=[],
+                    )
                 from gemstone_p.object_view import object_view as _ov
                 view = _ov(session, raw_oop, 2, {}, {})
         except Exception as exc:
@@ -892,15 +2105,55 @@ def create_app() -> Flask:
             with gs_session.request_session() as session:
                 from gemstone_p.object_view import _eval_str
                 raw = _eval_str(session,
-                    "| result |\n"
+                    f"| result |\n"
+                    f"{_ENCODE_SRC}\n"
                     "result := ''.\n"
                     "[\n"
                     "  GsProcess allSubinstances do: [:p |\n"
-                    "    | status |\n"
+                    "    | status ps ctx sourcePreview exceptionObj exceptionText |\n"
                     "    status := [p status] on: Error do: [:e | 'unknown'].\n"
                     "    (status = 'suspended' or: [status = 'halted']) ifTrue: [\n"
-                    "      result := result , p asOop printString , '|'\n"
-                    "        , (p printString copyFrom: 1 to: (p printString size min: 80))\n"
+                    "      ps := [p printString] on: Error do: [:e | 'a GsProcess'].\n"
+                    "      ps := ps size > 160 ifTrue: [ps copyFrom: 1 to: 160] ifFalse: [ps].\n"
+                    "      ctx := [p suspendedContext] on: Error do: [:e | nil].\n"
+                    "      sourcePreview := ''.\n"
+                    "      ctx notNil ifTrue: [\n"
+                    "        sourcePreview := [[ctx method sourceString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
+                    "        sourcePreview isNil ifTrue: [sourcePreview := ''].\n"
+                    "        sourcePreview := sourcePreview withBlanksTrimmed.\n"
+                    "        (sourcePreview includes: Character lf) ifTrue: [sourcePreview := sourcePreview copyUpTo: Character lf].\n"
+                    "        sourcePreview := sourcePreview size > 160 ifTrue: [sourcePreview copyFrom: 1 to: 160] ifFalse: [sourcePreview]\n"
+                    "      ].\n"
+                    "      exceptionObj := nil.\n"
+                    "      exceptionObj isNil ifTrue: [\n"
+                    "        exceptionObj := [(p respondsTo: #exception) ifTrue: [p exception] ifFalse: [nil]] on: Error do: [:e | nil]\n"
+                    "      ].\n"
+                    "      exceptionObj isNil ifTrue: [\n"
+                    "        exceptionObj := [(p respondsTo: #lastException) ifTrue: [p lastException] ifFalse: [nil]] on: Error do: [:e | nil]\n"
+                    "      ].\n"
+                    "      exceptionObj isNil ifTrue: [\n"
+                    "        [[p threadStorage do: [:assoc |\n"
+                    "          | keyText candidate |\n"
+                    "          exceptionObj notNil ifFalse: [\n"
+                    "            keyText := [[assoc key asString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
+                    "            candidate := [assoc value] on: Error do: [:e | nil].\n"
+                    "            ((candidate notNil) and: [keyText asLowercase includesSubstring: 'exception']) ifTrue: [\n"
+                    "              exceptionObj := candidate\n"
+                    "            ]\n"
+                    "          ]\n"
+                    "        ]] on: Error do: [:e | nil]\n"
+                    "      ].\n"
+                    "      exceptionText := ''.\n"
+                    "      exceptionObj notNil ifTrue: [\n"
+                    "        exceptionText := [[exceptionObj inspect] on: Error do: [:e | [exceptionObj printString] on: Error do: [:e2 | '']]] on: Error do: [:e | ''].\n"
+                    "        exceptionText isNil ifTrue: [exceptionText := ''].\n"
+                    "        exceptionText := exceptionText withBlanksTrimmed.\n"
+                    "        exceptionText := exceptionText size > 240 ifTrue: [exceptionText copyFrom: 1 to: 240] ifFalse: [exceptionText]\n"
+                    "      ].\n"
+                    "      result := result , (encode value: p asOop printString) , '|'\n"
+                    "        , (encode value: ps) , '|'\n"
+                    "        , (encode value: exceptionText) , '|'\n"
+                    "        , (encode value: sourcePreview)\n"
                     "        , String lf asString\n"
                     "    ]\n"
                     "  ]\n"
@@ -910,11 +2163,23 @@ def create_app() -> Flask:
                 threads = []
                 for line in str(raw).splitlines():
                     if '|' in line:
-                        oop_s, _, ps = line.partition('|')
+                        parts = line.split('|', 3)
                         try:
-                            threads.append({"oop": int(oop_s.strip()), "printString": ps.strip()})
+                            oop = int(_decode_field(parts[0]).strip())
                         except ValueError:
-                            pass
+                            continue
+                        print_string = _decode_field(parts[1]) if len(parts) > 1 else ''
+                        exception_text = _decode_field(parts[2]) if len(parts) > 2 else ''
+                        source_preview = _decode_field(parts[3]) if len(parts) > 3 else ''
+                        if not source_preview:
+                            source_preview = _debug_source_hint(oop)
+                        threads.append({
+                            "oop": oop,
+                            "printString": print_string,
+                            "exceptionText": exception_text,
+                            "sourcePreview": source_preview,
+                            "displayText": source_preview or exception_text or print_string,
+                        })
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, threads=threads)
@@ -966,9 +2231,10 @@ def create_app() -> Flask:
         frame_index = int(request.args.get("index", 0))
         try:
             with gs_session.request_session() as session:
-                from gemstone_p.object_view import _eval_str, object_for_oop_expr, _escape_st as _esc
+                from gemstone_p.object_view import _eval_str, object_for_oop_expr
                 raw = _eval_str(session,
-                    f"| proc ctx idx source selfPs vars |\n"
+                    f"| proc ctx idx source receiver selfPs selfOop vars methodName ipOffset varLines stepPoint sourceOffset offsets rawOffset |\n"
+                    f"{_ENCODE_SRC}\n"
                     f"proc := {object_for_oop_expr(oop)}.\n"
                     f"ctx := proc suspendedContext.\n"
                     f"idx := 0.\n"
@@ -976,37 +2242,95 @@ def create_app() -> Flask:
                     f"  ctx := ctx sender. idx := idx + 1\n"
                     f"].\n"
                     f"ctx isNil ifTrue: [\n"
-                    f"  '(no frame)||()|()'\n"
+                    f"  (encode value: '(no frame)') , '|'\n"
+                    f"    , (encode value: '0') , '|'\n"
+                    f"    , (encode value: '') , '|'\n"
+                    f"    , (encode value: '20') , '|'\n"
+                    f"    , (encode value: '') , '|'\n"
+                    f"    , (encode value: '')\n"
                     f"] ifFalse: [\n"
                     f"  source := [ctx method sourceString] on: Error do: [:e | ''].\n"
                     f"  source isNil ifTrue: [source := ''].\n"
                     f"  source := source size > 4000\n"
                     f"    ifTrue: [source copyFrom: 1 to: 4000]\n"
                     f"    ifFalse: [source].\n"
-                    f"  selfPs := [ctx receiver printString] on: Error do: [:e | '?'].\n"
-                    f"  vars := ''.\n"
+                    f"  receiver := [ctx receiver] on: Error do: [:e | nil].\n"
+                    f"  selfPs := [receiver printString] on: Error do: [:e | '?'].\n"
+                    f"  selfOop := [receiver asOop printString] on: Error do: [:e | '20'].\n"
+                    f"  varLines := OrderedCollection new.\n"
                     f"  [ctx tempNames do: [:n |\n"
-                    f"    | v |\n"
+                    f"    | v voop |\n"
                     f"    v := [ctx tempAt: n] on: Error do: [:e | '?'].\n"
-                    f"    vars := vars , n , '=' , v printString , ';'\n"
+                    f"    voop := [v asOop printString] on: Error do: [:e | '20'].\n"
+                    f"    varLines add: ((encode value: n asString) , Character tab asString , (encode value: voop))\n"
                     f"  ]] on: Error do: [:e | ].\n"
+                    f"  vars := String streamContents: [:stream |\n"
+                    f"    varLines doWithIndex: [:line :lineIndex |\n"
+                    f"      lineIndex > 1 ifTrue: [stream nextPut: Character lf].\n"
+                    f"      stream nextPutAll: line\n"
+                    f"    ]\n"
+                    f"  ].\n"
                     f"  | methodName ipOffset |\n"
                     f"  methodName := [ctx method printString] on: Error do: [:e | 'unknown'].\n"
                     f"  ipOffset := [ctx pc printString] on: Error do: [:e | '0'].\n"
-                    f"  methodName , '|' , ipOffset , '|' , selfPs , '|' , source , '|' , vars\n"
+                    f"  stepPoint := '0'.\n"
+                    f"  sourceOffset := '0'.\n"
+                    f"  ((ctx respondsTo: #stepPoint) or: [ctx respondsTo: #quickStepPoint]) ifTrue: [\n"
+                    f"    stepPoint := [\n"
+                    f"      (((ctx respondsTo: #stepPoint) and: [ctx stepPoint notNil])\n"
+                    f"        ifTrue: [ctx stepPoint]\n"
+                    f"        ifFalse: [(ctx respondsTo: #quickStepPoint) ifTrue: [ctx quickStepPoint] ifFalse: [0]]) printString\n"
+                    f"    ] on: Error do: [:e | '0']\n"
+                    f"  ].\n"
+                    f"  offsets := ((ctx respondsTo: #sourceOffsets)\n"
+                    f"    ifTrue: [[ctx sourceOffsets] on: Error do: [:e | #()]]\n"
+                    f"    ifFalse: [#()]).\n"
+                    f"  rawOffset := nil.\n"
+                    f"  [ | stepInt |\n"
+                    f"    stepInt := [stepPoint asInteger] on: Error do: [:e | 0].\n"
+                    f"    ((offsets isCollection) and: [stepInt > 0]) ifTrue: [\n"
+                    f"      rawOffset := [offsets at: stepInt ifAbsent: [nil]] on: Error do: [:e | nil]\n"
+                    f"    ]\n"
+                    f"  ] on: Error do: [:e | rawOffset := nil].\n"
+                    f"  rawOffset notNil ifTrue: [\n"
+                    f"    sourceOffset := [[rawOffset asInteger] on: Error do: [:e | 0]] printString\n"
+                    f"  ].\n"
+                    f"  (encode value: methodName) , '|'\n"
+                    f"    , (encode value: ipOffset) , '|'\n"
+                    f"    , (encode value: selfPs) , '|'\n"
+                    f"    , (encode value: selfOop) , '|'\n"
+                    f"    , (encode value: source) , '|'\n"
+                    f"    , (encode value: sourceOffset) , '|'\n"
+                    f"    , (encode value: stepPoint) , '|'\n"
+                    f"    , (encode value: vars)\n"
                     f"]"
                 )
-                parts = str(raw).split('|', 4)
-                method_name = parts[0] if len(parts) > 0 else ''
-                ip_offset   = parts[1] if len(parts) > 1 else '0'
-                self_ps     = parts[2] if len(parts) > 2 else ''
-                source      = parts[3] if len(parts) > 3 else ''
-                vars_raw    = parts[4] if len(parts) > 4 else ''
+                parts = str(raw).split('|', 7)
+                method_name = _decode_field(parts[0]) if len(parts) > 0 else ''
+                ip_offset = _decode_field(parts[1]) if len(parts) > 1 else '0'
+                self_ps = _decode_field(parts[2]) if len(parts) > 2 else ''
+                self_oop_raw = _decode_field(parts[3]) if len(parts) > 3 else ''
+                source = _decode_field(parts[4]) if len(parts) > 4 else ''
+                source_offset = _int_arg(_decode_field(parts[5]) if len(parts) > 5 else '0', 0)
+                step_point = _int_arg(_decode_field(parts[6]) if len(parts) > 6 else '0', 0)
+                vars_raw = _decode_field(parts[7]) if len(parts) > 7 else ''
+                if not source and frame_index == 0:
+                    source = _debug_source_hint(oop)
+                line_number = _line_number_for_offset(source, source_offset) or (1 if source else 0)
+                self_object = _debug_object_ref(session, self_oop_raw, self_ps)
                 variables = []
-                for item in vars_raw.split(';'):
-                    if '=' in item:
-                        n, _, v = item.partition('=')
-                        variables.append({"name": n, "value": v})
+                for item in vars_raw.splitlines():
+                    if not item.strip():
+                        continue
+                    fields = item.split('\t', 1)
+                    name = _decode_field(fields[0]) if len(fields) > 0 else ''
+                    value_oop_raw = _decode_field(fields[1]) if len(fields) > 1 else ''
+                    value_object = _debug_object_ref(session, value_oop_raw)
+                    variables.append({
+                        "name": name,
+                        "value": value_object.get("inspection", ""),
+                        "valueObject": value_object,
+                    })
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(
@@ -1014,7 +2338,11 @@ def create_app() -> Flask:
             methodName=method_name,
             ipOffset=ip_offset,
             selfPrintString=self_ps,
+            selfObject=self_object,
             source=source,
+            sourceOffset=source_offset,
+            stepPoint=step_point,
+            lineNumber=line_number,
             variables=variables,
             frameIndex=frame_index,
         )
@@ -1029,6 +2357,7 @@ def create_app() -> Flask:
                     f"proc := {object_for_oop_expr(oop)}.\n"
                     f"[proc resume] on: Error do: [:e | ]"
                 )
+                _forget_debug_source_hint(oop)
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True)
@@ -1091,20 +2420,46 @@ def create_app() -> Flask:
             with gs_session.request_session() as session:
                 from gemstone_p.object_view import _eval_str, object_for_oop_expr
                 raw = _eval_str(session,
-                    f"| proc result |\n"
+                    f"| proc result lines |\n"
+                    f"{_ENCODE_SRC}\n"
                     f"proc := {object_for_oop_expr(oop)}.\n"
-                    f"result := ''.\n"
+                    f"lines := OrderedCollection new.\n"
                     f"[proc threadStorage do: [:assoc |\n"
-                    f"  result := result , assoc key printString , '|'\n"
-                    f"    , assoc value printString , String lf asString\n"
-                    f"]] on: Error do: [:e | result := ''].\n"
+                    f"  | key value keyPs valuePs keyOop valueOop |\n"
+                    f"  key := [assoc key] on: Error do: [:e | nil].\n"
+                    f"  value := [assoc value] on: Error do: [:e | nil].\n"
+                    f"  keyPs := [key printString] on: Error do: [:e | '?'].\n"
+                    f"  valuePs := [value printString] on: Error do: [:e | '?'].\n"
+                    f"  keyOop := [key asOop printString] on: Error do: [:e | '20'].\n"
+                    f"  valueOop := [value asOop printString] on: Error do: [:e | '20'].\n"
+                    f"  lines add: ((encode value: keyPs) , Character tab asString\n"
+                    f"    , (encode value: keyOop) , Character tab asString\n"
+                    f"    , (encode value: valuePs) , Character tab asString\n"
+                    f"    , (encode value: valueOop))\n"
+                    f"]] on: Error do: [:e | ].\n"
+                    f"result := String streamContents: [:stream |\n"
+                    f"  lines doWithIndex: [:line :lineIndex |\n"
+                    f"    lineIndex > 1 ifTrue: [stream nextPut: Character lf].\n"
+                    f"    stream nextPutAll: line\n"
+                    f"  ]\n"
+                    f"].\n"
                     f"result"
                 )
                 entries = []
                 for line in str(raw).splitlines():
-                    if '|' in line:
-                        k, _, v = line.partition('|')
-                        entries.append({"key": k, "value": v})
+                    if not line.strip():
+                        continue
+                    fields = line.split('\t', 3)
+                    key = _decode_field(fields[0]) if len(fields) > 0 else ''
+                    key_oop_raw = _decode_field(fields[1]) if len(fields) > 1 else ''
+                    value = _decode_field(fields[2]) if len(fields) > 2 else ''
+                    value_oop_raw = _decode_field(fields[3]) if len(fields) > 3 else ''
+                    entries.append({
+                        "key": key,
+                        "value": value,
+                        "keyObject": _debug_object_ref(session, key_oop_raw, key),
+                        "valueObject": _debug_object_ref(session, value_oop_raw, value),
+                    })
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, entries=entries)
@@ -1116,41 +2471,131 @@ def create_app() -> Flask:
     @app.get("/object/constants/<int:oop>")
     def object_constants(oop: int):
         try:
+            limit = max(1, min(500, int(request.args.get("limit", 50))))
+        except (TypeError, ValueError):
+            limit = 50
+        try:
+            offset = max(0, int(request.args.get("offset", 0)))
+        except (TypeError, ValueError):
+            offset = 0
+        try:
             with gs_session.request_session() as session:
                 raw = _eval_str(session,
-                    f"| obj behavior result |\n"
+                    f"| obj behavior result rows assocs total start stop |\n"
                     f"{_behavior_prelude(oop)}"
-                    f"result := ''.\n"
-                    f"[behavior classPool keysAndValuesDo: [:key :value |\n"
-                    f"  result := result , key asString , '|' , value printString , String lf asString\n"
-                    f"]] on: Error do: [:e | result := ''].\n"
+                    f"{_ENCODE_SRC}\n"
+                    f"rows := OrderedCollection new.\n"
+                    f"[assocs := [behavior classPool associations asArray] on: Error do: [:e | #()].\n"
+                    f" assocs := assocs asSortedCollection: [:a :b |\n"
+                    f"   (([a key asString] on: Error do: [:e | a key printString])\n"
+                    f"     <= ([b key asString] on: Error do: [:e | b key printString]))\n"
+                    f" ].\n"
+                    f" total := assocs size.\n"
+                    f" start := {offset} + 1.\n"
+                    f" start < 1 ifTrue: [start := 1].\n"
+                    f" stop := total min: ({offset} + {limit}).\n"
+                    f" (start <= stop and: [start <= total]) ifTrue: [\n"
+                    f"   (assocs copyFrom: start to: stop) do: [:assoc |\n"
+                    f"     | key value keyPs valuePs valueOop |\n"
+                    f"     key := assoc key.\n"
+                    f"     value := assoc value.\n"
+                    f"     keyPs := [key asString] on: Error do: [:e | key printString].\n"
+                    f"     valuePs := [value printString] on: Error do: [:e | '?'].\n"
+                    f"     valueOop := [value asOop printString] on: Error do: [:e | '20'].\n"
+                    f"     rows add: ((encode value: keyPs) , Character tab asString\n"
+                    f"       , (encode value: valuePs) , Character tab asString\n"
+                    f"       , (encode value: valueOop))\n"
+                    f"   ]\n"
+                    f" ].\n"
+                    f"result := String streamContents: [:stream |\n"
+                    f"  stream nextPutAll: total printString.\n"
+                    f"  rows do: [:line |\n"
+                    f"    stream nextPut: Character lf.\n"
+                    f"    stream nextPutAll: line\n"
+                    f"  ]\n"
+                    f"].\n"
+                    f"] on: Error do: [:e | result := '0'].\n"
                     f"result"
                 )
+                lines = str(raw).splitlines()
+                total = 0
+                if lines:
+                    try:
+                        total = int(str(lines[0]).strip() or "0")
+                    except ValueError:
+                        total = 0
                 pairs = []
-                for line in str(raw).splitlines():
-                    if '|' in line:
-                        k, _, v = line.partition('|')
-                        pairs.append({"key": k, "value": v})
+                for line in lines[1:]:
+                    if not line.strip():
+                        continue
+                    fields = line.split('\t', 2)
+                    key = _decode_field(fields[0]) if len(fields) > 0 else ''
+                    value = _decode_field(fields[1]) if len(fields) > 1 else ''
+                    value_oop_raw = _decode_field(fields[2]) if len(fields) > 2 else ''
+                    value_object = _debug_object_ref(session, value_oop_raw, value)
+                    pairs.append({"key": key, "value": value_object.get("inspection", value), "valueObject": value_object})
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, constants=pairs)
+        return jsonify(
+            success=True,
+            constants=pairs,
+            limit=limit,
+            offset=offset,
+            total=total,
+            hasMore=(offset + len(pairs)) < total,
+        )
 
     @app.get("/object/hierarchy/<int:oop>")
     def object_hierarchy(oop: int):
         try:
             with gs_session.request_session() as session:
                 raw = _eval_str(session,
-                    f"| obj behavior cls result |\n"
+                    f"| obj behavior cls rows result encode |\n"
                     f"{_behavior_prelude(oop)}"
+                    f"{_ENCODE_SRC}\n"
+                    f"rows := OrderedCollection new.\n"
                     f"cls := behavior.\n"
-                    f"result := ''.\n"
                     f"[cls notNil] whileTrue: [\n"
-                    f"  result := result , cls name asString , String lf asString.\n"
+                    f"  | clsName clsOop dictName |\n"
+                    f"  clsName := [cls name asString] on: Error do: [:e | cls printString].\n"
+                    f"  clsOop := [cls asOop printString] on: Error do: [:e | '20'].\n"
+                    f"  dictName := ''.\n"
+                    f"  [System myUserProfile symbolList do: [:dict |\n"
+                    f"    ((dictName isEmpty) and: [[dict includesKey: clsName asSymbol] on: Error do: [:e | false]]) ifTrue: [\n"
+                    f"      | value |\n"
+                    f"      value := [dict at: clsName asSymbol ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    f"      value == cls ifTrue: [\n"
+                    f"        dictName := ([dict name] on: Error do: [:e | dict printString]) asString\n"
+                    f"      ]\n"
+                    f"    ]\n"
+                    f"  ]] on: Error do: [:e | ].\n"
+                    f"  rows addFirst: ((encode value: clsName) , Character tab asString , (encode value: clsOop) , Character tab asString , (encode value: dictName)).\n"
                     f"  cls := cls superclass\n"
+                    f"].\n"
+                    f"result := String streamContents: [:stream |\n"
+                    f"  rows doWithIndex: [:line :index |\n"
+                    f"    index > 1 ifTrue: [stream nextPut: Character lf].\n"
+                    f"    stream nextPutAll: line\n"
+                    f"  ]\n"
                     f"].\n"
                     f"result"
                 )
-                classes = [c for c in str(raw).splitlines() if c.strip()]
+                classes = []
+                for line in str(raw).splitlines():
+                    if not line.strip():
+                        continue
+                    fields = line.split('\t', 2)
+                    class_name = _decode_field(fields[0]) if len(fields) > 0 else ''
+                    class_oop_raw = _decode_field(fields[1]) if len(fields) > 1 else ''
+                    dictionary = _decode_field(fields[2]) if len(fields) > 2 else ''
+                    try:
+                        class_oop = int(class_oop_raw)
+                    except ValueError:
+                        class_oop = None
+                    classes.append({
+                        "class": _fallback_ref(class_oop, class_name, "class"),
+                        "dictionary": dictionary,
+                    })
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         return jsonify(success=True, hierarchy=classes)
@@ -1158,66 +2603,158 @@ def create_app() -> Flask:
     @app.get("/object/included-modules/<int:oop>")
     def object_included_modules(oop: int):
         try:
-            with gs_session.request_session() as session:
-                raw = _eval_str(session,
-                    f"| obj behavior result |\n"
-                    f"{_behavior_prelude(oop)}"
-                    f"result := ''.\n"
-                    f"[behavior withAllSuperclasses do: [:cls |\n"
-                    f"  (cls respondsTo: #includedModules) ifTrue: [\n"
-                    f"    cls includedModules do: [:m |\n"
-                    f"      result := result , m asOop printString , '|' , m name , String lf asString\n"
-                    f"    ]\n"
-                    f"  ]\n"
-                    f"]] on: Error do: [:e | ].\n"
-                    f"result"
-                )
-                modules = []
-                for line in str(raw).splitlines():
-                    if '|' in line:
-                        oop_s, _, name = line.partition('|')
-                        try:
-                            modules.append({"oop": int(oop_s.strip()), "name": name.strip()})
-                        except ValueError:
-                            pass
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, modules=modules)
-
-    @app.get("/object/instances/<int:oop>")
-    def object_instances(oop: int):
-        limit = int(request.args.get("limit", 50))
+            limit = max(1, min(500, int(request.args.get("limit", 50))))
+        except (TypeError, ValueError):
+            limit = 50
+        try:
+            offset = max(0, int(request.args.get("offset", 0)))
+        except (TypeError, ValueError):
+            offset = 0
         try:
             with gs_session.request_session() as session:
                 raw = _eval_str(session,
-                    f"| obj behavior result col |\n"
+                    f"| obj behavior result rows total start stop |\n"
                     f"{_behavior_prelude(oop)}"
+                    f"{_ENCODE_SRC}\n"
                     f"result := ''.\n"
-                    f"[col := behavior allInstances.\n"
-                    f" col size > {limit} ifTrue: [col := col copyFrom: 1 to: {limit}].\n"
-                    f" col do: [:inst |\n"
-                    f"   result := result , inst oop printString , '|' , inst printString , String lf asString\n"
-                    f" ]\n"
-                    f"] on: Error do: [:e | result := ''].\n"
+                    f"[rows := OrderedCollection new.\n"
+                    f" behavior withAllSuperclasses do: [:cls |\n"
+                    f"  (cls respondsTo: #includedModules) ifTrue: [\n"
+                    f"    cls includedModules do: [:m |\n"
+                    f"      | clsOop clsName modOop modName |\n"
+                    f"      clsOop := [cls asOop printString] on: Error do: [:e | '20'].\n"
+                    f"      clsName := [cls name asString] on: Error do: [:e | cls printString].\n"
+                    f"      modOop := [m asOop printString] on: Error do: [:e | '20'].\n"
+                    f"      modName := [m name asString] on: Error do: [:e | m printString].\n"
+                    f"      rows add: ((encode value: clsOop) , Character tab asString\n"
+                    f"        , (encode value: clsName) , Character tab asString\n"
+                    f"        , (encode value: modOop) , Character tab asString\n"
+                    f"        , (encode value: modName))\n"
+                    f"    ]\n"
+                    f"  ]\n"
+                    f" ].\n"
+                    f" total := rows size.\n"
+                    f" start := {offset} + 1.\n"
+                    f" start < 1 ifTrue: [start := 1].\n"
+                    f" stop := total min: ({offset} + {limit}).\n"
+                    f" result := String streamContents: [:stream |\n"
+                    f"   stream nextPutAll: total printString.\n"
+                    f"   (start <= stop and: [start <= total]) ifTrue: [\n"
+                    f"     (rows copyFrom: start to: stop) do: [:line |\n"
+                    f"       stream nextPut: Character lf.\n"
+                    f"       stream nextPutAll: line\n"
+                    f"     ]\n"
+                    f"   ]\n"
+                    f" ].\n"
+                    f"] on: Error do: [:e | result := '0'].\n"
                     f"result"
                 )
-                instances = []
-                for line in str(raw).splitlines():
-                    if '|' in line:
-                        oop_s, _, ps = line.partition('|')
-                        try:
-                            instances.append({"oop": int(oop_s), "printString": ps})
-                        except ValueError:
-                            pass
+                lines = str(raw).splitlines()
+                total = 0
+                if lines:
+                    try:
+                        total = int(str(lines[0]).strip() or "0")
+                    except ValueError:
+                        total = 0
+                modules = []
+                for line in lines[1:]:
+                    if not line.strip():
+                        continue
+                    fields = line.split('\t', 3)
+                    owner_oop_raw = _decode_field(fields[0]) if len(fields) > 0 else ''
+                    owner_name = _decode_field(fields[1]) if len(fields) > 1 else ''
+                    module_oop_raw = _decode_field(fields[2]) if len(fields) > 2 else ''
+                    module_name = _decode_field(fields[3]) if len(fields) > 3 else ''
+                    modules.append({
+                        "owner": _debug_object_ref(session, owner_oop_raw, owner_name),
+                        "module": _debug_object_ref(session, module_oop_raw, module_name),
+                    })
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, instances=instances, limit=limit)
+        return jsonify(
+            success=True,
+            modules=modules,
+            limit=limit,
+            offset=offset,
+            total=total,
+            hasMore=(offset + len(modules)) < total,
+        )
+
+    @app.get("/object/instances/<int:oop>")
+    def object_instances(oop: int):
+        try:
+            limit = max(1, min(500, int(request.args.get("limit", 50))))
+        except (TypeError, ValueError):
+            limit = 50
+        try:
+            offset = max(0, int(request.args.get("offset", 0)))
+        except (TypeError, ValueError):
+            offset = 0
+        try:
+            with gs_session.request_session() as session:
+                raw = _eval_str(session,
+                    f"| obj behavior result col lines total start stop |\n"
+                    f"{_behavior_prelude(oop)}"
+                    f"{_ENCODE_SRC}\n"
+                    f"result := ''.\n"
+                    f"[col := behavior allInstances.\n"
+                    f" total := [col size] on: Error do: [:e | 0].\n"
+                    f" start := {offset} + 1.\n"
+                    f" start < 1 ifTrue: [start := 1].\n"
+                    f" stop := total min: ({offset} + {limit}).\n"
+                    f" lines := OrderedCollection new.\n"
+                    f" (start <= stop and: [start <= total]) ifTrue: [\n"
+                    f"   (col copyFrom: start to: stop) do: [:inst |\n"
+                    f"     | instOop instPs |\n"
+                    f"     instOop := [inst oop printString] on: Error do: [:e | '20'].\n"
+                    f"     instPs := [inst printString] on: Error do: [:e | '?'].\n"
+                    f"     lines add: ((encode value: instOop) , Character tab asString , (encode value: instPs))\n"
+                    f"   ]\n"
+                    f" ].\n"
+                    f" result := String streamContents: [:stream |\n"
+                    f"   stream nextPutAll: total printString.\n"
+                    f"   lines do: [:line |\n"
+                    f"     stream nextPut: Character lf.\n"
+                    f"     stream nextPutAll: line\n"
+                    f"   ]\n"
+                    f" ].\n"
+                    f"] on: Error do: [:e | result := '0'].\n"
+                    f"result"
+                )
+                lines = str(raw).splitlines()
+                total = 0
+                if lines:
+                    try:
+                        total = int(str(lines[0]).strip() or "0")
+                    except ValueError:
+                        total = 0
+                instances = []
+                for line in lines[1:]:
+                    if not line.strip():
+                        continue
+                    fields = line.split('\t', 1)
+                    oop_s = _decode_field(fields[0]) if len(fields) > 0 else ''
+                    ps = _decode_field(fields[1]) if len(fields) > 1 else ''
+                    try:
+                        instances.append({"oop": int(oop_s), "printString": ps})
+                    except ValueError:
+                        continue
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        return jsonify(
+            success=True,
+            instances=instances,
+            limit=limit,
+            offset=offset,
+            total=total,
+            hasMore=(offset + len(instances)) < total,
+        )
 
     # ------------------------------------------------------------------ #
     # Transaction — continue / persistent mode                            #
     # ------------------------------------------------------------------ #
 
-    @app.get("/transaction/continue")
+    @app.route("/transaction/continue", methods=["GET", "POST"])
     def transaction_continue():
         try:
             with gs_session.request_session(read_only=False) as session:
@@ -1229,7 +2766,10 @@ def create_app() -> Flask:
                 )
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, result=str(result))
+        error_text = _smalltalk_error_text(result)
+        if error_text:
+            return jsonify(success=False, exception=error_text)
+        return jsonify(success=True, result=str(result).strip() or "continued")
 
     @app.get("/transaction/persistent-mode")
     def transaction_persistent_mode():
@@ -1237,11 +2777,16 @@ def create_app() -> Flask:
             with gs_session.request_session() as session:
                 from gemstone_p.object_view import _eval_str
                 raw = _eval_str(session,
-                    "[GemStone session autoBeginTransaction printString] on: Error do: [:e | 'false']"
+                    "[GemStone session autoBeginTransaction printString] on: Error do: [:e | 'error: ' , e messageText]"
                 )
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, persistent=str(raw).strip() == 'true')
+        error_text = _smalltalk_error_text(raw)
+        if error_text:
+            return jsonify(success=False, exception=error_text)
+        persistent = str(raw).strip() == 'true'
+        gs_session.remember_persistent_mode(persistent)
+        return jsonify(success=True, persistent=persistent)
 
     @app.post("/transaction/persistent-mode")
     def transaction_set_persistent_mode():
@@ -1257,7 +2802,16 @@ def create_app() -> Flask:
                 )
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, persistent=str(result).strip() == 'true')
+        error_text = _smalltalk_error_text(result)
+        if error_text:
+            return jsonify(success=False, exception=error_text)
+        persistent = str(result).strip() == 'true'
+        gs_session.remember_persistent_mode(persistent)
+        return jsonify(
+            success=True,
+            persistent=persistent,
+            result=f"Persistent mode {'enabled' if persistent else 'disabled'}",
+        )
 
     # ------------------------------------------------------------------ #
     # Version reports                                                      #
@@ -1353,3 +2907,48 @@ def _parse_ranges(args) -> dict:
             elif side == "to":
                 ranges[name][1] = value
     return ranges
+
+
+def _request_json_dict() -> dict:
+    payload = request.get_json(silent=True)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _request_ranges() -> dict:
+    if request.method == "POST":
+        payload = _request_json_dict()
+        raw_ranges = payload.get("ranges", {})
+        return _parse_ranges(raw_ranges if isinstance(raw_ranges, dict) else {})
+    return _parse_ranges(request.args)
+
+
+def _int_arg(value: object, default: int) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _line_number_for_offset(source: str, offset: int) -> int:
+    text = str(source or "")
+    if not text:
+        return 0
+    try:
+        raw_offset = int(offset)
+    except Exception:
+        return 0
+    if raw_offset <= 0:
+        return 0
+    limit = min(raw_offset - 1, len(text))
+    line = 1
+    pos = 0
+    while pos < limit:
+        ch = text[pos]
+        if ch == "\n":
+            line += 1
+        elif ch == "\r":
+            line += 1
+            if pos + 1 < limit and text[pos + 1] == "\n":
+                pos += 1
+        pos += 1
+    return line

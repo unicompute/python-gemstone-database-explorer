@@ -282,6 +282,16 @@
       border-left: 2px solid #45475a; border-bottom: 2px solid #45475a;
       flex-shrink: 0; margin-left: 2px;
     }
+    .tree-link {
+      background: none; border: none; padding: 0; margin: 0;
+      color: #89b4fa; font: inherit; cursor: pointer;
+      text-align: left;
+    }
+    .tree-link:hover { text-decoration: underline; }
+    .tree-meta {
+      color: #6c7086; font-size: 10px; margin-left: 6px;
+      white-space: nowrap;
+    }
 
     /* ── instances table ─────────────────────────────────────────────── */
     .instances-tbl-wrap { overflow: auto; flex: 1; }
@@ -442,6 +452,13 @@
       display: flex; align-items: center; gap: 5px; flex-shrink: 0;
     }
     .mb-header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mb-action {
+      background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+      cursor: pointer; font-size: 9px; padding: 1px 6px; border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .mb-action:hover:not(:disabled) { background: #45475a; }
+    .mb-action:disabled { opacity: 0.5; cursor: default; }
     .mb-close {
       background: none; border: none; color: #6c7086;
       cursor: pointer; font-size: 13px; padding: 0 2px;
@@ -488,6 +505,10 @@
       display: flex; align-items: center; gap: 6px;
     }
     .dbg-frame-item:hover { background: #313244; }
+    .dbg-frame-item:focus-visible {
+      outline: 1px solid #89b4fa;
+      outline-offset: -1px;
+    }
     .dbg-frame-item.active {
       background: #1e4f9f; border-left-color: #89b4fa; color: #cdd6f4;
     }
@@ -498,16 +519,50 @@
       background: #f9e2af; color: #1e1e2e;
     }
     .dbg-frame-icon.ruby { background: #f38ba8; }
+    .dbg-summary {
+      display: flex; flex-direction: column; gap: 2px;
+      padding: 6px 8px; border-bottom: 1px solid #313244;
+      background: #181825; flex-shrink: 0;
+    }
+    .dbg-summary-source,
+    .dbg-summary-error {
+      font-family: monospace; font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dbg-summary-source { color: #cdd6f4; }
+    .dbg-summary-error { color: #f38ba8; }
     .dbg-action-bar {
       display: flex; flex-shrink: 0; border-bottom: 1px solid #313244;
     }
     .dbg-source-pane {
       flex: 1; overflow: hidden; display: flex; flex-direction: column;
     }
-    .dbg-source-pane textarea {
+    .dbg-source-meta {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 8px; border-bottom: 1px solid #313244;
+      background: #181825; color: #89b4fa; font-size: 10px;
+      font-family: monospace; flex-shrink: 0;
+    }
+    .dbg-source-code {
       flex: 1; background: #181825; color: #cdd6f4;
-      font-family: monospace; font-size: 11px;
-      border: none; padding: 6px 8px; resize: none; outline: none;
+      font-family: monospace; font-size: 11px; margin: 0;
+      border: none; padding: 6px 8px; outline: none; overflow: auto;
+      white-space: pre; line-height: 1.45;
+    }
+    .dbg-source-line {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 0 4px; border-left: 3px solid transparent;
+    }
+    .dbg-source-line.active {
+      background: #313244;
+      border-left-color: #89b4fa;
+    }
+    .dbg-source-lno {
+      color: #6c7086; min-width: 26px; text-align: right; user-select: none;
+      flex-shrink: 0;
+    }
+    .dbg-source-text {
+      color: inherit; white-space: pre; min-width: 0;
     }
     .dbg-self-bar {
       display: flex; align-items: center; gap: 6px;
@@ -515,7 +570,11 @@
       background: #181825; flex-shrink: 0; font-size: 10px;
     }
     .dbg-self-label { color: #6c7086; }
-    .dbg-self-val { font-family: monospace; color: #cba6f7; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .dbg-self-val {
+      font-family: monospace; color: #cba6f7; flex: 1;
+      overflow: hidden; text-overflow: ellipsis;
+      display: flex; align-items: center; gap: 6px; min-width: 0;
+    }
     .dbg-var-row {
       display: flex; align-items: center; gap: 6px;
       padding: 3px 8px; border-top: 1px solid #313244;
@@ -525,14 +584,21 @@
       background: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a;
       border-radius: 3px; font-size: 11px; padding: 2px 5px; flex: 1;
     }
-    .dbg-var-val { font-size: 11px; font-family: monospace; color: #a6e3a1; }
+    .dbg-var-val {
+      font-size: 11px; font-family: monospace; color: #a6e3a1;
+      display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;
+    }
     .dbg-tls-list { list-style: none; padding: 4px 0; }
     .dbg-tls-list li {
       padding: 2px 8px; font-size: 11px; font-family: monospace;
       display: flex; align-items: center; gap: 8px;
     }
+    .dbg-tls-list li .tls-key,
+    .dbg-tls-list li .tls-val {
+      display: flex; align-items: center; gap: 6px; min-width: 0;
+    }
     .dbg-tls-list li .tls-key { color: #f5c2e7; min-width: 80px; }
-    .dbg-tls-list li .tls-val { color: #a6e3a1; }
+    .dbg-tls-list li .tls-val { color: #a6e3a1; flex: 1; }
 
     /* ── symbol list browser ─────────────────────────────────────────── */
     .sl-two-col { display: flex; flex: 1; overflow: hidden; }
@@ -587,6 +653,19 @@
     .cb-toolbar .btn, .cb-toolbar .btn-ghost {
       padding: 2px 8px; font-size: 10px;
     }
+    .cb-inline {
+      display: inline-flex; align-items: center; gap: 5px;
+      color: #a6adc8; font-size: 10px; white-space: nowrap;
+    }
+    .cb-select {
+      background: #24273a; color: #cdd6f4;
+      border: 1px solid #45475a; border-radius: 4px;
+      padding: 2px 6px; font-size: 10px; outline: none;
+    }
+    .cb-sep {
+      width: 1px; height: 18px; background: #313244;
+      display: inline-block; margin: 0 2px;
+    }
     .cb-meta {
       display: inline-flex; align-items: center; gap: 5px;
       color: #a6adc8; font-size: 11px; white-space: nowrap;
@@ -594,21 +673,86 @@
     }
     .cb-meta input { accent-color: #cba6f7; }
     .cb-lists {
-      display: grid; grid-template-columns: 160px 220px 180px 220px;
+      --cb-col-1: 160px;
+      --cb-col-2: 220px;
+      --cb-col-3: 180px;
+      --cb-col-4: 220px;
+      --cb-splitter: 7px;
+      display: grid;
+      grid-template-columns:
+        minmax(120px, var(--cb-col-1))
+        var(--cb-splitter)
+        minmax(160px, var(--cb-col-2))
+        var(--cb-splitter)
+        minmax(140px, var(--cb-col-3))
+        var(--cb-splitter)
+        minmax(180px, var(--cb-col-4));
       min-height: 210px; height: 210px; border-bottom: 1px solid #313244;
       flex-shrink: 0;
     }
     .cb-pane {
-      display: flex; flex-direction: column; min-width: 0;
+      display: flex; flex-direction: column; min-width: 0; min-height: 0;
+      overflow: hidden;
       border-right: 1px solid #313244;
     }
     .cb-pane:last-child { border-right: none; }
+    .cb-splitter {
+      position: relative;
+      cursor: col-resize;
+      background: #0f1019;
+      border-right: 1px solid #1e1e2e;
+      border-left: 1px solid #1e1e2e;
+      touch-action: none;
+    }
+    .cb-splitter::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 28px;
+      border-radius: 999px;
+      background: #45475a;
+    }
+    .cb-splitter:hover::after,
+    .cb-splitter.is-active::after {
+      background: #89dceb;
+    }
     .cb-pane-label {
       padding: 4px 8px; background: #1e1e2e; border-bottom: 1px solid #313244;
       font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #6c7086;
       flex-shrink: 0;
     }
-    .cb-list { overflow-y: auto; flex: 1; }
+    .cb-filter-wrap {
+      padding: 4px 6px;
+      border-bottom: 1px solid #313244;
+      background: #181825;
+      flex-shrink: 0;
+    }
+    .cb-filter {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #313244;
+      border-radius: 4px;
+      background: #11111b;
+      color: #cdd6f4;
+      font-size: 10px;
+      padding: 4px 6px;
+      outline: none;
+    }
+    .cb-filter::placeholder { color: #6c7086; }
+    .cb-filter:focus {
+      border-color: #89dceb;
+      box-shadow: 0 0 0 1px rgba(137, 220, 235, 0.15);
+    }
+    .cb-list {
+      overflow-y: auto; flex: 1; min-height: 0;
+      outline: none;
+    }
+    .cb-list:focus {
+      box-shadow: inset 0 0 0 1px rgba(137, 220, 235, 0.22);
+    }
     .cb-item {
       padding: 3px 8px; cursor: pointer; font-size: 11px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -635,6 +779,11 @@
       background: #11111b; color: #cdd6f4;
       font-family: monospace; font-size: 12px; line-height: 1.45;
       padding: 10px 12px;
+    }
+    .cb-source.is-readonly {
+      background: #181825;
+      color: #9399b2;
+      cursor: default;
     }
     .cb-status {
       padding: 4px 8px; border-top: 1px solid #313244; background: #181825;
@@ -777,13 +926,20 @@
     }
     #modal-box h2 { font-size: 12px; font-weight: 700; color: #cba6f7; }
     #modal-box label { font-size: 10px; color: #a6adc8; }
-    #modal-box input, #modal-box textarea {
+    #modal-box input, #modal-box textarea, #modal-box select {
       font-family: monospace; font-size: 11px;
       background: #1e1e2e; color: #cdd6f4;
       border: 1px solid #45475a; border-radius: 3px;
       padding: 4px 6px; width: 100%;
     }
     #modal-box textarea { resize: vertical; min-height: 52px; }
+    .modal-message {
+      font-size: 11px;
+      color: #cdd6f4;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      margin-bottom: 2px;
+    }
     #modal-footer { display: flex; gap: 6px; justify-content: flex-end; }
 
     .hidden { display: none !important; }
@@ -863,6 +1019,12 @@ async function api(url, opts) {
 }
 async function apiPost(url, body) {
   return api(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+}
+async function apiEvaluate(oop, {code, language='smalltalk', depth=2, ranges={}} = {}) {
+  return apiPost(`/object/evaluate/${oop}`, {code, language, depth, ranges});
+}
+async function apiTransaction(url) {
+  return apiPost(url, {});
 }
 function apiWithParams(url, params = {}) {
   const qs = new URLSearchParams();
@@ -1332,10 +1494,14 @@ function makeChip(text, oop, winId, evalContext) {
     const resEl = dd.querySelector('.chip-dd-result');
     resEl.classList.remove('hidden','error'); resEl.textContent = '…';
     try {
-      const d = await api(`/object/evaluate/${oop}?code=${encodeURIComponent(code)}&language=${ddLang}&depth=1`);
+      const d = await apiEvaluate(oop, {code, language: ddLang, depth: 1});
       if (!d.success) { resEl.classList.add('error'); resEl.textContent = 'Error: '+d.exception; return; }
       const [isExc, rv] = d.result;
-      if (isExc) { resEl.classList.add('error'); resEl.textContent = '⚑ '+(rv.inspection||'Exception'); }
+      if (isExc) {
+        resEl.classList.add('error');
+        resEl.textContent = '⚑ '+(rv.inspection||'Exception');
+        maybeOpenEvalDebugger(rv, code);
+      }
       else resEl.textContent = rv.inspection || 'nil';
     } catch(e) { resEl.classList.add('error'); resEl.textContent = e.message; }
   });
@@ -1429,29 +1595,49 @@ async function init() {
 
 // ── halted thread poller ──────────────────────────────────────────────────────
 let threadPollTimer = null;
+async function refreshHaltedThreadsBar() {
+  try {
+    const d = await api('/debug/threads');
+    const bar = document.getElementById('halted-threads-bar');
+    bar.innerHTML = '';
+    if (d.success && d.threads.length) {
+      const lbl = document.createElement('span');
+      lbl.style.cssText = 'font-size:10px;color:#f38ba8;margin-right:3px';
+      lbl.textContent = 'Halted:';
+      bar.appendChild(lbl);
+      for (const t of d.threads) {
+        const pillText = t.displayText || t.sourcePreview || t.exceptionText || t.printString || `oop:${t.oop}`;
+        const pillTitle = [t.sourcePreview, t.exceptionText ? `⚑ ${t.exceptionText}` : '', t.printString]
+          .filter(Boolean)
+          .join('\n');
+        const pill = document.createElement('span');
+        pill.className = 'thread-pill';
+        pill.textContent = pillText.slice(0, 30);
+        pill.title = pillTitle || pillText;
+        pill.addEventListener('click', () => openDebugger(t));
+        bar.appendChild(pill);
+      }
+    }
+  } catch (_) {}
+}
+
+function maybeOpenEvalDebugger(rv, code) {
+  const threadOop = Number(rv?.debugThreadOop || 0);
+  if (!(threadOop > 20)) return false;
+  refreshHaltedThreadsBar();
+  openDebugger({
+    oop: threadOop,
+    printString: rv?.inspection || 'Debugger',
+    exceptionText: rv?.exceptionText || rv?.inspection || 'Exception',
+    sourcePreview: rv?.sourcePreview || code || '',
+  });
+  return true;
+}
+
 function startThreadPoller() {
   clearInterval(threadPollTimer);
-  threadPollTimer = setInterval(async () => {
-    try {
-      const d = await api('/debug/threads');
-      const bar = document.getElementById('halted-threads-bar');
-      bar.innerHTML = '';
-      if (d.success && d.threads.length) {
-        const lbl = document.createElement('span');
-        lbl.style.cssText = 'font-size:10px;color:#f38ba8;margin-right:3px';
-        lbl.textContent = 'Halted:';
-        bar.appendChild(lbl);
-        for (const t of d.threads) {
-          const pill = document.createElement('span');
-          pill.className = 'thread-pill';
-          pill.textContent = t.printString.slice(0, 30);
-          pill.title = t.printString;
-          pill.addEventListener('click', () => openDebugger(t.oop, t.printString));
-          bar.appendChild(pill);
-        }
-      }
-    } catch (_) {}
-  }, 3000);
+  refreshHaltedThreadsBar();
+  threadPollTimer = setInterval(refreshHaltedThreadsBar, 3000);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1469,10 +1655,29 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
   let currentObjData = null;
   let history = [];
   let currentItab = 'instvars';
-  let mbData = {}, mbClassOop = null;
+  let mbData = {}, mbClassOop = null, mbClassName = '';
+  let mbCurrentCategory = null;
+  let mbCurrentSelector = null;
+  let constantPage = 0;
   let instPage = 0;
+  let modulePage = 0;
+  let currentObjectQuery = {};
+  const inspectorTabCache = new Map();
+  const methodBrowserCache = new Map();
+  let inspectorRenderToken = 0;
   let preferredInitialTab = options.initialTab || null;
   const compactMode = !!options.compact;
+  const BUILTIN_ITAB_CAPTIONS = {
+    instvars: 'Instance Variables',
+    constants: 'Constants',
+    modules: 'Included Modules',
+    code: 'Code',
+    hierarchy: 'Hierarchy',
+    instances: 'Instances',
+    'stone-ver': 'Stone Version Report',
+    'gem-ver': 'Gem Version Report',
+    control: 'Control Panel',
+  };
   upsertWindowState(id, {kind: 'object', object: null});
 
   // Replace plain titlebar with MagLev-style chip titlebar
@@ -1524,17 +1729,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
   body.innerHTML = compactMode ? `
     <div style="display:flex;flex:1;min-height:0;overflow:hidden">
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
-        <div class="inspector-strip" id="${id}-itabs" style="display:none">
-          <div class="inspector-tab active" data-itab="instvars">Instance Variables</div>
-          <div class="inspector-tab" data-itab="constants">Constants</div>
-          <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
-          <div class="inspector-tab" data-itab="instances">Instances</div>
-          <div class="inspector-tab" data-itab="modules">Included Modules</div>
-          <div class="inspector-tab" data-itab="stone-ver">Stone Version Report</div>
-          <div class="inspector-tab" data-itab="gem-ver">Gem Version Report</div>
-          <div class="inspector-tab dim" data-itab="control">Control Panel</div>
-          <div class="inspector-tab" data-itab="code">Code</div>
-        </div>
+        <div class="inspector-strip" id="${id}-itabs" style="display:none"></div>
         <div class="inspector-body" id="${id}-ibody">
           <p style="color:#6c7086;padding:12px">Loading object…</p>
         </div>
@@ -1542,6 +1737,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       <div id="${id}-mb" class="hidden" style="width:300px;border-left:1px solid #313244;display:flex;flex-direction:column;background:#181825;flex-shrink:0">
         <div class="mb-header">
           <span id="${id}-mb-class">Methods</span>
+          <button class="mb-action" id="${id}-mb-open-browser">Class Browser</button>
           <button class="mb-close" id="${id}-mb-close">✕</button>
         </div>
         <div class="mb-split">
@@ -1566,17 +1762,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
         <div class="breadcrumb" id="${id}-bc"></div>
         <div style="display:flex;flex:1;overflow:hidden">
           <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
-            <div class="inspector-strip" id="${id}-itabs" style="display:none">
-              <div class="inspector-tab active" data-itab="instvars">Instance Variables</div>
-              <div class="inspector-tab" data-itab="constants">Constants</div>
-              <div class="inspector-tab" data-itab="hierarchy">Hierarchy</div>
-              <div class="inspector-tab" data-itab="instances">Instances</div>
-              <div class="inspector-tab" data-itab="modules">Included Modules</div>
-              <div class="inspector-tab" data-itab="stone-ver">Stone Version Report</div>
-              <div class="inspector-tab" data-itab="gem-ver">Gem Version Report</div>
-              <div class="inspector-tab dim" data-itab="control">Control Panel</div>
-              <div class="inspector-tab" data-itab="code">Code</div>
-            </div>
+            <div class="inspector-strip" id="${id}-itabs" style="display:none"></div>
             <div class="inspector-body" id="${id}-ibody">
               <p style="color:#6c7086;padding:12px">Select a root object to begin.</p>
             </div>
@@ -1584,6 +1770,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
           <div id="${id}-mb" class="hidden" style="width:300px;border-left:1px solid #313244;display:flex;flex-direction:column;background:#181825;flex-shrink:0">
             <div class="mb-header">
               <span id="${id}-mb-class">Methods</span>
+              <button class="mb-action" id="${id}-mb-open-browser">Class Browser</button>
               <button class="mb-close" id="${id}-mb-close">✕</button>
             </div>
             <div class="mb-split">
@@ -1630,8 +1817,28 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
   }
 
   // inspector tab switching
+  function normalizeCodeTarget(target, fallbackOop = null, fallbackLabel = '') {
+    if (!target || typeof target !== 'object') return null;
+    const className = String(target.className || '').trim();
+    const meta = !!target.meta;
+    const label = String(target.label || (className ? `${className}${meta ? ' class' : ''}` : fallbackLabel || '')).trim();
+    return {
+      oop: Number.isFinite(target.oop) ? target.oop : fallbackOop,
+      label,
+      className,
+      dictionary: String(target.dictionary || '').trim(),
+      meta,
+    };
+  }
+
   function getCodeTarget(obj) {
     if (!obj?.oop) return null;
+    const explicitTarget = normalizeCodeTarget(
+      obj.classBrowserTarget,
+      obj.superclassObject?.oop ? obj.oop : (obj.classObject?.oop ?? obj.oop),
+      obj.superclassObject?.oop ? (obj.inspection || 'class') : (obj.classObject?.inspection || obj.inspection || 'object'),
+    );
+    if (explicitTarget?.oop) return explicitTarget;
     if (obj.superclassObject?.oop) {
       return {oop: obj.oop, label: obj.inspection || 'class'};
     }
@@ -1641,56 +1848,117 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     return {oop: obj.oop, label: obj.inspection || 'object'};
   }
 
-  function getVisibleInspectorTabs(obj) {
-    const visible = new Set(['instvars']);
-    const isBehaviorLike = !!obj?.superclassObject?.oop;
-    const systemOop = startupIds.systemId || roots['System'];
-    const isSystemBehavior = isBehaviorLike && obj?.oop === systemOop;
+  function parseClassBrowserTarget(ref) {
+    let className = String(ref || '').trim();
+    if (!className) return null;
+    let meta = false;
+    if (className.endsWith(' class')) {
+      meta = true;
+      className = className.slice(0, -6).trim();
+    }
+    return className ? {className, meta} : null;
+  }
 
-    if (isBehaviorLike) {
-      visible.add('constants');
-      visible.add('hierarchy');
-      visible.add('instances');
-      visible.add('modules');
-      visible.add('code');
+  function currentCodeBrowserTarget(selector = mbCurrentSelector) {
+    const target = getCodeTarget(currentObjData);
+    const parsed = target?.className ? target : parseClassBrowserTarget(target?.label || mbClassName || '');
+    if (!parsed) return null;
+    return selector ? {...parsed, method: selector} : parsed;
+  }
+
+  function updateMethodBrowserActions() {
+    const openBtn = body.querySelector(`#${id}-mb-open-browser`);
+    if (!openBtn) return;
+    const target = currentCodeBrowserTarget();
+    openBtn.disabled = !target;
+    openBtn.title = target
+      ? (target.method ? `Open ${target.className}${target.meta ? ' class' : ''} >> ${target.method}` : `Open ${target.className}${target.meta ? ' class' : ''}`)
+      : 'Open the current method in Class Browser';
+  }
+
+  async function fetchMethodBrowserCached(name, keyParts, loader) {
+    const cacheKey = `${name}:${JSON.stringify(keyParts || {})}`;
+    const existing = methodBrowserCache.get(cacheKey);
+    if (existing) {
+      if (Object.prototype.hasOwnProperty.call(existing, 'value')) return existing.value;
+      return existing.promise;
     }
-    if (isSystemBehavior) {
-      visible.add('stone-ver');
-      visible.add('gem-ver');
-      visible.add('control');
-    }
-    return visible;
+    const promise = Promise.resolve()
+      .then(loader)
+      .then(value => {
+        methodBrowserCache.set(cacheKey, {value});
+        return value;
+      })
+      .catch(error => {
+        if (methodBrowserCache.get(cacheKey)?.promise === promise) methodBrowserCache.delete(cacheKey);
+        throw error;
+      });
+    methodBrowserCache.set(cacheKey, {promise});
+    return promise;
+  }
+
+  function findSelectorCategory(data, selector) {
+    if (!selector) return null;
+    let fallback = null;
+    Object.entries(data || {}).forEach(([category, selectors]) => {
+      if (!Array.isArray(selectors) || !selectors.includes(selector)) return;
+      if (category !== '(all Smalltalk)') fallback = category;
+      else fallback = fallback || category;
+    });
+    return fallback;
+  }
+
+  function openCurrentCodeInClassBrowser(selector = mbCurrentSelector) {
+    const target = currentCodeBrowserTarget(selector);
+    if (!target) return false;
+    openClassBrowser(target);
+    return true;
+  }
+
+  function getAvailableInspectorTabs(obj) {
+    if (Array.isArray(obj?.availableTabs) && obj.availableTabs.length) return obj.availableTabs;
+    return ['instvars'];
+  }
+
+  function getCustomTab(tabId) {
+    return (currentObjData?.customTabs || []).find(tab => tab.id === tabId) || null;
+  }
+
+  function getInspectorTabCaption(tabId) {
+    const custom = getCustomTab(tabId);
+    return custom?.caption || BUILTIN_ITAB_CAPTIONS[tabId] || tabId;
+  }
+
+  function renderInspectorTabs(obj) {
+    const itabs = body.querySelector(`#${id}-itabs`);
+    const available = getAvailableInspectorTabs(obj);
+    itabs.innerHTML = '';
+    available.forEach(tabId => {
+      const tab = document.createElement('div');
+      tab.className = 'inspector-tab' + (tabId === currentItab ? ' active' : '') + (tabId === 'control' ? ' dim' : '');
+      tab.dataset.itab = tabId;
+      tab.textContent = getInspectorTabCaption(tabId);
+      itabs.appendChild(tab);
+    });
+    return available;
   }
 
   function applyItabVisibility(obj) {
-    const itabs = body.querySelector(`#${id}-itabs`);
     const mb = body.querySelector(`#${id}-mb`);
-    const visible = getVisibleInspectorTabs(obj);
-    const allTabs = Array.from(itabs.querySelectorAll('.inspector-tab'));
-    let activeVisible = false;
-
-    allTabs.forEach(tab => {
-      const show = visible.has(tab.dataset.itab);
-      tab.style.display = show ? '' : 'none';
-      if (!show) {
-        tab.classList.remove('active');
-        return;
-      }
-      if (tab.dataset.itab === currentItab) activeVisible = true;
-    });
-
-    if (!activeVisible) {
-      currentItab = allTabs.find(tab => visible.has(tab.dataset.itab))?.dataset.itab || 'instvars';
+    const available = renderInspectorTabs(obj);
+    if (!available.includes(currentItab)) {
+      currentItab = (obj?.defaultTab && available.includes(obj.defaultTab)) ? obj.defaultTab : (available[0] || 'instvars');
+      renderInspectorTabs(obj);
     }
-
-    allTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.itab === currentItab && visible.has(tab.dataset.itab)));
     if (mb) mb.classList.toggle('hidden', currentItab !== 'code');
-    itabs.style.display = allTabs.filter(tab => visible.has(tab.dataset.itab)).length > 1 ? 'flex' : 'none';
+    const itabs = body.querySelector(`#${id}-itabs`);
+    itabs.style.display = available.length > 1 ? 'flex' : 'none';
+    updateMethodBrowserActions();
   }
 
   function activateItab(itabName) {
     const targetTab = body.querySelector(`#${id}-itabs [data-itab="${itabName}"]`);
-    if (!targetTab || targetTab.style.display === 'none') return false;
+    if (!targetTab) return false;
     body.querySelectorAll('.inspector-tab').forEach(t => t.classList.remove('active'));
     targetTab.classList.add('active');
     currentItab = itabName;
@@ -1703,6 +1971,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     } else {
       body.querySelector(`#${id}-mb`).classList.add('hidden');
     }
+    updateMethodBrowserActions();
     showItab();
     return true;
   }
@@ -1711,6 +1980,10 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     const tab = e.target.closest('.inspector-tab');
     if (!tab) return;
     activateItab(tab.dataset.itab);
+  });
+
+  body.querySelector(`#${id}-mb-open-browser`)?.addEventListener('click', () => {
+    openCurrentCodeInClassBrowser();
   });
 
   // method browser close
@@ -1735,11 +2008,12 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       resEl.textContent = label + '…';
     }
     try {
-      const d = await api(route);
+      const d = await apiTransaction(route);
       if (resEl) {
         resEl.textContent = d.success ? (label + ' ok') : 'Error: ' + (d.exception||'');
         if (!d.success) resEl.classList.add('error');
       }
+      if (d.success) clearInspectorTabCache(currentOop);
       setStatus(d.success, d.success ? label : d.exception||'error');
     } catch(e) {
       if (resEl) {
@@ -1751,15 +2025,91 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
   }
   body.querySelector(`#${id}-abort`)?.addEventListener('click', async () => {
     await txAction('/transaction/abort','aborted');
-    if (currentOop) loadObj(currentOop, history[history.length-1]?.label);
+    if (currentOop) reloadCurrentObject();
   });
   body.querySelector(`#${id}-commit`)?.addEventListener('click', () => txAction('/transaction/commit','committed'));
   body.querySelector(`#${id}-continue`)?.addEventListener('click', () => txAction('/transaction/continue','continued'));
 
-  async function loadObj(oop, label) {
+  function normalizeObjectQuery(query) {
+    const normalized = {};
+    Object.entries(query || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      normalized[key] = value;
+    });
+    return normalized;
+  }
+
+  function buildObjectIndexUrl(oop) {
+    const qs = new URLSearchParams({depth: '2'});
+    Object.entries(currentObjectQuery).forEach(([key, value]) => qs.set(key, String(value)));
+    return `/object/index/${oop}?${qs.toString()}`;
+  }
+
+  function inspectorCacheFor(oop) {
+    let cache = inspectorTabCache.get(oop);
+    if (!cache) {
+      cache = new Map();
+      inspectorTabCache.set(oop, cache);
+    }
+    return cache;
+  }
+
+  function clearInspectorTabCache(oop = currentOop) {
+    if (oop === null || oop === undefined) return;
+    inspectorTabCache.delete(oop);
+  }
+
+  async function fetchInspectorTabData(oop, tabName, keyParts, loader) {
+    const cache = inspectorCacheFor(oop);
+    const cacheKey = `${tabName}:${JSON.stringify(keyParts || {})}`;
+    const existing = cache.get(cacheKey);
+    if (existing) {
+      if (Object.prototype.hasOwnProperty.call(existing, 'value')) return existing.value;
+      return existing.promise;
+    }
+    const promise = Promise.resolve()
+      .then(loader)
+      .then(value => {
+        cache.set(cacheKey, {value});
+        return value;
+      })
+      .catch(error => {
+        if (cache.get(cacheKey)?.promise === promise) cache.delete(cacheKey);
+        throw error;
+      });
+    cache.set(cacheKey, {promise});
+    return promise;
+  }
+
+  function nextInspectorRenderToken() {
+    inspectorRenderToken += 1;
+    return inspectorRenderToken;
+  }
+
+  function isActiveInspectorRender(token, tabName, oop) {
+    return token === inspectorRenderToken && tabName === currentItab && oop === currentOop;
+  }
+
+  function reloadCurrentObject({query=currentObjectQuery, preserveCurrentTab=true, invalidateCache=true} = {}) {
+    if (!currentOop) return Promise.resolve();
+    if (invalidateCache) clearInspectorTabCache(currentOop);
+    const label = history[history.length-1]?.label || currentObjData?.inspection || 'object';
+    return loadObj(currentOop, label, {query, preserveCurrentTab, keepInstPage: true});
+  }
+
+  async function loadObj(oop, label, options = {}) {
+    const {query = null, preserveCurrentTab = false, keepInstPage = false} = options;
     currentOop = oop;
     currentObjData = null;
-    instPage = 0;
+    currentObjectQuery = query === null ? {} : normalizeObjectQuery(query);
+    mbClassName = '';
+    mbCurrentCategory = null;
+    mbCurrentSelector = null;
+    if (!keepInstPage) {
+      constantPage = 0;
+      instPage = 0;
+      modulePage = 0;
+    }
     upsertWindowState(id, {kind: 'object', object: null});
     syncObjectWindowArrows(id);
     renderBc();
@@ -1770,14 +2120,14 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     if (evalRes) evalRes.textContent = '';
     updateTitlebar(null);
     try {
-      const d = await api(`/object/index/${oop}?depth=2`);
+      const d = await api(buildObjectIndexUrl(oop));
       if (!d.success) throw new Error(d.exception);
       currentObjData = d.result;
       upsertWindowState(id, {kind: 'object', object: currentObjData});
       updateTitlebar(currentObjData);
       syncObjectWindowArrows(id);
       applyItabVisibility(currentObjData);
-      const requestedTab = preferredInitialTab || currentItab;
+      const requestedTab = preferredInitialTab || (preserveCurrentTab ? currentItab : currentObjData.defaultTab) || currentItab;
       if (requestedTab && activateItab(requestedTab)) {
         preferredInitialTab = null;
       } else {
@@ -1804,39 +2154,57 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
 
   async function showItab() {
     const ibody = body.querySelector(`#${id}-ibody`);
-    if (!currentObjData && currentItab !== 'stone-ver' && currentItab !== 'gem-ver' && currentItab !== 'control') return;
+    if (!currentObjData) return;
+    const tabName = currentItab;
+    const oop = currentOop;
+    const renderToken = nextInspectorRenderToken();
     ibody.className = 'inspector-body';
     ibody.style.overflow = 'auto';
     ibody.innerHTML = '';
 
-    if (currentItab === 'instvars') { ibody.appendChild(renderCard(currentObjData)); return; }
+    if (tabName === 'instvars') { ibody.appendChild(renderCard(currentObjData)); return; }
 
-    if (currentItab === 'constants') {
-      ibody.innerHTML = '<span class="spinner"></span>';
-      try {
-        const d = await api(`/object/constants/${currentOop}`);
-        ibody.innerHTML = '';
-        if (!d.success) throw new Error(d.exception);
-        if (!d.constants.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no constants)</p>'; return; }
-        ibody.appendChild(makeTable(['Name','Value'], d.constants.map(c => [c.key, c.value])));
-      } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
+    const customTab = getCustomTab(tabName);
+    if (customTab) {
+      renderCustomTab(ibody, currentObjData, customTab);
       return;
     }
 
-    if (currentItab === 'hierarchy') {
+    if (tabName === 'constants') {
+      renderConstants(ibody, renderToken, oop);
+      return;
+    }
+
+    if (tabName === 'hierarchy') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await api(`/object/hierarchy/${currentOop}`);
+        const d = await fetchInspectorTabData(oop, 'hierarchy', {}, () => api(`/object/hierarchy/${oop}`));
+        if (!isActiveInspectorRender(renderToken, tabName, oop)) return;
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
         const ul = document.createElement('ul'); ul.className = 'hierarchy-tree';
-        d.hierarchy.forEach((cls, i) => {
+        d.hierarchy.forEach((entry, i) => {
+          const clsRef = entry?.class || (typeof entry === 'string' ? {inspection: entry, oop: null} : entry) || {inspection: ''};
+          const clsName = clsRef.inspection || entry?.name || '';
+          const dictionary = entry?.dictionary || '';
           const li = document.createElement('li');
           if (i > 0) {
             for (let j = 0; j < i - 1; j++) { const sp = document.createElement('span'); sp.className = 'tree-indent'; li.appendChild(sp); }
             const conn = document.createElement('span'); conn.className = 'tree-connector'; li.appendChild(conn);
           }
-          li.appendChild(document.createTextNode(cls));
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'tree-link';
+          btn.textContent = clsName;
+          btn.title = dictionary ? `Open ${clsName} from ${dictionary} in Class Browser` : `Open ${clsName} in Class Browser`;
+          btn.addEventListener('click', () => openClassBrowser(dictionary ? {dictionary, className: clsName} : {className: clsName}));
+          li.appendChild(btn);
+          if (dictionary) {
+            const meta = document.createElement('span');
+            meta.className = 'tree-meta';
+            meta.textContent = dictionary;
+            li.appendChild(meta);
+          }
           ul.appendChild(li);
         });
         ibody.appendChild(ul);
@@ -1844,36 +2212,21 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       return;
     }
 
-    if (currentItab === 'instances') {
-      renderInstances(ibody);
+    if (tabName === 'instances') {
+      renderInstances(ibody, renderToken, oop);
       return;
     }
 
-    if (currentItab === 'modules') {
-      ibody.innerHTML = '<span class="spinner"></span>';
-      try {
-        const d = await api(`/object/included-modules/${currentOop}`);
-        ibody.innerHTML = '';
-        if (!d.success) throw new Error(d.exception);
-        if (!d.modules.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no included modules)</p>'; return; }
-        const ol = document.createElement('ol'); ol.style.cssText = 'padding-left:24px;font-family:monospace;font-size:11px;';
-        d.modules.forEach(m => {
-          const li = document.createElement('li'); li.style.padding = '3px 0';
-          if (m.oop) {
-            const chip = makeChip(m.name, m.oop, id);
-            li.appendChild(chip);
-          } else { li.textContent = m.name; }
-          ol.appendChild(li);
-        });
-        ibody.appendChild(ol);
-      } catch(e) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
+    if (tabName === 'modules') {
+      renderModules(ibody, renderToken, oop);
       return;
     }
 
-    if (currentItab === 'stone-ver') {
+    if (tabName === 'stone-ver') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await api('/object/stone-version-report');
+        const d = await fetchInspectorTabData(oop, 'stone-ver', {}, () => api('/object/stone-version-report'));
+        if (!isActiveInspectorRender(renderToken, tabName, oop)) return;
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
         ibody.appendChild(makeTable(['Property','Value'], d.report.map(r => [r.key, r.value])));
@@ -1881,10 +2234,11 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       return;
     }
 
-    if (currentItab === 'gem-ver') {
+    if (tabName === 'gem-ver') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await api('/object/gem-version-report');
+        const d = await fetchInspectorTabData(oop, 'gem-ver', {}, () => api('/object/gem-version-report'));
+        if (!isActiveInspectorRender(renderToken, tabName, oop)) return;
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
         ibody.appendChild(makeTable(['Property','Value'], d.report.map(r => [r.key, r.value])));
@@ -1892,98 +2246,342 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       return;
     }
 
-    if (currentItab === 'control') {
+    if (tabName === 'control') {
       renderControlPanel(ibody);
       return;
     }
 
-    if (currentItab === 'code') {
-      ibody.innerHTML = '<p style="color:#6c7086;padding:8px;font-size:11px">Select a category and method in the panel →</p>';
+    if (tabName === 'code') {
+      const wrap = document.createElement('div'); wrap.className = 'obj-card';
+      const intro = document.createElement('p');
+      intro.style.cssText = 'color:#6c7086;padding:10px 10px 0;font-size:11px;line-height:1.5';
+      const target = currentCodeBrowserTarget();
+      const codeLabel = target
+        ? `${target.className}${target.meta ? ' class' : ''}${mbCurrentSelector ? ` >> ${mbCurrentSelector}` : ''}`
+        : 'the side method browser';
+      intro.textContent = `Browsing ${codeLabel} in the panel on the right.`;
+      wrap.appendChild(intro);
+      const actions = document.createElement('div');
+      actions.style.cssText = 'padding:0 10px 10px;display:flex;gap:8px;align-items:center';
+      const openBtn = document.createElement('button');
+      openBtn.className = 'btn';
+      openBtn.textContent = 'Open in Class Browser';
+      openBtn.disabled = !target;
+      openBtn.addEventListener('click', () => openCurrentCodeInClassBrowser());
+      actions.appendChild(openBtn);
+      const hint = document.createElement('span');
+      hint.style.cssText = 'font-size:10px;color:#6c7086';
+      hint.textContent = 'Double-click a selector to jump into the full browser.';
+      actions.appendChild(hint);
+      wrap.appendChild(actions);
+      ibody.appendChild(wrap);
       return;
     }
   }
 
-  function renderInstances(ibody) {
+  async function renderInstances(ibody, renderToken, oop) {
     ibody.innerHTML = '<span class="spinner"></span>';
     const PAGE = 20;
-    api(`/object/instances/${currentOop}?limit=200`).then(d => {
+    try {
+      const offset = instPage * PAGE;
+      const d = await fetchInspectorTabData(
+        oop,
+        'instances',
+        {limit: PAGE, offset},
+        () => api(`/object/instances/${oop}?limit=${PAGE}&offset=${offset}`)
+      );
+      if (!isActiveInspectorRender(renderToken, 'instances', oop)) return;
       ibody.innerHTML = '';
       if (!d.success) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(d.exception)}</p>`; return; }
       if (!d.instances.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no instances)</p>'; return; }
 
-      const pageData = d.instances;
-      const totalPages = Math.ceil(pageData.length / PAGE);
+      const pageData = d.instances || [];
+      const total = Number.isFinite(d.total) ? d.total : pageData.length;
+      const start = (d.offset || 0) + 1;
+      const stop = (d.offset || 0) + pageData.length;
 
-      function renderPage(p) {
-        ibody.innerHTML = '';
-        const chunk = pageData.slice(p * PAGE, (p + 1) * PAGE);
-        const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;height:100%';
-        const tblWrap = document.createElement('div'); tblWrap.className = 'instances-tbl-wrap';
-        const tbl = document.createElement('table'); tbl.className = 'dbtable';
-        tbl.innerHTML = '<thead><tr><th>oop</th><th>Object</th><th>printString</th></tr></thead>';
-        const tbody = document.createElement('tbody');
-        chunk.forEach(inst => {
-          const tr = document.createElement('tr');
-          const tdOop = document.createElement('td'); tdOop.className = 'col-key'; tdOop.style.fontFamily = 'monospace'; tdOop.textContent = inst.oop;
-          const tdObj = document.createElement('td'); tdObj.className = 'col-val';
-          const chip = makeChip(inst.printString.slice(0,40), inst.oop, id);
-          tdObj.appendChild(chip);
-          const tdPs = document.createElement('td'); tdPs.className = 'col-val'; tdPs.style.color='#6c7086'; tdPs.textContent = inst.printString.slice(0,80);
-          tr.append(tdOop, tdObj, tdPs); tbody.appendChild(tr);
-        });
-        tbl.appendChild(tbody); tblWrap.appendChild(tbl);
-        wrap.appendChild(tblWrap);
-        if (totalPages > 1) {
-          const pg = document.createElement('div'); pg.className = 'inst-pagination';
-          pg.innerHTML = `<span style="font-size:10px;color:#6c7086">${pageData.length} instances</span>`;
-          for (let i = 0; i < totalPages; i++) {
-            const btn = document.createElement('button'); btn.className = 'inst-page-btn' + (i===p?' active':'');
-            btn.textContent = i + 1;
-            btn.addEventListener('click', () => { instPage = i; renderPage(i); });
-            pg.appendChild(btn);
-          }
-          wrap.appendChild(pg);
-        }
-        ibody.appendChild(wrap);
-      }
-      renderPage(instPage);
-    }).catch(e => { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; });
+      const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;height:100%';
+      const tblWrap = document.createElement('div'); tblWrap.className = 'instances-tbl-wrap';
+      const tbl = document.createElement('table'); tbl.className = 'dbtable';
+      tbl.innerHTML = '<thead><tr><th>oop</th><th>Object</th><th>printString</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      pageData.forEach(inst => {
+        const tr = document.createElement('tr');
+        const tdOop = document.createElement('td'); tdOop.className = 'col-key'; tdOop.style.fontFamily = 'monospace'; tdOop.textContent = inst.oop;
+        const tdObj = document.createElement('td'); tdObj.className = 'col-val';
+        const chip = makeChip(inst.printString.slice(0,40), inst.oop, id);
+        tdObj.appendChild(chip);
+        const tdPs = document.createElement('td'); tdPs.className = 'col-val'; tdPs.style.color='#6c7086'; tdPs.textContent = inst.printString.slice(0,80);
+        tr.append(tdOop, tdObj, tdPs); tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody); tblWrap.appendChild(tbl);
+      wrap.appendChild(tblWrap);
+
+      const pg = document.createElement('div'); pg.className = 'inst-pagination';
+      const info = document.createElement('span');
+      info.style.cssText = 'font-size:10px;color:#6c7086';
+      info.textContent = `${start}-${stop} of ${total} instances`;
+      pg.appendChild(info);
+
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'inst-page-btn';
+      prevBtn.textContent = 'Previous';
+      prevBtn.disabled = instPage === 0;
+      prevBtn.addEventListener('click', () => {
+        if (instPage === 0) return;
+        instPage -= 1;
+        renderInstances(ibody, nextInspectorRenderToken(), oop);
+      });
+      pg.appendChild(prevBtn);
+
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'inst-page-btn active';
+      pageBtn.textContent = String(instPage + 1);
+      pageBtn.disabled = true;
+      pg.appendChild(pageBtn);
+
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'inst-page-btn';
+      nextBtn.textContent = 'Next';
+      nextBtn.disabled = !d.hasMore;
+      nextBtn.addEventListener('click', () => {
+        if (!d.hasMore) return;
+        instPage += 1;
+        renderInstances(ibody, nextInspectorRenderToken(), oop);
+      });
+      pg.appendChild(nextBtn);
+
+      wrap.appendChild(pg);
+      ibody.appendChild(wrap);
+    } catch(e) {
+      ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`;
+    }
+  }
+
+  async function renderConstants(ibody, renderToken, oop) {
+    ibody.innerHTML = '<span class="spinner"></span>';
+    const PAGE = 20;
+    try {
+      const offset = constantPage * PAGE;
+      const d = await fetchInspectorTabData(
+        oop,
+        'constants',
+        {limit: PAGE, offset},
+        () => api(`/object/constants/${oop}?limit=${PAGE}&offset=${offset}`)
+      );
+      if (!isActiveInspectorRender(renderToken, 'constants', oop)) return;
+      ibody.innerHTML = '';
+      if (!d.success) throw new Error(d.exception);
+      if (!d.constants.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no constants)</p>'; return; }
+
+      const pageData = d.constants || [];
+      const total = Number.isFinite(d.total) ? d.total : pageData.length;
+      const start = (d.offset || 0) + 1;
+      const stop = (d.offset || 0) + pageData.length;
+
+      const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;height:100%';
+      const tblWrap = document.createElement('div'); tblWrap.className = 'instances-tbl-wrap';
+      const tbl = document.createElement('table'); tbl.className = 'dbtable';
+      tbl.innerHTML = '<thead><tr><th>Name</th><th>Value</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      pageData.forEach(constant => {
+        const tr = document.createElement('tr');
+        const tdKey = document.createElement('td'); tdKey.className = 'col-key'; tdKey.textContent = constant.key || '';
+        const valueRef = constant.valueObject || {inspection: constant.value || '', basetype: 'string', oop: null};
+        tr.append(tdKey, makeValCell(valueRef, constant.key || valueRef.inspection || 'constant'));
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody); tblWrap.appendChild(tbl);
+      wrap.appendChild(tblWrap);
+
+      const pg = document.createElement('div'); pg.className = 'inst-pagination';
+      const info = document.createElement('span');
+      info.style.cssText = 'font-size:10px;color:#6c7086';
+      info.textContent = `${start}-${stop} of ${total} constants`;
+      pg.appendChild(info);
+
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'inst-page-btn';
+      prevBtn.textContent = 'Previous';
+      prevBtn.disabled = constantPage === 0;
+      prevBtn.addEventListener('click', () => {
+        if (constantPage === 0) return;
+        constantPage -= 1;
+        renderConstants(ibody, nextInspectorRenderToken(), oop);
+      });
+      pg.appendChild(prevBtn);
+
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'inst-page-btn active';
+      pageBtn.textContent = String(constantPage + 1);
+      pageBtn.disabled = true;
+      pg.appendChild(pageBtn);
+
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'inst-page-btn';
+      nextBtn.textContent = 'Next';
+      nextBtn.disabled = !d.hasMore;
+      nextBtn.addEventListener('click', () => {
+        if (!d.hasMore) return;
+        constantPage += 1;
+        renderConstants(ibody, nextInspectorRenderToken(), oop);
+      });
+      pg.appendChild(nextBtn);
+
+      wrap.appendChild(pg);
+      ibody.appendChild(wrap);
+    } catch(e) {
+      ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`;
+    }
+  }
+
+  async function renderModules(ibody, renderToken, oop) {
+    ibody.innerHTML = '<span class="spinner"></span>';
+    const PAGE = 20;
+    try {
+      const offset = modulePage * PAGE;
+      const d = await fetchInspectorTabData(
+        oop,
+        'modules',
+        {limit: PAGE, offset},
+        () => api(`/object/included-modules/${oop}?limit=${PAGE}&offset=${offset}`)
+      );
+      if (!isActiveInspectorRender(renderToken, 'modules', oop)) return;
+      ibody.innerHTML = '';
+      if (!d.success) { ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(d.exception)}</p>`; return; }
+      if (!d.modules.length) { ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(no included modules)</p>'; return; }
+
+      const pageData = d.modules || [];
+      const total = Number.isFinite(d.total) ? d.total : pageData.length;
+      const start = (d.offset || 0) + 1;
+      const stop = (d.offset || 0) + pageData.length;
+
+      const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;height:100%';
+      const tblWrap = document.createElement('div'); tblWrap.className = 'instances-tbl-wrap';
+      const tbl = document.createElement('table'); tbl.className = 'dbtable';
+      tbl.innerHTML = '<thead><tr><th>Included By</th><th>Module</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      pageData.forEach(entry => {
+        const tr = document.createElement('tr');
+        tr.append(
+          makeValCell(entry.owner, entry.owner?.inspection || 'owner'),
+          makeValCell(entry.module, entry.module?.inspection || 'module'),
+        );
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody); tblWrap.appendChild(tbl);
+      wrap.appendChild(tblWrap);
+
+      const pg = document.createElement('div'); pg.className = 'inst-pagination';
+      const info = document.createElement('span');
+      info.style.cssText = 'font-size:10px;color:#6c7086';
+      info.textContent = `${start}-${stop} of ${total} included modules`;
+      pg.appendChild(info);
+
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'inst-page-btn';
+      prevBtn.textContent = 'Previous';
+      prevBtn.disabled = modulePage === 0;
+      prevBtn.addEventListener('click', () => {
+        if (modulePage === 0) return;
+        modulePage -= 1;
+        renderModules(ibody, nextInspectorRenderToken(), oop);
+      });
+      pg.appendChild(prevBtn);
+
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'inst-page-btn active';
+      pageBtn.textContent = String(modulePage + 1);
+      pageBtn.disabled = true;
+      pg.appendChild(pageBtn);
+
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'inst-page-btn';
+      nextBtn.textContent = 'Next';
+      nextBtn.disabled = !d.hasMore;
+      nextBtn.addEventListener('click', () => {
+        if (!d.hasMore) return;
+        modulePage += 1;
+        renderModules(ibody, nextInspectorRenderToken(), oop);
+      });
+      pg.appendChild(nextBtn);
+
+      wrap.appendChild(pg);
+      ibody.appendChild(wrap);
+    } catch(e) {
+      ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`;
+    }
   }
 
   function renderControlPanel(ibody) {
     const wrap = document.createElement('div'); wrap.className = 'control-panel';
     const resDiv = document.createElement('div'); resDiv.className = 'cp-result';
-
-    async function cpAction(url, method='GET', body_data) {
-      resDiv.className = 'cp-result visible loading'; resDiv.textContent = 'Working…';
-      try {
-        const opts = method === 'POST' ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body_data||{})} : undefined;
-        const d = await api(url, opts);
-        resDiv.className = 'cp-result visible' + (d.success ? '' : ' error');
-        resDiv.textContent = d.success ? (d.result || 'ok') : 'Error: ' + (d.exception||'');
-        setStatus(d.success, d.success ? 'ok' : d.exception||'error');
-      } catch(e) { resDiv.className = 'cp-result visible error'; resDiv.textContent = e.message; }
-    }
-
     const row = document.createElement('div'); row.className = 'cp-row';
     const btnAbort   = document.createElement('button'); btnAbort.className   = 'btn-tx'; btnAbort.textContent   = 'Abort Transaction';
     const btnCommit  = document.createElement('button'); btnCommit.className  = 'btn-tx'; btnCommit.textContent  = 'Commit Transaction';
     const btnCont    = document.createElement('button'); btnCont.className    = 'btn-tx'; btnCont.style.background = '#4a90d9'; btnCont.textContent = 'Continue Transaction';
     const btnPersist = document.createElement('button'); btnPersist.className = 'btn-tx'; btnPersist.style.background = '#45475a'; btnPersist.textContent = 'Persistent Mode';
 
-    btnAbort.addEventListener('click', () => cpAction('/transaction/abort'));
-    btnCommit.addEventListener('click', () => cpAction('/transaction/commit'));
-    btnCont.addEventListener('click', () => cpAction('/transaction/continue'));
+    function setPersistentButtonState(enabled) {
+      btnPersist.classList.toggle('active', !!enabled);
+      btnPersist.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    }
+
+    async function syncPersistentMode() {
+      try {
+        const d = await api('/transaction/persistent-mode');
+        if (d.success) setPersistentButtonState(!!d.persistent);
+      } catch (_) {}
+    }
+
+    async function cpAction(url, method='GET', body_data, options = {}) {
+      const {afterSuccess} = options;
+      row.querySelectorAll('button').forEach(btn => { btn.disabled = true; });
+      resDiv.className = 'cp-result visible loading'; resDiv.textContent = 'Working…';
+      try {
+        const opts = method === 'POST' ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body_data||{})} : undefined;
+        const d = await api(url, opts);
+        resDiv.className = 'cp-result visible' + (d.success ? '' : ' error');
+        resDiv.textContent = d.success ? (d.result || 'ok') : 'Error: ' + (d.exception||'');
+        if (d.success) {
+          clearInspectorTabCache(currentOop);
+          if (typeof d.persistent === 'boolean') setPersistentButtonState(d.persistent);
+          if (afterSuccess) await afterSuccess(d);
+        }
+        setStatus(d.success, d.success ? 'ok' : d.exception||'error');
+        return d;
+      } catch(e) {
+        resDiv.className = 'cp-result visible error';
+        resDiv.textContent = e.message;
+        return null;
+      } finally {
+        row.querySelectorAll('button').forEach(btn => { btn.disabled = false; });
+      }
+    }
+
+    btnAbort.addEventListener('click', () => cpAction('/transaction/abort', 'POST', {}, {
+      async afterSuccess() {
+        await syncPersistentMode();
+      },
+    }));
+    btnCommit.addEventListener('click', () => cpAction('/transaction/commit', 'POST', {}, {
+      async afterSuccess() {
+        await syncPersistentMode();
+      },
+    }));
+    btnCont.addEventListener('click', () => cpAction('/transaction/continue', 'POST', {}, {
+      async afterSuccess() {
+        refreshHaltedThreadsBar();
+        await syncPersistentMode();
+      },
+    }));
     btnPersist.addEventListener('click', async () => {
       const active = btnPersist.classList.contains('active');
       await cpAction('/transaction/persistent-mode', 'POST', {enable: !active});
-      btnPersist.classList.toggle('active', !active);
     });
 
     // check current persistent mode
-    api('/transaction/persistent-mode').then(d => {
-      if (d.success && d.persistent) btnPersist.classList.add('active');
-    }).catch(()=>{});
+    syncPersistentMode();
 
     row.append(btnAbort, btnCommit, btnCont, btnPersist);
     wrap.append(row, resDiv);
@@ -2008,12 +2606,12 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     return sp;
   }
 
-  function renderAssociations(ibody, obj) {
+  function renderAssociationPairs(ibody, entries, totalSize, emptyText='(empty)', options={}) {
+    const {showSummary = true} = options;
     ibody.innerHTML = '';
-    const entries = obj.instVars || {};
     const keys = Object.keys(entries);
     if (!keys.length) {
-      ibody.innerHTML = '<p style="color:#6c7086;padding:8px">(empty)</p>'; return;
+      ibody.innerHTML = `<p style="color:#6c7086;padding:8px">${escHtml(emptyText)}</p>`; return;
     }
     const wrap = document.createElement('div');
     for (const [, [keyV, valV]] of Object.entries(entries)) {
@@ -2038,12 +2636,112 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
 
       wrap.appendChild(row);
     }
-    if (obj.instVarsSize > keys.length) {
+    if (showSummary && totalSize > keys.length) {
       const more = document.createElement('div'); more.className='more-row';
-      more.textContent = `${keys.length} of ${obj.instVarsSize} entries`;
+      more.textContent = `${keys.length} of ${totalSize} entries`;
       wrap.appendChild(more);
     }
     ibody.appendChild(wrap);
+  }
+
+  function renderAssociations(ibody, obj) {
+    renderAssociationPairs(ibody, obj.instVars || {}, obj.instVarsSize || 0);
+  }
+
+  function customTabRangeName(customTab) {
+    return customTab?.rangeName || customTab?.id || 'custom';
+  }
+
+  function customTabPageSize(customTab) {
+    const pageSize = parseInt(customTab?.pageSize, 10);
+    return Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 20;
+  }
+
+  function loadedEntryBounds(entries, totalSize) {
+    const keys = Object.keys(entries || {}).map(n => parseInt(n, 10)).filter(Number.isFinite).sort((a, b) => a - b);
+    if (!keys.length) return {from: totalSize ? 1 : 0, to: 0, count: 0};
+    return {from: keys[0], to: keys[keys.length - 1], count: keys.length};
+  }
+
+  function customTabRangeQuery(customTab, from, to) {
+    const rangeName = customTabRangeName(customTab);
+    return normalizeObjectQuery({
+      ...currentObjectQuery,
+      [`range_${rangeName}_from`]: from,
+      [`range_${rangeName}_to`]: to,
+    });
+  }
+
+  function appendCustomTabPager(ibody, customTab, entries, totalSize) {
+    const bounds = loadedEntryBounds(entries, totalSize);
+    const pageSize = customTabPageSize(customTab);
+    if (!totalSize || (bounds.count >= totalSize && totalSize <= pageSize)) return;
+
+    const label = history[history.length-1]?.label || currentObjData?.inspection || 'object';
+    const bar = document.createElement('div'); bar.className = 'inst-pagination';
+    const info = document.createElement('span');
+    info.style.cssText = 'font-size:10px;color:#6c7086';
+    info.textContent = bounds.count >= totalSize ? `All ${totalSize} entries` : `${bounds.from}-${bounds.to} of ${totalSize}`;
+    bar.appendChild(info);
+
+    const prev = document.createElement('button');
+    prev.className = 'inst-page-btn';
+    prev.textContent = 'Prev';
+    prev.disabled = bounds.from <= 1;
+    prev.addEventListener('click', () => {
+      if (prev.disabled) return;
+      const nextFrom = Math.max(1, bounds.from - pageSize);
+      const nextTo = Math.min(totalSize, nextFrom + pageSize - 1);
+      loadObj(currentOop, label, {
+        query: customTabRangeQuery(customTab, nextFrom, nextTo),
+        preserveCurrentTab: true,
+        keepInstPage: true,
+      });
+    });
+    bar.appendChild(prev);
+
+    const next = document.createElement('button');
+    next.className = 'inst-page-btn';
+    next.textContent = 'Next';
+    next.disabled = !bounds.count || bounds.to >= totalSize;
+    next.addEventListener('click', () => {
+      if (next.disabled) return;
+      const nextFrom = bounds.to + 1;
+      const nextTo = Math.min(totalSize, nextFrom + pageSize - 1);
+      loadObj(currentOop, label, {
+        query: customTabRangeQuery(customTab, nextFrom, nextTo),
+        preserveCurrentTab: true,
+        keepInstPage: true,
+      });
+    });
+    bar.appendChild(next);
+
+    const loadAll = document.createElement('button');
+    loadAll.className = 'inst-page-btn';
+    loadAll.textContent = 'Load All';
+    loadAll.disabled = bounds.count >= totalSize;
+    loadAll.addEventListener('click', () => {
+      if (loadAll.disabled) return;
+      loadObj(currentOop, label, {
+        query: customTabRangeQuery(customTab, 1, totalSize),
+        preserveCurrentTab: true,
+        keepInstPage: true,
+      });
+    });
+    bar.appendChild(loadAll);
+
+    ibody.appendChild(bar);
+  }
+
+  function renderCustomTab(ibody, obj, customTab) {
+    if (customTab.kind === 'association-dict') {
+      const entries = obj?.[customTab.field] || {};
+      const totalSize = obj?.[customTab.sizeField] ?? Object.keys(entries).length;
+      renderAssociationPairs(ibody, entries, totalSize, '(empty)', {showSummary: false});
+      appendCustomTabPager(ibody, customTab, entries, totalSize);
+      return;
+    }
+    ibody.innerHTML = `<p style="color:#f38ba8;padding:8px">Unsupported custom tab: ${escHtml(customTab.caption || customTab.id || 'custom')}</p>`;
   }
 
   function appendValChips(row, valV) {
@@ -2149,12 +2847,25 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     const selsEl   = body.querySelector(`#${id}-mb-sels`);
     const srcEl    = body.querySelector(`#${id}-mb-src`);
     const statusEl = body.querySelector(`#${id}-mb-status`);
+    const preserveSelection = mbClassOop === classOop && mbClassName === className;
+    const preferredSelector = preserveSelection ? mbCurrentSelector : null;
+    const preferredCategory = preserveSelection ? mbCurrentCategory : null;
     catsEl.innerHTML = '<div class="mb-cat" style="color:#6c7086"><span class="spinner"></span></div>';
-    selsEl.innerHTML = ''; srcEl.value = ''; mbClassOop = classOop;
+    selsEl.innerHTML = '';
+    srcEl.value = '';
+    mbClassOop = classOop;
+    mbClassName = className;
+    if (!preserveSelection) {
+      mbCurrentCategory = null;
+      mbCurrentSelector = null;
+    }
+    updateMethodBrowserActions();
     try {
-      const d = await api(`/code/selectors/${classOop}`);
-      if (!d.success) throw new Error(d.exception);
-      mbData = d.result || {};
+      mbData = await fetchMethodBrowserCached('selectors', {classOop}, async () => {
+        const d = await api(`/code/selectors/${classOop}`);
+        if (!d.success) throw new Error(d.exception);
+        return d.result || {};
+      });
       const cats = Object.keys(mbData).sort();
       catsEl.innerHTML = '';
       if (!cats.length) {
@@ -2162,31 +2873,61 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
         statusEl.textContent = className + ' — 0 categories';
         return;
       }
+      async function selectSelector(selectorName, selectorEl) {
+        selsEl.querySelectorAll('.mb-sel').forEach(e => e.classList.remove('active'));
+        selectorEl?.classList.add('active');
+        srcEl.value = 'Loading…';
+        statusEl.textContent = 'Loading…';
+        mbCurrentSelector = selectorName;
+        updateMethodBrowserActions();
+        try {
+          const source = await fetchMethodBrowserCached('source', {classOop, selector: selectorName}, async () => {
+            const sd = await api(`/code/code/${classOop}?selector=${encodeURIComponent(selectorName)}`);
+            if (!sd.success) throw new Error(sd.exception);
+            return sd.result || '';
+          });
+          if (mbClassOop !== classOop || mbCurrentSelector !== selectorName) return;
+          srcEl.value = source;
+          statusEl.textContent = `${className} >> ${selectorName}`;
+        }
+        catch(err) {
+          if (mbClassOop !== classOop || mbCurrentSelector !== selectorName) return;
+          srcEl.value = 'Error: ' + err.message;
+          statusEl.textContent = 'Error';
+        }
+      }
       cats.forEach(cat => {
         const el = document.createElement('div'); el.className = 'mb-cat'; el.textContent = cat || '(uncategorized)';
         el.addEventListener('click', () => {
           catsEl.querySelectorAll('.mb-cat').forEach(e => e.classList.remove('active'));
           el.classList.add('active');
+          mbCurrentCategory = cat;
           const sels = (mbData[cat]||[]).slice().sort();
           selsEl.innerHTML = '';
           sels.forEach(sel => {
             const s = document.createElement('div'); s.className='mb-sel'; s.textContent=sel;
-            s.addEventListener('click', async () => {
-              selsEl.querySelectorAll('.mb-sel').forEach(e => e.classList.remove('active'));
-              s.classList.add('active'); srcEl.value = 'Loading…'; statusEl.textContent = 'Loading…';
-              try {
-                const sd = await api(`/code/code/${mbClassOop}?selector=${encodeURIComponent(sel)}`);
-                srcEl.value = sd.success ? (sd.result||'') : 'Error: '+sd.exception;
-                statusEl.textContent = `${className} >> ${sel}`;
-              }
-              catch(err) { srcEl.value = 'Error: '+err.message; statusEl.textContent = 'Error'; }
-            });
+            s.addEventListener('click', () => selectSelector(sel, s));
+            s.addEventListener('dblclick', () => openCurrentCodeInClassBrowser(sel));
             selsEl.appendChild(s);
           });
+          const selectorToSelect = sels.includes(mbCurrentSelector) ? mbCurrentSelector : sels[0];
+          if (selectorToSelect) {
+            const selectorEl = Array.from(selsEl.querySelectorAll('.mb-sel')).find(node => node.textContent === selectorToSelect);
+            selectorEl?.click();
+          } else {
+            mbCurrentSelector = null;
+            srcEl.value = '';
+            statusEl.textContent = `${className} — ${cat}`;
+            updateMethodBrowserActions();
+          }
         });
         catsEl.appendChild(el);
       });
-      if (cats.length) catsEl.querySelector('.mb-cat')?.click();
+      const initialCategory = (preferredSelector && findSelectorCategory(mbData, preferredSelector))
+        || (preferredCategory && cats.includes(preferredCategory) ? preferredCategory : null)
+        || cats[0];
+      const initialCategoryEl = Array.from(catsEl.querySelectorAll('.mb-cat')).find(node => node.textContent === initialCategory);
+      initialCategoryEl?.click();
       statusEl.textContent = className + ' — ' + cats.length + ' categories';
     } catch(e) {
       catsEl.innerHTML = `<div class="mb-cat" style="color:#f38ba8">${escHtml(e.message)}</div>`;
@@ -2197,15 +2938,20 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
   async function doEval() {
     if (!evalCode || !evalRes) return;
     if (!currentOop) return;
+    const evalOop = currentOop;
     const code = evalCode.value.trim(); if (!code) return;
     evalRes.textContent = ''; evalRes.className = 'eval-result';
     const sp = document.createElement('span'); sp.className='spinner'; evalRes.appendChild(sp);
     try {
-      const d = await api(`/object/evaluate/${currentOop}?code=${encodeURIComponent(code)}&language=smalltalk&depth=2`);
+      const d = await apiEvaluate(evalOop, {code, language: 'smalltalk', depth: 2});
       evalRes.innerHTML = '';
       if (!d.success) { evalRes.className='eval-result error'; evalRes.textContent='Error: '+d.exception; return; }
       const [isExc, rv] = d.result;
-      if (isExc) { evalRes.className='eval-result error'; evalRes.textContent='⚑ '+(rv.inspection||'Exception'); }
+      if (isExc) {
+        evalRes.className='eval-result error';
+        evalRes.textContent='⚑ '+(rv.inspection||'Exception');
+        maybeOpenEvalDebugger(rv, code);
+      }
       else {
         evalRes.textContent = rv.inspection || 'nil';
         const isLeaf = isLeafBasetype(rv.basetype);
@@ -2218,6 +2964,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
         }
       }
     } catch(e) { evalRes.innerHTML=''; evalRes.className='eval-result error'; evalRes.textContent='Error: '+e.message; }
+    finally { clearInspectorTabCache(evalOop); }
   }
 
   if (initialOop) { history = [{label: initialLabel||'object', oop: initialOop}]; loadObj(initialOop, initialLabel||'object'); }
@@ -2256,13 +3003,13 @@ function openWorkspace() {
   body.querySelector(`#${id}-clr`).addEventListener('click', () => { wsh.innerHTML = ''; });
   wsc.addEventListener('keydown', e => { if (e.ctrlKey && e.key==='Enter') wsDoIt(); });
   body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
-    try { const d=await api('/transaction/abort'); setStatus(d.success, d.success?'aborted':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await apiTransaction('/transaction/abort'); setStatus(d.success, d.success?'aborted':d.exception); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
-    try { const d=await api('/transaction/commit'); setStatus(d.success, d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await apiTransaction('/transaction/commit'); setStatus(d.success, d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-continue`).addEventListener('click', async () => {
-    try { const d=await api('/transaction/continue'); setStatus(d.success, d.success?'continued':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await apiTransaction('/transaction/continue'); setStatus(d.success, d.success?'continued':d.exception); } catch(e){setStatus(false,e.message);}
   });
 
   async function wsDoIt() {
@@ -2276,10 +3023,14 @@ function openWorkspace() {
     const globOop = roots['Globals'] || roots['UserGlobals'];
     if (!globOop) { resEl.className='ws-result error'; textSpan.textContent='Not connected'; return; }
     try {
-      const d = await api(`/object/evaluate/${globOop}?code=${encodeURIComponent(code)}&language=smalltalk&depth=1`);
+      const d = await apiEvaluate(globOop, {code, language: 'smalltalk', depth: 1});
       if (!d.success) { resEl.className='ws-result error'; textSpan.textContent='Error: '+d.exception; return; }
       const [isExc, rv] = d.result;
-      if (isExc) { resEl.className='ws-result error'; textSpan.textContent='⚑ '+(rv.inspection||'Exception'); }
+      if (isExc) {
+        resEl.className='ws-result error';
+        textSpan.textContent='⚑ '+(rv.inspection||'Exception');
+        maybeOpenEvalDebugger(rv, code);
+      }
       else {
         textSpan.textContent = '=> ' + (rv.inspection||'nil');
         const isLeaf = isLeafBasetype(rv.basetype);
@@ -2328,15 +3079,21 @@ function openWebBrowser(initialUrl) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEBUGGER WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openDebugger(threadOop, threadName) {
+function openDebugger(threadOrOop, threadName) {
+  const thread = (threadOrOop && typeof threadOrOop === 'object')
+    ? threadOrOop
+    : { oop: threadOrOop, printString: threadName || '', exceptionText: '', sourcePreview: '' };
+  const threadOop = thread.oop;
+  const threadLabel = thread.sourcePreview || thread.exceptionText || thread.printString || '';
   const {win, body, id} = createWindow({
-    title: 'Debugger — ' + (threadName||'').slice(0,40),
+    title: 'Debugger — ' + threadLabel.slice(0,40),
     width: 660, height: 600, taskbarLabel: 'Debugger'
   });
   upsertWindowState(id, {kind: 'debugger', threadOop});
 
   let currentFrameIdx = 0;
   let frames = [];
+  let currentFrameVars = [];
 
   body.innerHTML = `
     <div class="tab-strip">
@@ -2344,6 +3101,10 @@ function openDebugger(threadOop, threadName) {
       <div class="tab-item" data-dtab="tls">Thread Local Storage</div>
     </div>
     <div id="${id}-stack" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+      <div class="dbg-summary" id="${id}-summary">
+        <div class="dbg-summary-source hidden" id="${id}-summary-source"></div>
+        <div class="dbg-summary-error hidden" id="${id}-summary-error"></div>
+      </div>
       <div class="dbg-frames-pane" id="${id}-frames">
         <span class="spinner" style="margin:8px"></span>
       </div>
@@ -2354,7 +3115,8 @@ function openDebugger(threadOop, threadName) {
         <button class="btn-dbg" id="${id}-trim">Trim stack</button>
       </div>
       <div class="dbg-source-pane" id="${id}-srcp">
-        <textarea id="${id}-src" readonly placeholder="Select a frame…"></textarea>
+        <div class="dbg-source-meta hidden" id="${id}-srcmeta"></div>
+        <pre class="dbg-source-code" id="${id}-src" tabindex="-1"></pre>
         <div class="dbg-self-bar">
           <span class="dbg-self-label">self:</span>
           <span class="dbg-self-val" id="${id}-selfval"></span>
@@ -2371,6 +3133,21 @@ function openDebugger(threadOop, threadName) {
     </div>
   `;
 
+  const summarySourceEl = body.querySelector(`#${id}-summary-source`);
+  const summaryErrorEl = body.querySelector(`#${id}-summary-error`);
+  const summaryEl = body.querySelector(`#${id}-summary`);
+  if (thread.sourcePreview) {
+    summarySourceEl.textContent = thread.sourcePreview;
+    summarySourceEl.classList.remove('hidden');
+  }
+  if (thread.exceptionText) {
+    summaryErrorEl.textContent = '⚑ ' + thread.exceptionText;
+    summaryErrorEl.classList.remove('hidden');
+  }
+  if (!thread.sourcePreview && !thread.exceptionText) {
+    summaryEl.classList.add('hidden');
+  }
+
   body.querySelector('.tab-strip').addEventListener('click', e => {
     const tab = e.target.closest('.tab-item'); if (!tab) return;
     body.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active')); tab.classList.add('active');
@@ -2381,7 +3158,12 @@ function openDebugger(threadOop, threadName) {
   });
 
   body.querySelector(`#${id}-proceed`).addEventListener('click', async () => {
-    try { await apiPost(`/debug/proceed/${threadOop}`, {}); setStatus(true,'resumed'); closeWindow(win, id); } catch(e){setStatus(false,e.message);}
+    try {
+      await apiPost(`/debug/proceed/${threadOop}`, {});
+      refreshHaltedThreadsBar();
+      setStatus(true,'resumed');
+      closeWindow(win, id);
+    } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-stepinto`).addEventListener('click', async () => {
     try { await apiPost(`/debug/step-into/${threadOop}`, {}); loadFrames(); } catch(e){setStatus(false,e.message);}
@@ -2393,10 +3175,28 @@ function openDebugger(threadOop, threadName) {
     try { await apiPost(`/debug/trim/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
   });
 
+  function renderDebuggerValue(container, ref, fallbackText='') {
+    container.innerHTML = '';
+    const text = ref?.inspection || fallbackText || '';
+    if (ref?.oop != null && !isLeafBasetype(ref.basetype)) {
+      const chip = makeChip(shortLabel(text, 48) || `oop:${ref.oop}`, ref.oop, id);
+      chip.title = text || `oop:${ref.oop}`;
+      container.appendChild(chip);
+      return;
+    }
+    container.textContent = text;
+    container.title = text;
+  }
+
   body.querySelector(`#${id}-vars`).addEventListener('change', e => {
-    const sel = e.target; if (!sel.value) return;
-    const opt = sel.options[sel.selectedIndex];
-    body.querySelector(`#${id}-varval`).textContent = opt.dataset.val || '';
+    const sel = e.target;
+    const varvalEl = body.querySelector(`#${id}-varval`);
+    if (!sel.value) {
+      renderDebuggerValue(varvalEl, null, '');
+      return;
+    }
+    const selectedVar = currentFrameVars.find(v => v.name === sel.value);
+    renderDebuggerValue(varvalEl, selectedVar?.valueObject, selectedVar?.value || '');
   });
 
   async function loadFrames() {
@@ -2409,6 +3209,7 @@ function openDebugger(threadOop, threadName) {
       framesEl.innerHTML = '';
       frames.forEach(f => {
         const el = document.createElement('div'); el.className='dbg-frame-item';
+        el.tabIndex = 0;
         // frame type icon: Smalltalk (gold) vs Ruby (red) detected from method name
         const isRuby = f.name.includes('(Ruby)') || f.name.startsWith('Ruby');
         const icon = document.createElement('span');
@@ -2417,39 +3218,133 @@ function openDebugger(threadOop, threadName) {
         el.appendChild(icon);
         el.appendChild(document.createTextNode(f.name));
         el.dataset.idx = f.index;
-        el.addEventListener('click', () => selectFrame(f.index, el));
+        el.addEventListener('click', () => selectFrame(f.index, el, true));
+        el.addEventListener('keydown', event => {
+          if (!frames.length) return;
+          const currentPos = frames.findIndex(frame => frame.index === f.index);
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            const nextPos = Math.min(frames.length - 1, currentPos + 1);
+            const nextEl = framesEl.querySelector(`.dbg-frame-item[data-idx="${frames[nextPos]?.index}"]`);
+            if (nextEl) selectFrame(frames[nextPos].index, nextEl, true);
+            return;
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            const prevPos = Math.max(0, currentPos - 1);
+            const prevEl = framesEl.querySelector(`.dbg-frame-item[data-idx="${frames[prevPos]?.index}"]`);
+            if (prevEl) selectFrame(frames[prevPos].index, prevEl, true);
+            return;
+          }
+          if (event.key === 'Home') {
+            event.preventDefault();
+            const firstEl = framesEl.querySelector(`.dbg-frame-item[data-idx="${frames[0]?.index}"]`);
+            if (firstEl) selectFrame(frames[0].index, firstEl, true);
+            return;
+          }
+          if (event.key === 'End') {
+            event.preventDefault();
+            const lastFrame = frames[frames.length - 1];
+            const lastEl = framesEl.querySelector(`.dbg-frame-item[data-idx="${lastFrame?.index}"]`);
+            if (lastEl && lastFrame) selectFrame(lastFrame.index, lastEl, true);
+          }
+        });
         framesEl.appendChild(el);
       });
-      if (frames.length) selectFrame(0, framesEl.querySelector('.dbg-frame-item'));
+      if (frames.length) selectFrame(0, framesEl.querySelector('.dbg-frame-item'), true);
     } catch(e) { framesEl.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
   }
 
-  async function selectFrame(idx, el) {
+  function fallbackSourceText(frameData, idx) {
+    return frameData.source || (idx === 0 ? (thread.sourcePreview || '') : '') || frameData.methodName || '(no source)';
+  }
+
+  function computeDebuggerLineNumber(sourceText, sourceOffset) {
+    const offset = Number(sourceOffset || 0);
+    if (!(offset > 0) || !sourceText) return 0;
+    let line = 1;
+    for (let i = 0; i < Math.min(offset - 1, sourceText.length); i += 1) {
+      const ch = sourceText[i];
+      if (ch === '\n') {
+        line += 1;
+      } else if (ch === '\r') {
+        line += 1;
+        if (sourceText[i + 1] === '\n') i += 1;
+      }
+    }
+    return line;
+  }
+
+  function renderDebuggerSource(frameData, idx) {
+    const srcEl = body.querySelector(`#${id}-src`);
+    const srcMetaEl = body.querySelector(`#${id}-srcmeta`);
+    const sourceText = fallbackSourceText(frameData, idx);
+    const activeLine = Number(frameData.lineNumber || 0) || computeDebuggerLineNumber(sourceText, frameData.sourceOffset);
+    const stepPoint = Number(frameData.stepPoint || 0);
+    const sourceOffset = Number(frameData.sourceOffset || 0);
+    const ipOffset = Number(frameData.ipOffset || 0);
+    const metaBits = [];
+    if (stepPoint > 0) metaBits.push(`Step ${stepPoint}`);
+    if (activeLine > 0) metaBits.push(`Line ${activeLine}`);
+    if (ipOffset > 0) metaBits.push(`PC ${ipOffset}`);
+    if (sourceOffset > 0) metaBits.push(`Offset ${sourceOffset}`);
+    srcMetaEl.textContent = metaBits.join(' • ');
+    srcMetaEl.classList.toggle('hidden', !metaBits.length);
+
+    const normalized = String(sourceText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized ? normalized.split('\n') : ['(no source)'];
+    srcEl.innerHTML = lines.map((line, lineIndex) => {
+      const lineNumber = lineIndex + 1;
+      const active = activeLine > 0 && lineNumber === activeLine ? ' active' : '';
+      const text = line.length ? escHtml(line) : '&nbsp;';
+      return `<span class="dbg-source-line${active}" data-line="${lineNumber}"><span class="dbg-source-lno">${lineNumber}</span><span class="dbg-source-text">${text}</span></span>`;
+    }).join('');
+
+    const activeLineEl = activeLine > 0 ? srcEl.querySelector(`.dbg-source-line[data-line="${activeLine}"]`) : null;
+    if (activeLineEl) {
+      activeLineEl.scrollIntoView({block: 'nearest'});
+    } else {
+      srcEl.scrollTop = 0;
+    }
+  }
+
+  async function selectFrame(idx, el, focusEl=false) {
     currentFrameIdx = idx;
     body.querySelectorAll('.dbg-frame-item').forEach(e=>e.classList.remove('active'));
-    if (el) el.classList.add('active');
+    if (el) {
+      el.classList.add('active');
+      el.scrollIntoView({ block: 'nearest' });
+      if (focusEl) el.focus({ preventScroll: true });
+    }
     const srcEl    = body.querySelector(`#${id}-src`);
+    const srcMetaEl = body.querySelector(`#${id}-srcmeta`);
     const varsEl   = body.querySelector(`#${id}-vars`);
     const varvalEl = body.querySelector(`#${id}-varval`);
     const selfEl   = body.querySelector(`#${id}-selfval`);
-    srcEl.value = 'Loading…';
+    srcMetaEl.classList.add('hidden');
+    srcMetaEl.textContent = '';
+    srcEl.textContent = 'Loading…';
     varsEl.innerHTML = '<option value="">— variables —</option>';
-    varvalEl.textContent = '';
-    selfEl.textContent = '';
+    currentFrameVars = [];
+    renderDebuggerValue(varvalEl, null, '');
+    renderDebuggerValue(selfEl, null, '');
     try {
       const d = await api(`/debug/frame/${threadOop}?index=${idx}`);
       if (!d.success) throw new Error(d.exception);
-      srcEl.value = d.source || '(no source)';
-      selfEl.textContent = d.selfPrintString || '';
+      renderDebuggerSource(d, idx);
+      renderDebuggerValue(selfEl, d.selfObject, d.selfPrintString || '');
+      currentFrameVars = Array.isArray(d.variables) ? d.variables : [];
       if (d.variables && d.variables.length) {
         d.variables.forEach(v => {
           const opt = document.createElement('option');
           opt.value = v.name; opt.textContent = v.name + ' = ' + String(v.value).slice(0,40);
-          opt.dataset.val = v.value;
           varsEl.appendChild(opt);
         });
       }
-    } catch(e) { srcEl.value = 'Error: ' + e.message; }
+    } catch(e) {
+      srcMetaEl.classList.add('hidden');
+      srcEl.textContent = 'Error: ' + e.message;
+    }
   }
 
   async function loadTLS() {
@@ -2463,8 +3358,10 @@ function openDebugger(threadOop, threadName) {
       if (!d.entries.length) { lst.innerHTML='<li style="color:#6c7086">(empty)</li>'; return; }
       d.entries.forEach(e => {
         const li = document.createElement('li');
-        const keySpan = document.createElement('span'); keySpan.className = 'tls-key'; keySpan.textContent = e.key;
-        const valSpan = document.createElement('span'); valSpan.className = 'tls-val'; valSpan.textContent = e.value;
+        const keySpan = document.createElement('span'); keySpan.className = 'tls-key';
+        const valSpan = document.createElement('span'); valSpan.className = 'tls-val';
+        renderDebuggerValue(keySpan, e.keyObject, e.key || '');
+        renderDebuggerValue(valSpan, e.valueObject, e.value || '');
         li.append(keySpan, valSpan);
         lst.appendChild(li);
       });
@@ -2534,10 +3431,10 @@ function openSymbolList(px, py, pw, ph) {
     openLinkedObjectWindow({oop: slKeyOop, text: slKey||'object', sourceWinId: id});
   });
   body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
-    try { const d=await api('/transaction/abort'); setStatus(d.success,d.success?'aborted':d.exception); if (d.success&&slUser) loadDicts(slUser); } catch(e){setStatus(false,e.message);}
+    try { const d=await apiTransaction('/transaction/abort'); setStatus(d.success,d.success?'aborted':d.exception); if (d.success&&slUser) loadDicts(slUser); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
-    try { const d=await api('/transaction/commit'); setStatus(d.success,d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await apiTransaction('/transaction/commit'); setStatus(d.success,d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-add-dict`).addEventListener('click', () => {
     if (!slUser){setStatus(false,'Select a user first');return;}
@@ -2591,7 +3488,9 @@ function openSymbolList(px, py, pw, ph) {
     const sp=document.createElement('span');sp.className='sl-name';sp.textContent=name;
     const del=document.createElement('button');del.className='sl-del';del.textContent='✕';
     del.addEventListener('click',async e=>{
-      e.stopPropagation(); if(!confirm(`Remove "${name}"?`))return;
+      e.stopPropagation();
+      const confirmed = await requestConfirmModal('Remove Dictionary', `Remove "${name}"?`, {okLabel:'Remove'});
+      if(!confirmed)return;
       try{const r=await apiPost('/symbol-list/remove-dictionary',{user:slUser,name});if(!r.success)throw new Error(r.exception);li.remove();if(slDict===name){slDict=null;body.querySelector(`#${id}-entries`).innerHTML='';clearKV();}}
       catch(err){setStatus(false,'Error: '+err.message);}
     });
@@ -2623,7 +3522,9 @@ function openSymbolList(px, py, pw, ph) {
     const sp=document.createElement('span');sp.className='sl-name';sp.textContent=key;
     const del=document.createElement('button');del.className='sl-del';del.textContent='✕';
     del.addEventListener('click',async e=>{
-      e.stopPropagation();if(!confirm(`Remove "${key}"?`))return;
+      e.stopPropagation();
+      const confirmed = await requestConfirmModal('Remove Entry', `Remove "${key}"?`, {okLabel:'Remove'});
+      if(!confirmed)return;
       try{const r=await apiPost('/symbol-list/remove-entry',{user:slUser,dictionary:slDict,key});if(!r.success)throw new Error(r.exception);li.remove();if(slKey===key){slKey=slKeyOop=null;clearKV();}}
       catch(err){setStatus(false,'Error: '+err.message);}
     });
@@ -2677,13 +3578,45 @@ function openSymbolList(px, py, pw, ph) {
 }
 
 function parseMethodReference(ref) {
+  if (ref && typeof ref === 'object' && !Array.isArray(ref)) {
+    let className = String(ref.className || '').trim();
+    const selector = String(ref.selector || '').trim();
+    const meta = !!ref.meta;
+    if (!className || !selector) return null;
+    return {
+      className,
+      selector,
+      meta,
+      dictionary: String(ref.dictionary || '').trim(),
+      label: String(ref.label || `${meta ? `${className} class` : className}>>${selector}`).trim(),
+    };
+  }
   const split = String(ref || '').indexOf('>>');
   if (split < 0) return null;
   let className = String(ref).slice(0, split).trim();
   const selector = String(ref).slice(split + 2).trim();
   const meta = className.endsWith(' class');
   if (meta) className = className.slice(0, -6).trim();
-  return className && selector ? {className, selector, meta} : null;
+  return className && selector ? {
+    className,
+    selector,
+    meta,
+    dictionary: '',
+    label: String(ref).trim(),
+  } : null;
+}
+
+function parseHierarchyEntry(entry) {
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    return {
+      className: String(entry.className || '').trim(),
+      dictionary: String(entry.dictionary || '').trim(),
+    };
+  }
+  return {
+    className: String(entry || '').trim(),
+    dictionary: '',
+  };
 }
 
 function openTextWindow(title, text, taskbarLabel='Report', px, py, pw=560, ph=380) {
@@ -2692,7 +3625,8 @@ function openTextWindow(title, text, taskbarLabel='Report', px, py, pw=560, ph=3
   body.querySelector('textarea').value = text || '';
 }
 
-function openMethodQueryWindow(title, results) {
+function openMethodQueryWindow(title, results, options = {}) {
+  const canLoadResult = typeof options.onLoadResult === 'function';
   const {body} = createWindow({title, width: 760, height: 520, taskbarLabel:'Method Query'});
   body.innerHTML = `
     <div class="qv-wrap">
@@ -2700,6 +3634,7 @@ function openMethodQueryWindow(title, results) {
       <div class="qv-main">
         <div class="qv-toolbar">
           <span class="qv-title">Select a result</span>
+          ${canLoadResult ? `<button class="btn-ghost" id="qv-load" disabled>${escHtml(options.loadLabel || 'Load Into Browser')}</button>` : ''}
           <button class="btn-ghost" id="qv-open" disabled>Open In Browser</button>
         </div>
         <textarea class="qv-preview" readonly></textarea>
@@ -2710,6 +3645,7 @@ function openMethodQueryWindow(title, results) {
   const listEl = body.querySelector('.qv-list');
   const titleEl = body.querySelector('.qv-title');
   const previewEl = body.querySelector('.qv-preview');
+  const loadBtn = body.querySelector('#qv-load');
   const openBtn = body.querySelector('#qv-open');
   let currentRef = null;
 
@@ -2721,18 +3657,22 @@ function openMethodQueryWindow(title, results) {
     if (!parsed) {
       titleEl.textContent = ref;
       previewEl.value = ref;
+      if (loadBtn) loadBtn.disabled = true;
       openBtn.disabled = true;
       return;
     }
+    if (loadBtn) loadBtn.disabled = false;
     openBtn.disabled = false;
     titleEl.textContent = parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`;
     previewEl.value = 'Loading…';
     try {
-      const d = await apiWithParams('/class-browser/source', {
+      const params = {
         class: parsed.className,
         selector: parsed.selector,
         meta: parsed.meta ? 1 : 0,
-      });
+      };
+      if (parsed.dictionary) params.dictionary = parsed.dictionary;
+      const d = await apiWithParams('/class-browser/source', params);
       if (!d.success) throw new Error(d.exception);
       previewEl.value = d.source || '';
     } catch (e) {
@@ -2740,10 +3680,31 @@ function openMethodQueryWindow(title, results) {
     }
   }
 
+  loadBtn?.addEventListener('click', async () => {
+    const parsed = parseMethodReference(currentRef);
+    if (!parsed) return;
+    loadBtn.disabled = true;
+    openBtn.disabled = true;
+    try {
+      await options.onLoadResult(parsed, currentRef);
+    } finally {
+      const stillParsed = parseMethodReference(currentRef);
+      if (stillParsed) {
+        loadBtn.disabled = false;
+        openBtn.disabled = false;
+      }
+    }
+  });
+
   openBtn.addEventListener('click', () => {
     const parsed = parseMethodReference(currentRef);
     if (!parsed) return;
-    openClassBrowser({className: parsed.className, method: parsed.selector, meta: parsed.meta});
+    openClassBrowser({
+      dictionary: parsed.dictionary || null,
+      className: parsed.className,
+      method: parsed.selector,
+      meta: parsed.meta,
+    });
   });
 
   if (!results.length) {
@@ -2755,25 +3716,37 @@ function openMethodQueryWindow(title, results) {
   results.forEach(ref => {
     const row = document.createElement('div');
     row.className = 'qv-item';
-    row.textContent = ref;
+    const parsed = parseMethodReference(ref);
+    row.textContent = parsed?.label || String(ref || '');
+    if (parsed?.dictionary) row.title = `${row.textContent} (${parsed.dictionary})`;
     row.addEventListener('click', () => selectRef(ref, row));
     row.addEventListener('dblclick', () => {
       const parsed = parseMethodReference(ref);
-      if (parsed) openClassBrowser({className: parsed.className, method: parsed.selector, meta: parsed.meta});
+      if (parsed) {
+        openClassBrowser({
+          dictionary: parsed.dictionary || null,
+          className: parsed.className,
+          method: parsed.selector,
+          meta: parsed.meta,
+        });
+      }
     });
     listEl.appendChild(row);
   });
   selectRef(results[0], listEl.querySelector('.qv-item'));
 }
 
-function openVersionsWindow(title, versions) {
-  const {body} = createWindow({title, width: 760, height: 520, taskbarLabel:'Versions'});
+function openHierarchyWindow(title, classes, options = {}) {
+  const canLoadClass = typeof options.onLoadClass === 'function';
+  const {body} = createWindow({title, width: 640, height: 480, taskbarLabel:'Hierarchy'});
   body.innerHTML = `
     <div class="qv-wrap">
       <div class="qv-list"></div>
       <div class="qv-main">
         <div class="qv-toolbar">
-          <span class="qv-title">Select a version</span>
+          <span class="qv-title">Select a class</span>
+          ${canLoadClass ? `<button class="btn-ghost" id="qv-load-class" disabled>${escHtml(options.loadLabel || 'Load Into Browser')}</button>` : ''}
+          <button class="btn-ghost" id="qv-open-class" disabled>Open In Browser</button>
         </div>
         <textarea class="qv-preview" readonly></textarea>
       </div>
@@ -2783,13 +3756,116 @@ function openVersionsWindow(title, versions) {
   const listEl = body.querySelector('.qv-list');
   const titleEl = body.querySelector('.qv-title');
   const previewEl = body.querySelector('.qv-preview');
+  const loadBtn = body.querySelector('#qv-load-class');
+  const openBtn = body.querySelector('#qv-open-class');
+  let currentEntry = null;
 
-  function selectVersion(version, row) {
+  async function selectClass(entry, row) {
+    const parsed = parseHierarchyEntry(entry);
+    currentEntry = parsed.className ? parsed : null;
     listEl.querySelectorAll('.qv-item').forEach(el => el.classList.remove('active'));
     row?.classList.add('active');
-    titleEl.textContent = version.label;
-    previewEl.value = version.source || '';
+    titleEl.textContent = currentEntry?.className || 'Select a class';
+    if (loadBtn) loadBtn.disabled = !currentEntry;
+    openBtn.disabled = !currentEntry;
+    if (!currentEntry) {
+      previewEl.value = '';
+      return;
+    }
+    previewEl.value = 'Loading…';
+    try {
+      const params = {class: currentEntry.className};
+      if (currentEntry.dictionary) params.dictionary = currentEntry.dictionary;
+      const d = await apiWithParams('/class-browser/source', params);
+      if (!d.success) throw new Error(d.exception);
+      previewEl.value = d.source || '';
+    } catch (e) {
+      previewEl.value = 'Error: ' + e.message;
+    }
   }
+
+  loadBtn?.addEventListener('click', async () => {
+    if (!currentEntry) return;
+    loadBtn.disabled = true;
+    openBtn.disabled = true;
+    try {
+      await options.onLoadClass(currentEntry);
+    } finally {
+      if (currentEntry) {
+        loadBtn.disabled = false;
+        openBtn.disabled = false;
+      }
+    }
+  });
+
+  openBtn.addEventListener('click', () => {
+    if (!currentEntry) return;
+    openClassBrowser({
+      dictionary: currentEntry.dictionary || null,
+      className: currentEntry.className,
+      meta: !!options.meta,
+    });
+  });
+
+  if (!classes.length) {
+    listEl.innerHTML = '<div class="cb-empty">(no classes)</div>';
+    previewEl.value = '';
+    return;
+  }
+
+  classes.forEach(entry => {
+    const parsed = parseHierarchyEntry(entry);
+    const row = document.createElement('div');
+    row.className = 'qv-item';
+    row.textContent = parsed.className;
+    if (parsed.dictionary) row.title = `${parsed.className} (${parsed.dictionary})`;
+    row.addEventListener('click', () => selectClass(entry, row));
+    row.addEventListener('dblclick', () => openClassBrowser({
+      dictionary: parsed.dictionary || null,
+      className: parsed.className,
+      meta: !!options.meta,
+    }));
+    listEl.appendChild(row);
+  });
+  const defaultIndex = Math.max(0, classes.length - 1);
+  selectClass(classes[defaultIndex], listEl.querySelectorAll('.qv-item')[defaultIndex]);
+}
+
+function openVersionsWindow(title, versions, options = {}) {
+  const canLoadVersion = typeof options.onLoadVersion === 'function';
+  const {body} = createWindow({title, width: 760, height: 520, taskbarLabel:'Versions'});
+  body.innerHTML = `
+    <div class="qv-wrap">
+      <div class="qv-list"></div>
+      <div class="qv-main">
+        <div class="qv-toolbar">
+          <span class="qv-title">Select a version</span>
+          ${canLoadVersion ? `<button class="btn-ghost" id="qv-load-version" disabled>${escHtml(options.loadLabel || 'Load Into Browser')}</button>` : ''}
+        </div>
+        <textarea class="qv-preview" readonly></textarea>
+      </div>
+    </div>
+  `;
+
+  const listEl = body.querySelector('.qv-list');
+  const titleEl = body.querySelector('.qv-title');
+  const previewEl = body.querySelector('.qv-preview');
+  const loadBtn = body.querySelector('#qv-load-version');
+  let currentVersion = null;
+
+  function selectVersion(version, row) {
+    currentVersion = version || null;
+    listEl.querySelectorAll('.qv-item').forEach(el => el.classList.remove('active'));
+    row?.classList.add('active');
+    titleEl.textContent = version?.label || 'Select a version';
+    previewEl.value = version?.source || '';
+    if (loadBtn) loadBtn.disabled = !currentVersion;
+  }
+
+  loadBtn?.addEventListener('click', () => {
+    if (!currentVersion) return;
+    options.onLoadVersion(currentVersion);
+  });
 
   if (!versions.length) {
     listEl.innerHTML = '<div class="cb-empty">(no versions)</div>';
@@ -2801,6 +3877,10 @@ function openVersionsWindow(title, versions) {
     row.className = 'qv-item';
     row.textContent = version.label;
     row.addEventListener('click', () => selectVersion(version, row));
+    row.addEventListener('dblclick', () => {
+      selectVersion(version, row);
+      options.onLoadVersion?.(version);
+    });
     listEl.appendChild(row);
   });
   selectVersion(versions[0], listEl.querySelector('.qv-item'));
@@ -2825,37 +3905,95 @@ function openClassBrowser(options = {}) {
   let currentProtocol = options.protocol || '-- all --';
   let currentMethod = options.method || null;
   let currentMeta = !!options.meta;
+  let currentSourceMode = currentMethod ? 'method' : 'classDefinition';
+  const browserCache = new Map();
+  const paneWidthStorageKey = 'python-gemstone-class-browser-pane-widths-v1';
+  const paneMinWidths = [120, 160, 140, 180];
+  const defaultPaneWidths = [160, 220, 180, 220];
+  let paneWidths = [...defaultPaneWidths];
 
   body.innerHTML = `
     <div class="cb-wrap">
       <div class="cb-toolbar">
         <button class="btn-ghost" id="${id}-find">Find Class</button>
+        <button class="btn-ghost" id="${id}-find-dictionary">Find Dictionary</button>
+        <button class="btn-ghost" id="${id}-add-dictionary">Add Dictionary</button>
+        <button class="btn-ghost" id="${id}-rename-dictionary">Rename Dictionary</button>
+        <button class="btn-ghost" id="${id}-remove-dictionary">Remove Dictionary</button>
+        <button class="btn-ghost" id="${id}-add-class">Add Class</button>
+        <button class="btn-ghost" id="${id}-rename-class">Rename Class</button>
+        <button class="btn-ghost" id="${id}-add-category">Add Category</button>
+        <button class="btn-ghost" id="${id}-rename-category">Rename Category</button>
+        <button class="btn-ghost" id="${id}-add-inst-var">Inst Var</button>
+        <button class="btn-ghost" id="${id}-add-class-var">Class Var</button>
+        <button class="btn-ghost" id="${id}-add-class-inst-var">Class Inst Var</button>
+        <button class="btn-ghost" id="${id}-move-class">Move Class</button>
+        <button class="btn-ghost" id="${id}-remove-class">Remove Class</button>
         <button class="btn-ghost" id="${id}-refresh">Refresh</button>
         <button class="btn-ghost" id="${id}-browse-class">Browse Class</button>
+        <button class="btn-ghost" id="${id}-new-method">New Method</button>
+        <button class="btn-ghost" id="${id}-move-method">Move Method</button>
+        <button class="btn-ghost" id="${id}-remove-method">Remove Method</button>
+        <button class="btn-ghost" id="${id}-remove-category">Remove Category</button>
         <button class="btn-ghost" id="${id}-hierarchy">Hierarchy</button>
         <button class="btn-ghost" id="${id}-versions">Versions</button>
         <button class="btn-ghost" id="${id}-references">References</button>
+        <button class="btn-ghost" id="${id}-method-text">Text Search</button>
+        <button class="btn-ghost" id="${id}-inspect-dictionary">Inspect Dictionary</button>
+        <button class="btn-ghost" id="${id}-inspect-class">Inspect Class</button>
+        <button class="btn-ghost" id="${id}-inspect-method">Inspect Method</button>
+        <button class="btn-ghost" id="${id}-inspect-instances">Inspect All Instances</button>
+        <span class="cb-sep"></span>
+        <label class="cb-inline">Scope
+          <select class="cb-select" id="${id}-query-scope">
+            <option value="all">All Classes</option>
+            <option value="full">Full Hierarchy</option>
+            <option value="super">Superclasses</option>
+            <option value="this">This Class</option>
+            <option value="sub">Subclasses</option>
+          </select>
+        </label>
         <button class="btn-ghost" id="${id}-senders">Senders</button>
         <button class="btn-ghost" id="${id}-implementors">Implementors</button>
+        <span class="cb-sep"></span>
+        <label class="cb-inline">File Out
+          <select class="cb-select" id="${id}-file-out-mode">
+            <option value="class">Class</option>
+            <option value="class-methods">Class Methods</option>
+            <option value="dictionary">Dictionary</option>
+            <option value="dictionary-methods">Dictionary Methods</option>
+            <option value="method">Method</option>
+          </select>
+        </label>
+        <button class="btn-ghost" id="${id}-file-out">File Out</button>
+        <button class="btn-ghost" id="${id}-create-accessors">Create Accessors</button>
+        <button class="btn-ghost" id="${id}-commit">Commit</button>
         <button class="btn" id="${id}-compile">Compile</button>
         <label class="cb-meta"><input type="checkbox" id="${id}-meta"> Class side</label>
       </div>
-      <div class="cb-lists">
+      <div class="cb-lists" id="${id}-lists">
         <div class="cb-pane">
           <div class="cb-pane-label">Dictionaries</div>
-          <div class="cb-list" id="${id}-dicts"></div>
+          <div class="cb-filter-wrap"><input class="cb-filter" id="${id}-dict-filter" placeholder="Filter dictionaries"></div>
+          <div class="cb-list" id="${id}-dicts" tabindex="0" aria-label="Dictionaries list"></div>
         </div>
+        <div class="cb-splitter" id="${id}-split-1" aria-hidden="true"></div>
         <div class="cb-pane">
           <div class="cb-pane-label">Classes</div>
-          <div class="cb-list" id="${id}-classes"></div>
+          <div class="cb-filter-wrap"><input class="cb-filter" id="${id}-class-filter" placeholder="Filter classes"></div>
+          <div class="cb-list" id="${id}-classes" tabindex="0" aria-label="Classes list"></div>
         </div>
+        <div class="cb-splitter" id="${id}-split-2" aria-hidden="true"></div>
         <div class="cb-pane">
           <div class="cb-pane-label">Categories</div>
-          <div class="cb-list" id="${id}-protocols"></div>
+          <div class="cb-filter-wrap"><input class="cb-filter" id="${id}-protocol-filter" placeholder="Filter categories"></div>
+          <div class="cb-list" id="${id}-protocols" tabindex="0" aria-label="Categories list"></div>
         </div>
+        <div class="cb-splitter" id="${id}-split-3" aria-hidden="true"></div>
         <div class="cb-pane">
           <div class="cb-pane-label">Methods</div>
-          <div class="cb-list" id="${id}-methods"></div>
+          <div class="cb-filter-wrap"><input class="cb-filter" id="${id}-method-filter" placeholder="Filter methods"></div>
+          <div class="cb-list" id="${id}-methods" tabindex="0" aria-label="Methods list"></div>
         </div>
       </div>
       <div class="cb-source-wrap">
@@ -2870,16 +4008,66 @@ function openClassBrowser(options = {}) {
   `;
 
   const els = {
+    lists: body.querySelector(`#${id}-lists`),
     dicts: body.querySelector(`#${id}-dicts`),
     classes: body.querySelector(`#${id}-classes`),
     protocols: body.querySelector(`#${id}-protocols`),
     methods: body.querySelector(`#${id}-methods`),
+    dictFilter: body.querySelector(`#${id}-dict-filter`),
+    classFilter: body.querySelector(`#${id}-class-filter`),
+    protocolFilter: body.querySelector(`#${id}-protocol-filter`),
+    methodFilter: body.querySelector(`#${id}-method-filter`),
     source: body.querySelector(`#${id}-source`),
     sourceNote: body.querySelector(`#${id}-source-note`),
     status: body.querySelector(`#${id}-status`),
     meta: body.querySelector(`#${id}-meta`),
+    queryScope: body.querySelector(`#${id}-query-scope`),
+    fileOutMode: body.querySelector(`#${id}-file-out-mode`),
+    findDictionary: body.querySelector(`#${id}-find-dictionary`),
+    addDictionary: body.querySelector(`#${id}-add-dictionary`),
+    renameDictionary: body.querySelector(`#${id}-rename-dictionary`),
+    removeDictionary: body.querySelector(`#${id}-remove-dictionary`),
+    addCategory: body.querySelector(`#${id}-add-category`),
+    renameClass: body.querySelector(`#${id}-rename-class`),
+    renameCategory: body.querySelector(`#${id}-rename-category`),
+    addInstVar: body.querySelector(`#${id}-add-inst-var`),
+    addClassVar: body.querySelector(`#${id}-add-class-var`),
+    addClassInstVar: body.querySelector(`#${id}-add-class-inst-var`),
+    moveClass: body.querySelector(`#${id}-move-class`),
+    removeClass: body.querySelector(`#${id}-remove-class`),
+    browseClass: body.querySelector(`#${id}-browse-class`),
+    newMethod: body.querySelector(`#${id}-new-method`),
+    moveMethod: body.querySelector(`#${id}-move-method`),
+    removeMethod: body.querySelector(`#${id}-remove-method`),
+    removeCategory: body.querySelector(`#${id}-remove-category`),
+    hierarchy: body.querySelector(`#${id}-hierarchy`),
+    versions: body.querySelector(`#${id}-versions`),
+    inspectDictionary: body.querySelector(`#${id}-inspect-dictionary`),
+    inspectClass: body.querySelector(`#${id}-inspect-class`),
+    inspectMethod: body.querySelector(`#${id}-inspect-method`),
+    inspectInstances: body.querySelector(`#${id}-inspect-instances`),
+    compile: body.querySelector(`#${id}-compile`),
   };
   els.meta.checked = currentMeta;
+  const listStates = {
+    dicts: {container: els.dicts, filterInput: els.dictFilter, items: [], active: null, onSelect: null},
+    classes: {container: els.classes, filterInput: els.classFilter, items: [], active: null, onSelect: null},
+    protocols: {container: els.protocols, filterInput: els.protocolFilter, items: [], active: null, onSelect: null},
+    methods: {container: els.methods, filterInput: els.methodFilter, items: [], active: null, onSelect: null},
+  };
+  const listStateByContainer = new Map(Object.values(listStates).map(state => [state.container, state]));
+  const paneOrder = ['dicts', 'classes', 'protocols', 'methods'];
+  let activePaneKey = currentMethod ? 'methods' : (currentClass ? 'classes' : 'dicts');
+
+  function hierarchyScopeLabel(scope) {
+    return ({
+      all: 'All Classes',
+      full: 'Full Hierarchy',
+      super: 'Superclasses',
+      this: 'This Class',
+      sub: 'Subclasses',
+    })[scope] || 'Full Hierarchy';
+  }
 
   function setBrowserStatus(message, tone='') {
     els.status.textContent = message || '';
@@ -2890,27 +4078,372 @@ function openClassBrowser(options = {}) {
     els.sourceNote.textContent = text || '';
   }
 
+  function clampPaneWidths(widths) {
+    const next = Array.isArray(widths) ? widths.slice(0, 4) : [];
+    while (next.length < 4) next.push(defaultPaneWidths[next.length]);
+    return next.map((width, index) => {
+      const numeric = Number(width);
+      return Number.isFinite(numeric) ? Math.max(paneMinWidths[index], Math.round(numeric)) : defaultPaneWidths[index];
+    });
+  }
+
+  function loadStoredPaneWidths() {
+    try {
+      const raw = localStorage.getItem(paneWidthStorageKey);
+      if (!raw) return [...defaultPaneWidths];
+      return clampPaneWidths(JSON.parse(raw));
+    } catch (_) {
+      return [...defaultPaneWidths];
+    }
+  }
+
+  function applyPaneWidths() {
+    paneWidths = clampPaneWidths(paneWidths);
+    paneWidths.forEach((width, index) => {
+      els.lists.style.setProperty(`--cb-col-${index + 1}`, `${width}px`);
+    });
+  }
+
+  function persistPaneWidths() {
+    try {
+      localStorage.setItem(paneWidthStorageKey, JSON.stringify(paneWidths));
+    } catch (_) {
+      // ignore storage failures
+    }
+  }
+
+  function initPaneSplitters() {
+    body.querySelectorAll('.cb-splitter').forEach((splitter, index) => {
+      splitter.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const leftIndex = index;
+        const rightIndex = index + 1;
+        const startLeft = paneWidths[leftIndex];
+        const startRight = paneWidths[rightIndex];
+        const total = startLeft + startRight;
+        splitter.classList.add('is-active');
+        document.body.style.userSelect = 'none';
+
+        const onMove = moveEvent => {
+          const delta = moveEvent.clientX - startX;
+          const minLeft = paneMinWidths[leftIndex];
+          const minRight = paneMinWidths[rightIndex];
+          const nextLeft = Math.min(total - minRight, Math.max(minLeft, startLeft + delta));
+          paneWidths[leftIndex] = Math.round(nextLeft);
+          paneWidths[rightIndex] = Math.round(total - nextLeft);
+          applyPaneWidths();
+        };
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+          document.body.style.userSelect = '';
+          splitter.classList.remove('is-active');
+          persistPaneWidths();
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+      });
+    });
+  }
+
+  function normalizeFilterText(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function ensureFilterShowsValue(filterInput, value) {
+    if (!filterInput || !value) return;
+    const filterText = normalizeFilterText(filterInput.value);
+    if (filterText && !String(value).toLowerCase().includes(filterText)) {
+      filterInput.value = '';
+    }
+  }
+
+  function initListFilters() {
+    Object.entries(listStates).forEach(([key, state]) => {
+      state.container.dataset.listKey = key;
+      state.filterInput.dataset.listKey = key;
+      state.container.addEventListener('focus', () => { activePaneKey = key; });
+      state.container.addEventListener('mousedown', () => { activePaneKey = key; });
+      state.container.addEventListener('click', () => {
+        activePaneKey = key;
+        state.container.focus({preventScroll: true});
+      });
+      state.filterInput?.addEventListener('focus', () => { activePaneKey = key; });
+      state.filterInput?.addEventListener('input', () => {
+        renderList(state.container, state.items, state.active, state.onSelect);
+      });
+      state.filterInput?.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        if (!state.filterInput.value) return;
+        event.preventDefault();
+        state.filterInput.value = '';
+        renderList(state.container, state.items, state.active, state.onSelect);
+      });
+    });
+  }
+
+  function visibleItemsForState(state) {
+    const filterText = state ? normalizeFilterText(state.filterInput?.value) : '';
+    const items = Array.isArray(state?.items) ? state.items.slice() : [];
+    return filterText
+      ? items.filter(item => String(item).toLowerCase().includes(filterText))
+      : items;
+  }
+
+  function focusPaneList(key) {
+    const state = listStates[key];
+    if (!state) return false;
+    activePaneKey = key;
+    state.container.focus({preventScroll: true});
+    return true;
+  }
+
+  function movePaneFocus(fromKey, delta) {
+    const currentIndex = Math.max(0, paneOrder.indexOf(fromKey));
+    const nextIndex = Math.max(0, Math.min(paneOrder.length - 1, currentIndex + delta));
+    return focusPaneList(paneOrder[nextIndex]);
+  }
+
+  function activatePaneItem(key, item) {
+    const state = listStates[key];
+    if (!state?.onSelect || !item) return false;
+    activePaneKey = key;
+    state.onSelect(item);
+    state.container.focus({preventScroll: true});
+    return true;
+  }
+
+  function activateCurrentPaneItem(key) {
+    const state = listStates[key];
+    const visibleItems = visibleItemsForState(state);
+    if (!visibleItems.length) return false;
+    const activeItem = visibleItems.includes(state.active) ? state.active : visibleItems[0];
+    return activatePaneItem(key, activeItem);
+  }
+
+  function selectRelativePaneItem(key, delta) {
+    const state = listStates[key];
+    const visibleItems = visibleItemsForState(state);
+    if (!visibleItems.length) return false;
+    let currentIndex = visibleItems.indexOf(state?.active);
+    if (currentIndex < 0) currentIndex = delta >= 0 ? -1 : visibleItems.length;
+    const nextIndex = Math.max(0, Math.min(visibleItems.length - 1, currentIndex + delta));
+    return activatePaneItem(key, visibleItems[nextIndex]);
+  }
+
+  function selectBoundaryPaneItem(key, boundary) {
+    const state = listStates[key];
+    const visibleItems = visibleItemsForState(state);
+    if (!visibleItems.length) return false;
+    return activatePaneItem(key, boundary === 'last' ? visibleItems[visibleItems.length - 1] : visibleItems[0]);
+  }
+
+  function handleClassBrowserKeydown(event) {
+    if (!win.classList.contains('focused')) return;
+    if (document.getElementById('modal-overlay')?.classList.contains('visible')) return;
+    if (!win.contains(event.target)) return;
+
+    const key = event.key || '';
+    const lowerKey = key.toLowerCase();
+    const target = event.target;
+    const isFilter = target instanceof HTMLInputElement && target.classList.contains('cb-filter');
+    const isList = target instanceof HTMLElement && target.classList.contains('cb-list');
+    const isSource = target === els.source;
+    const isSelect = target instanceof HTMLSelectElement;
+    const isButton = target instanceof HTMLButtonElement;
+    const targetPaneKey = (isFilter || isList) ? String(target.dataset.listKey || activePaneKey || '') : activePaneKey;
+
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && lowerKey === 's') {
+      event.preventDefault();
+      if (els.compile.disabled) {
+        setBrowserStatus(els.compile.title || 'Compile unavailable', 'error');
+        return;
+      }
+      compileSource();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && key === 'Enter' && isSource) {
+      event.preventDefault();
+      if (els.compile.disabled) {
+        setBrowserStatus(els.compile.title || 'Compile unavailable', 'error');
+        return;
+      }
+      compileSource();
+      return;
+    }
+
+    if (isSource || isSelect || isButton) return;
+    if (!(isFilter || isList)) return;
+
+    if (key === 'ArrowUp') {
+      event.preventDefault();
+      selectRelativePaneItem(targetPaneKey, -1);
+      return;
+    }
+    if (key === 'ArrowDown') {
+      event.preventDefault();
+      selectRelativePaneItem(targetPaneKey, 1);
+      return;
+    }
+    if (key === 'Home') {
+      event.preventDefault();
+      selectBoundaryPaneItem(targetPaneKey, 'first');
+      return;
+    }
+    if (key === 'End') {
+      event.preventDefault();
+      selectBoundaryPaneItem(targetPaneKey, 'last');
+      return;
+    }
+    if (isList && key === 'ArrowLeft') {
+      event.preventDefault();
+      movePaneFocus(targetPaneKey, -1);
+      return;
+    }
+    if (isList && key === 'ArrowRight') {
+      event.preventDefault();
+      movePaneFocus(targetPaneKey, 1);
+      return;
+    }
+    if (key === 'Enter') {
+      event.preventDefault();
+      activateCurrentPaneItem(targetPaneKey);
+    }
+  }
+
+  function syncSourceMode() {
+    const editable = currentSourceMode !== 'classDefinition';
+    els.source.readOnly = !editable;
+    els.source.classList.toggle('is-readonly', !editable);
+    els.compile.disabled = !editable;
+    els.compile.title = editable
+      ? 'Compile the current method source'
+      : 'Browse Class shows the class definition; use New Method to compile source';
+    syncBrowserActions();
+  }
+
+  function setButtonAvailability(button, enabled, disabledTitle = '') {
+    if (!button) return;
+    button.disabled = !enabled;
+    button.title = enabled ? '' : disabledTitle;
+  }
+
+  function syncBrowserActions() {
+    const hasClass = !!currentClass;
+    const hasDict = !!currentDict;
+    const hasMethod = hasClass && !!currentMethod;
+    const hasCategory = hasClass && !!currentProtocol && currentProtocol !== '-- all --';
+    setButtonAvailability(els.findDictionary, true);
+    setButtonAvailability(els.addDictionary, true);
+    setButtonAvailability(els.renameDictionary, hasDict, 'Select a dictionary first');
+    setButtonAvailability(els.removeDictionary, hasDict, 'Select a dictionary first');
+    setButtonAvailability(els.inspectDictionary, hasDict, 'Select a dictionary first');
+    setButtonAvailability(els.inspectClass, hasClass, 'Select a class first');
+    setButtonAvailability(els.inspectMethod, hasMethod, 'Select a method first');
+    setButtonAvailability(els.inspectInstances, hasClass, 'Select a class first');
+    setButtonAvailability(els.renameClass, hasClass, 'Select a class first');
+    setButtonAvailability(els.addCategory, hasClass, 'Select a class first');
+    setButtonAvailability(els.renameCategory, hasCategory, 'Select a category first');
+    setButtonAvailability(els.addInstVar, hasClass, 'Select a class first');
+    setButtonAvailability(els.addClassVar, hasClass, 'Select a class first');
+    setButtonAvailability(els.addClassInstVar, hasClass, 'Select a class first');
+    setButtonAvailability(els.moveClass, hasClass, 'Select a class first');
+    setButtonAvailability(els.removeClass, hasClass, 'Select a class first');
+    setButtonAvailability(els.browseClass, hasClass, 'Select a class first');
+    setButtonAvailability(els.newMethod, hasClass, 'Select a class first');
+    setButtonAvailability(els.moveMethod, hasMethod, 'Select a method first');
+    setButtonAvailability(els.removeMethod, hasMethod, 'Select a method first');
+    setButtonAvailability(els.removeCategory, hasCategory, 'Select a category first');
+    setButtonAvailability(els.hierarchy, hasClass, 'Select a class first');
+    setButtonAvailability(els.versions, hasMethod, 'Select a method first');
+  }
+
+  function clearBrowserCache() {
+    browserCache.clear();
+  }
+
+  async function fetchBrowserCached(name, keyParts, loader) {
+    const cacheKey = `${name}:${JSON.stringify(keyParts || {})}`;
+    const existing = browserCache.get(cacheKey);
+    if (existing) {
+      if (Object.prototype.hasOwnProperty.call(existing, 'value')) return existing.value;
+      return existing.promise;
+    }
+    const promise = Promise.resolve()
+      .then(loader)
+      .then(value => {
+        browserCache.set(cacheKey, {value});
+        return value;
+      })
+      .catch(error => {
+        if (browserCache.get(cacheKey)?.promise === promise) browserCache.delete(cacheKey);
+        throw error;
+      });
+    browserCache.set(cacheKey, {promise});
+    return promise;
+  }
+
   function renderList(container, items, active, onSelect) {
+    const state = listStateByContainer.get(container) || null;
+    const allItems = Array.isArray(items) ? items.slice() : [];
+    if (state) {
+      state.items = allItems;
+      state.active = active;
+      state.onSelect = onSelect;
+    }
+    const filterText = state ? normalizeFilterText(state.filterInput.value) : '';
+    const visibleItems = filterText
+      ? allItems.filter(item => String(item).toLowerCase().includes(filterText))
+      : allItems;
     container.innerHTML = '';
-    if (!items.length) {
+    if (!allItems.length) {
       container.innerHTML = '<div class="cb-empty">(empty)</div>';
       return;
     }
-    items.forEach(item => {
+    if (!visibleItems.length) {
+      container.innerHTML = '<div class="cb-empty">(no matches)</div>';
+      return;
+    }
+    let activeRow = null;
+    visibleItems.forEach(item => {
       const row = document.createElement('div');
       row.className = 'cb-item' + (item === active ? ' active' : '');
       row.textContent = item;
       row.title = item;
       row.addEventListener('click', () => onSelect(item));
       container.appendChild(row);
+      if (item === active) activeRow = row;
     });
+    if (activeRow) {
+      requestAnimationFrame(() => activeRow.scrollIntoView({block: 'nearest'}));
+    }
   }
 
   function showLoading(container) {
     container.innerHTML = '<div class="cb-empty"><span class="spinner"></span></div>';
   }
 
+  function setActiveRow(container, value) {
+    const state = listStateByContainer.get(container) || null;
+    if (state) state.active = value;
+    let activeRow = null;
+    container.querySelectorAll('.cb-item').forEach(row => {
+      const isActive = !!value && row.textContent === value;
+      row.classList.toggle('active', isActive);
+      if (isActive) activeRow = row;
+    });
+    if (activeRow) {
+      requestAnimationFrame(() => activeRow.scrollIntoView({block: 'nearest'}));
+    }
+  }
+
   function clearSource() {
+    currentSourceMode = 'classDefinition';
+    syncSourceMode();
     els.source.value = '';
     setSourceNote('');
   }
@@ -2918,18 +4451,30 @@ function openClassBrowser(options = {}) {
   async function loadClassSource(selector='') {
     if (!currentClass) {
       clearSource();
+      syncBrowserActions();
       return;
     }
+    currentSourceMode = selector ? 'method' : 'classDefinition';
+    syncSourceMode();
     const label = selector
       ? (currentMeta ? `${currentClass} class >> ${selector}` : `${currentClass} >> ${selector}`)
       : (currentMeta ? `${currentClass} class` : currentClass);
     setSourceNote(label);
     els.source.value = 'Loading…';
     try {
-      const d = await apiWithParams('/class-browser/source', {
+      const d = await fetchBrowserCached('source', {
+        dictionary: currentDict || '',
         class: currentClass,
         selector,
         meta: currentMeta ? 1 : 0,
+      }, () => {
+        const params = {
+          class: currentClass,
+          selector,
+          meta: currentMeta ? 1 : 0,
+        };
+        if (currentDict) params.dictionary = currentDict;
+        return apiWithParams('/class-browser/source', params);
       });
       if (!d.success) throw new Error(d.exception);
       els.source.value = d.source || '';
@@ -2939,20 +4484,31 @@ function openClassBrowser(options = {}) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
     }
+    syncBrowserActions();
   }
 
   async function loadMethods() {
     if (!currentClass) {
       els.methods.innerHTML = '<div class="cb-empty">(select a class)</div>';
       clearSource();
+      syncBrowserActions();
       return;
     }
     showLoading(els.methods);
     try {
-      const d = await apiWithParams('/class-browser/methods', {
+      const d = await fetchBrowserCached('methods', {
+        dictionary: currentDict || '',
         class: currentClass,
         protocol: currentProtocol,
         meta: currentMeta ? 1 : 0,
+      }, () => {
+        const params = {
+          class: currentClass,
+          protocol: currentProtocol,
+          meta: currentMeta ? 1 : 0,
+        };
+        if (currentDict) params.dictionary = currentDict;
+        return apiWithParams('/class-browser/methods', params);
       });
       if (!d.success) throw new Error(d.exception);
       const methods = d.methods || [];
@@ -2975,6 +4531,7 @@ function openClassBrowser(options = {}) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
     }
+    syncBrowserActions();
   }
 
   async function loadProtocols() {
@@ -2982,13 +4539,22 @@ function openClassBrowser(options = {}) {
       els.protocols.innerHTML = '<div class="cb-empty">(select a class)</div>';
       els.methods.innerHTML = '<div class="cb-empty">(select a class)</div>';
       clearSource();
+      syncBrowserActions();
       return;
     }
     showLoading(els.protocols);
     try {
-      const d = await apiWithParams('/class-browser/categories', {
+      const d = await fetchBrowserCached('categories', {
+        dictionary: currentDict || '',
         class: currentClass,
         meta: currentMeta ? 1 : 0,
+      }, () => {
+        const params = {
+          class: currentClass,
+          meta: currentMeta ? 1 : 0,
+        };
+        if (currentDict) params.dictionary = currentDict;
+        return apiWithParams('/class-browser/categories', params);
       });
       if (!d.success) throw new Error(d.exception);
       const protocols = d.categories || ['-- all --'];
@@ -3009,6 +4575,7 @@ function openClassBrowser(options = {}) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
     }
+    syncBrowserActions();
   }
 
   async function loadClasses() {
@@ -3017,11 +4584,14 @@ function openClassBrowser(options = {}) {
       els.protocols.innerHTML = '<div class="cb-empty">(select a class)</div>';
       els.methods.innerHTML = '<div class="cb-empty">(select a class)</div>';
       clearSource();
+      syncBrowserActions();
       return;
     }
     showLoading(els.classes);
     try {
-      const d = await apiWithParams('/class-browser/classes', {dictionary: currentDict});
+      const d = await fetchBrowserCached('classes', {
+        dictionary: currentDict,
+      }, () => apiWithParams('/class-browser/classes', {dictionary: currentDict}));
       if (!d.success) throw new Error(d.exception);
       const classes = d.classes || [];
       if (!classes.includes(currentClass)) currentClass = classes[0] || null;
@@ -3043,12 +4613,13 @@ function openClassBrowser(options = {}) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
     }
+    syncBrowserActions();
   }
 
   async function loadDictionaries() {
     showLoading(els.dicts);
     try {
-      const d = await api('/class-browser/dictionaries');
+      const d = await fetchBrowserCached('dictionaries', {}, () => api('/class-browser/dictionaries'));
       if (!d.success) throw new Error(d.exception);
       const dictionaries = d.dictionaries || [];
       if (!dictionaries.includes(currentDict)) currentDict = currentDict || dictionaries[0] || null;
@@ -3073,19 +4644,52 @@ function openClassBrowser(options = {}) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
     }
+    syncBrowserActions();
   }
 
-  async function locateAndSelectClass(className, methodName = null, meta = currentMeta) {
-    currentMeta = !!meta;
+  async function chooseClassMatch(className, matches) {
+    const options = (matches || []).map(match => ({
+      value: match.dictionary,
+      label: `${match.dictionary} :: ${className}`,
+    }));
+    const selected = await requestSelectModal(
+      'Select Class Dictionary',
+      `Class "${className}" was found in multiple dictionaries`,
+      options,
+      options[0]?.value || '',
+      {okLabel: 'Load'}
+    );
+    const chosen = (matches || []).find(match => match.dictionary === selected);
+    return chosen || null;
+  }
+
+  async function locateAndSelectClass(className, methodName = null, meta = currentMeta, dictionary = null) {
+    const nextMeta = !!meta;
+    let nextDict = dictionary || '';
+    if (!nextDict) {
+      const d = await fetchBrowserCached('class-location', {class: className}, () => apiWithParams('/class-browser/class-location', {class: className}));
+      if (!d.success) throw new Error(d.exception);
+      const matches = Array.isArray(d.matches) ? d.matches : (d.dictionary ? [{className, dictionary: d.dictionary}] : []);
+      if (!matches.length) throw new Error(`Class not found: ${className}`);
+      if (matches.length === 1) {
+        nextDict = matches[0].dictionary;
+      } else {
+        const chosen = await chooseClassMatch(className, matches);
+        if (!chosen) return false;
+        nextDict = chosen.dictionary;
+      }
+    }
+    currentMeta = nextMeta;
     els.meta.checked = currentMeta;
-    const d = await apiWithParams('/class-browser/class-location', {class: className});
-    if (!d.success) throw new Error(d.exception);
-    if (!d.dictionary) throw new Error(`Class not found: ${className}`);
-    currentDict = d.dictionary;
+    currentDict = nextDict;
     currentClass = className;
     currentProtocol = '-- all --';
     currentMethod = methodName;
+    ensureFilterShowsValue(els.dictFilter, currentDict);
+    ensureFilterShowsValue(els.classFilter, currentClass);
+    ensureFilterShowsValue(els.methodFilter, currentMethod);
     await loadDictionaries();
+    return true;
   }
 
   async function refreshBrowser() {
@@ -3102,28 +4706,54 @@ function openClassBrowser(options = {}) {
     currentMethod = saved.method;
     currentMeta = saved.meta;
     els.meta.checked = currentMeta;
+    clearBrowserCache();
     await loadDictionaries();
+  }
+
+  function resolveSelectorQuery(baseMode) {
+    const scope = els.queryScope?.value || 'all';
+    if (scope === 'all') return {mode: baseMode, scope};
+    if (!currentClass) {
+      setBrowserStatus('Select a class first for hierarchy queries', 'error');
+      return null;
+    }
+    return {
+      mode: baseMode === 'implementors' ? 'hierarchyImplementors' : 'hierarchySenders',
+      scope,
+    };
   }
 
   async function runSelectorQuery(mode, promptTitle, forcePrompt=false) {
     let selector = !forcePrompt && currentMethod ? currentMethod : '';
-    if (!selector) selector = prompt(promptTitle, currentMethod || '');
+    if (!selector) selector = await requestTextModal(promptTitle.replace(/:$/, ''), 'Selector', currentMethod || '', 'printString');
     selector = String(selector || '').trim();
     if (!selector) return;
+    const query = resolveSelectorQuery(mode);
+    if (!query) return;
     setBrowserStatus('Searching…');
     try {
       const d = await apiWithParams('/class-browser/query', {
         selector,
-        mode,
+        mode: query.mode,
         rootClassName: currentClass || '',
-        hierarchyScope: 'full',
+        rootDictionary: currentDict || '',
+        meta: currentMeta ? 1 : 0,
+        hierarchyScope: query.scope,
       });
       if (!d.success) throw new Error(d.exception);
       if (!d.results.length) {
         setBrowserStatus('No matches found');
         return;
       }
-      openMethodQueryWindow(`${promptTitle} (${d.results.length})`, d.results);
+      const titlePrefix = query.scope === 'all' ? promptTitle.replace(/:$/, '') : `${promptTitle.replace(/:$/, '')} (${hierarchyScopeLabel(query.scope)})`;
+      openMethodQueryWindow(`${titlePrefix} (${d.results.length})`, d.results, {
+        loadLabel: 'Load Into Browser',
+        async onLoadResult(parsed) {
+          await locateAndSelectClass(parsed.className, parsed.selector, parsed.meta, parsed.dictionary || null);
+          setBrowserStatus(`Loaded ${parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`}`, 'ok');
+          focusWin(win);
+        },
+      });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
     } catch (e) {
       setBrowserStatus(e.message, 'error');
@@ -3132,8 +4762,9 @@ function openClassBrowser(options = {}) {
   }
 
   async function runReferenceQuery() {
-    const token = prompt('References to class or variable name:', currentClass || '');
-    const selector = String(token || '').trim();
+    let selector = currentMethod || currentClass || '';
+    if (!selector) selector = await requestTextModal('References', 'Class or variable name', currentClass || '', 'Object');
+    selector = String(selector || '').trim();
     if (!selector) return;
     setBrowserStatus('Searching…');
     try {
@@ -3141,13 +4772,54 @@ function openClassBrowser(options = {}) {
         selector,
         mode: 'references',
         rootClassName: currentClass || '',
+        rootDictionary: currentDict || '',
+        meta: currentMeta ? 1 : 0,
       });
       if (!d.success) throw new Error(d.exception);
       if (!d.results.length) {
         setBrowserStatus('No matches found');
         return;
       }
-      openMethodQueryWindow(`References to ${selector} (${d.results.length})`, d.results);
+      openMethodQueryWindow(`References to ${selector} (${d.results.length})`, d.results, {
+        loadLabel: 'Load Into Browser',
+        async onLoadResult(parsed) {
+          await locateAndSelectClass(parsed.className, parsed.selector, parsed.meta, parsed.dictionary || null);
+          setBrowserStatus(`Loaded ${parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`}`, 'ok');
+          focusWin(win);
+        },
+      });
+      setBrowserStatus(`${d.results.length} matches`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function runMethodTextQuery() {
+    const selector = await requestTextModal('Methods With String Matching', 'Source substring', '', 'printString');
+    if (!selector) return;
+    setBrowserStatus('Searching…');
+    try {
+      const d = await apiWithParams('/class-browser/query', {
+        selector,
+        mode: 'methodText',
+        rootClassName: currentClass || '',
+        rootDictionary: currentDict || '',
+        meta: currentMeta ? 1 : 0,
+      });
+      if (!d.success) throw new Error(d.exception);
+      if (!d.results.length) {
+        setBrowserStatus('No matches found');
+        return;
+      }
+      openMethodQueryWindow(`Methods with "${selector}" (${d.results.length})`, d.results, {
+        loadLabel: 'Load Into Browser',
+        async onLoadResult(parsed) {
+          await locateAndSelectClass(parsed.className, parsed.selector, parsed.meta, parsed.dictionary || null);
+          setBrowserStatus(`Loaded ${parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`}`, 'ok');
+          focusWin(win);
+        },
+      });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
     } catch (e) {
       setBrowserStatus(e.message, 'error');
@@ -3161,9 +4833,24 @@ function openClassBrowser(options = {}) {
       return;
     }
     try {
-      const d = await apiWithParams('/class-browser/hierarchy', {class: currentClass});
+      const d = await fetchBrowserCached('hierarchy', {
+        dictionary: currentDict || '',
+        class: currentClass,
+      }, () => {
+        const params = {class: currentClass};
+        if (currentDict) params.dictionary = currentDict;
+        return apiWithParams('/class-browser/hierarchy', params);
+      });
       if (!d.success) throw new Error(d.exception);
-      openTextWindow(`${currentClass} Hierarchy`, (d.hierarchy || []).join('\n'), 'Hierarchy', undefined, undefined, 420, 320);
+      openHierarchyWindow(`${currentClass} Hierarchy`, d.hierarchy || [], {
+        loadLabel: 'Load Into Browser',
+        meta: currentMeta,
+        async onLoadClass(entry) {
+          await locateAndSelectClass(entry.className, null, currentMeta, entry.dictionary || null);
+          setBrowserStatus(`Loaded ${currentMeta ? `${entry.className} class` : entry.className}`, 'ok');
+          focusWin(win);
+        },
+      });
       setBrowserStatus('Hierarchy loaded', 'ok');
     } catch (e) {
       setBrowserStatus(e.message, 'error');
@@ -3177,18 +4864,634 @@ function openClassBrowser(options = {}) {
       return;
     }
     try {
-      const d = await apiWithParams('/class-browser/versions', {
+      const d = await fetchBrowserCached('versions', {
+        dictionary: currentDict || '',
         class: currentClass,
         selector: currentMethod,
         meta: currentMeta ? 1 : 0,
+      }, () => {
+        const params = {
+          class: currentClass,
+          selector: currentMethod,
+          meta: currentMeta ? 1 : 0,
+        };
+        if (currentDict) params.dictionary = currentDict;
+        return apiWithParams('/class-browser/versions', params);
       });
       if (!d.success) throw new Error(d.exception);
       if (!d.versions.length) {
         setBrowserStatus('No versions available');
         return;
       }
-      openVersionsWindow(`${currentClass} >> ${currentMethod} Versions`, d.versions);
+      openVersionsWindow(`${currentClass} >> ${currentMethod} Versions`, d.versions, {
+        loadLabel: 'Load Into Browser',
+        onLoadVersion(version) {
+          if (!version) return;
+          els.source.value = version.source || '';
+          setSourceNote(`${currentMeta ? `${currentClass} class >> ${currentMethod}` : `${currentClass} >> ${currentMethod}`} (${version.label})`);
+          setBrowserStatus(`Loaded ${version.label} into editor`, 'ok');
+          focusWin(win);
+        },
+      });
       setBrowserStatus(`${d.versions.length} versions`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  function downloadTextFile(filename, text) {
+    const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = String(filename || 'export.st').replace(/[\\/:*?"<>|]+/g, '-');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function fileOut() {
+    const mode = els.fileOutMode?.value || 'class';
+    const params = {mode};
+    if (mode === 'method') {
+      if (!currentClass || !currentMethod) {
+        setBrowserStatus('Select a method first', 'error');
+        return;
+      }
+      if (currentDict) params.dictionary = currentDict;
+      params.class = currentClass;
+      params.selector = currentMethod;
+      params.meta = currentMeta ? 1 : 0;
+    } else if (mode.startsWith('class')) {
+      if (!currentClass) {
+        setBrowserStatus('Select a class first', 'error');
+        return;
+      }
+      if (currentDict) params.dictionary = currentDict;
+      params.class = currentClass;
+      params.meta = currentMeta ? 1 : 0;
+    } else {
+      if (!currentDict) {
+        setBrowserStatus('Select a dictionary first', 'error');
+        return;
+      }
+      params.dictionary = currentDict;
+    }
+
+    setBrowserStatus('Exporting…');
+    try {
+      const d = await apiWithParams('/class-browser/file-out', params);
+      if (!d.success) throw new Error(d.exception);
+      downloadTextFile(d.filename || 'export.st', d.source || '');
+      setBrowserStatus(`Exported ${d.filename || 'export.st'}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function addDictionary() {
+    const name = await requestTextModal('Add Dictionary', 'New dictionary name', '', 'TmpUI');
+    if (!name) return;
+    setBrowserStatus('Adding dictionary…');
+    try {
+      const d = await apiPost('/class-browser/add-dictionary', {name});
+      if (!d.success) throw new Error(d.exception || 'Dictionary creation failed');
+      clearBrowserCache();
+      currentDict = d.dictionary || name;
+      currentClass = null;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.dictFilter, currentDict);
+      await loadDictionaries();
+      setBrowserStatus(d.result || `Added ${currentDict}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function renameDictionary() {
+    if (!currentDict) {
+      setBrowserStatus('Select a dictionary first', 'error');
+      return;
+    }
+    const oldName = currentDict;
+    const nextName = await requestTextModal('Rename Dictionary', 'Rename dictionary to', oldName, oldName);
+    if (!nextName || nextName === oldName) return;
+    setBrowserStatus('Renaming dictionary…');
+    try {
+      const d = await apiPost('/class-browser/rename-dictionary', {
+        dictionary: oldName,
+        targetDictionary: nextName,
+      });
+      if (!d.success) throw new Error(d.exception || 'Dictionary rename failed');
+      clearBrowserCache();
+      currentDict = d.dictionary || nextName;
+      ensureFilterShowsValue(els.dictFilter, currentDict);
+      ensureFilterShowsValue(els.classFilter, currentClass);
+      await loadDictionaries();
+      setBrowserStatus(d.result || `Renamed ${oldName} to ${currentDict}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function removeDictionary() {
+    if (!currentDict) {
+      setBrowserStatus('Select a dictionary first', 'error');
+      return;
+    }
+    const dictionary = currentDict;
+    const confirmed = await requestConfirmModal('Remove Dictionary', `Remove "${dictionary}" from your symbol list?`, {okLabel: 'Remove'});
+    if (!confirmed) return;
+    setBrowserStatus('Removing dictionary…');
+    try {
+      const d = await apiPost('/class-browser/remove-dictionary', {dictionary});
+      if (!d.success) throw new Error(d.exception || 'Dictionary removal failed');
+      clearBrowserCache();
+      currentDict = null;
+      currentClass = null;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      await loadDictionaries();
+      setBrowserStatus(d.result || `Removed ${dictionary}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function findDictionary() {
+    const rawName = await requestTextModal('Find Dictionary', 'Dictionary name', currentDict || '', 'Globals');
+    const name = String(rawName || '').trim();
+    if (!name) return;
+    try {
+      const d = await fetchBrowserCached('dictionaries', {}, () => api('/class-browser/dictionaries'));
+      if (!d.success) throw new Error(d.exception);
+      const dictionaries = Array.isArray(d.dictionaries) ? d.dictionaries : [];
+      const exact = dictionaries.find(item => String(item).toLowerCase() === name.toLowerCase());
+      if (!exact) {
+        setBrowserStatus(`Dictionary not found: ${name}`, 'error');
+        return;
+      }
+      currentDict = exact;
+      currentClass = null;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.dictFilter, currentDict);
+      await loadDictionaries();
+      focusPaneList('dicts');
+      setBrowserStatus(`Selected ${exact}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function inspectTarget(mode) {
+    try {
+      const d = await apiPost('/class-browser/inspect-target', {
+        mode,
+        dictionary: currentDict || '',
+        className: currentClass || '',
+        selector: currentMethod || '',
+        meta: currentMeta,
+      });
+      if (!d.success) throw new Error(d.exception || 'Inspect failed');
+      openLinkedObjectWindow({
+        oop: d.oop,
+        text: d.label || currentClass || currentDict || 'object',
+        sourceWinId: id,
+      });
+      setBrowserStatus(`Opened ${d.label || 'inspector'}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function addClass() {
+    const targetDict = currentDict || 'UserGlobals';
+    if (!targetDict) {
+      setBrowserStatus('Select a dictionary first', 'error');
+      return;
+    }
+    const superclassName = currentClass || 'Object';
+    const className = await requestTextModal(
+      'Add Class',
+      `New class name in ${targetDict} < ${superclassName}`,
+      '',
+      'NewClass'
+    );
+    if (!className) return;
+    setBrowserStatus('Creating class…');
+    try {
+      const d = await apiPost('/class-browser/add-class', {
+        className,
+        dictionary: targetDict,
+        superclassName,
+        superclassDictionary: currentClass ? (currentDict || '') : '',
+      });
+      if (!d.success) throw new Error(d.exception || 'Class creation failed');
+      clearBrowserCache();
+      currentMeta = false;
+      els.meta.checked = false;
+      currentDict = d.dictionary || targetDict;
+      currentClass = d.className || className;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.dictFilter, currentDict);
+      ensureFilterShowsValue(els.classFilter, currentClass);
+      await loadDictionaries();
+      setBrowserStatus(d.result || `Created ${currentClass} in ${currentDict}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function renameClass() {
+    if (!currentClass || !currentDict) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    const oldClassName = currentClass;
+    const targetClassName = await requestTextModal(
+      'Rename Class',
+      `Rename ${oldClassName} to`,
+      oldClassName,
+      oldClassName
+    );
+    if (!targetClassName || targetClassName === oldClassName) return;
+    setBrowserStatus('Renaming class…');
+    try {
+      const d = await apiPost('/class-browser/rename-class', {
+        className: oldClassName,
+        dictionary: currentDict,
+        targetClassName,
+      });
+      if (!d.success) throw new Error(d.exception || 'Class rename failed');
+      clearBrowserCache();
+      currentClass = d.className || targetClassName;
+      currentDict = d.dictionary || currentDict;
+      ensureFilterShowsValue(els.dictFilter, currentDict);
+      ensureFilterShowsValue(els.classFilter, currentClass);
+      await loadDictionaries();
+      setBrowserStatus(d.result || `Renamed ${oldClassName} to ${currentClass}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function addCategory() {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    const category = await requestTextModal(
+      'Add Category',
+      `New category for ${currentMeta ? `${currentClass} class` : currentClass}`,
+      '',
+      'new-category'
+    );
+    if (!category) return;
+    setBrowserStatus('Adding category…');
+    try {
+      const d = await apiPost('/class-browser/add-category', {
+        className: currentClass,
+        dictionary: currentDict || '',
+        category,
+        meta: currentMeta,
+      });
+      if (!d.success) throw new Error(d.exception || 'Category creation failed');
+      clearBrowserCache();
+      currentProtocol = d.category || category;
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.protocolFilter, currentProtocol);
+      await loadProtocols();
+      setBrowserStatus(d.result || `Added category ${currentProtocol}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function renameCategory() {
+    if (!currentClass || !currentProtocol || currentProtocol === '-- all --') {
+      setBrowserStatus('Select a category first', 'error');
+      return;
+    }
+    const oldCategory = currentProtocol;
+    const targetCategory = await requestTextModal(
+      'Rename Category',
+      `Rename ${oldCategory} to`,
+      oldCategory,
+      oldCategory
+    );
+    if (!targetCategory || targetCategory === oldCategory) return;
+    setBrowserStatus('Renaming category…');
+    try {
+      const d = await apiPost('/class-browser/rename-category', {
+        className: currentClass,
+        dictionary: currentDict || '',
+        category: oldCategory,
+        targetCategory,
+        meta: currentMeta,
+      });
+      if (!d.success) throw new Error(d.exception || 'Category rename failed');
+      clearBrowserCache();
+      currentProtocol = d.category || targetCategory;
+      ensureFilterShowsValue(els.protocolFilter, currentProtocol);
+      ensureFilterShowsValue(els.methodFilter, currentMethod);
+      await loadProtocols();
+      setBrowserStatus(d.result || `Renamed ${oldCategory} to ${currentProtocol}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function addClassVariable(route, title, message, placeholder) {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    const variableName = await requestTextModal(title, message, '', placeholder);
+    if (!variableName) return;
+    setBrowserStatus(`${title}…`);
+    try {
+      const d = await apiPost(route, {
+        className: currentClass,
+        dictionary: currentDict || '',
+        variableName,
+      });
+      if (!d.success) throw new Error(d.exception || `${title} failed`);
+      clearBrowserCache();
+      currentMeta = false;
+      els.meta.checked = false;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.classFilter, currentClass);
+      await loadProtocols();
+      setBrowserStatus(d.result || `${title} succeeded`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function moveClass() {
+    if (!currentClass || !currentDict) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    try {
+      const dictionariesResponse = await fetchBrowserCached('dictionaries', {}, () => api('/class-browser/dictionaries'));
+      if (!dictionariesResponse.success) throw new Error(dictionariesResponse.exception);
+      const options = (dictionariesResponse.dictionaries || [])
+        .filter(name => name !== currentDict)
+        .map(name => ({value: name, label: name}));
+      if (!options.length) {
+        setBrowserStatus('No other dictionary is available', 'error');
+        return;
+      }
+      const className = currentClass;
+      const fromDict = currentDict;
+      const selected = await requestSelectModal(
+        'Move Class',
+        `Move ${className} from ${fromDict} to`,
+        options,
+        options[0]?.value || '',
+        {okLabel: 'Move'}
+      );
+      if (!selected || selected === fromDict) return;
+      setBrowserStatus('Moving class…');
+      const d = await apiPost('/class-browser/move-class', {
+        className,
+        dictionary: fromDict,
+        targetDictionary: selected,
+      });
+      if (!d.success) throw new Error(d.exception || 'Class move failed');
+      clearBrowserCache();
+      currentDict = d.dictionary || selected;
+      currentClass = d.className || className;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.dictFilter, currentDict);
+      ensureFilterShowsValue(els.classFilter, currentClass);
+      await loadDictionaries();
+      setBrowserStatus(d.result || `Moved ${currentClass} to ${currentDict}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function removeClass() {
+    if (!currentClass || !currentDict) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    const className = currentClass;
+    const dictionary = currentDict;
+    const confirmed = await requestConfirmModal('Remove Class', `Remove "${className}" from the system?`, {okLabel: 'Remove'});
+    if (!confirmed) return;
+    setBrowserStatus('Removing class…');
+    try {
+      const d = await apiPost('/class-browser/remove-class', {
+        className,
+        dictionary,
+      });
+      if (!d.success) throw new Error(d.exception || 'Class removal failed');
+      clearBrowserCache();
+      currentDict = dictionary;
+      currentClass = null;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      await loadDictionaries();
+      setBrowserStatus(d.result || `Removed ${className}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function moveMethod() {
+    if (!currentClass || !currentMethod) {
+      setBrowserStatus('Select a method first', 'error');
+      return;
+    }
+    const className = currentClass;
+    const selector = currentMethod;
+    const currentCategory = currentProtocol === '-- all --' ? 'as yet unclassified' : currentProtocol;
+    const targetCategory = await requestTextModal(
+      'Move Method',
+      `Move ${selector} to category`,
+      currentCategory,
+      'as yet unclassified',
+      {okLabel: 'Move'}
+    );
+    if (!targetCategory || targetCategory === currentCategory) return;
+    setBrowserStatus('Moving method…');
+    try {
+      const d = await apiPost('/class-browser/move-method', {
+        className,
+        dictionary: currentDict || '',
+        selector,
+        category: targetCategory,
+        meta: currentMeta,
+      });
+      if (!d.success) throw new Error(d.exception || 'Method move failed');
+      clearBrowserCache();
+      currentProtocol = d.category || targetCategory;
+      currentMethod = d.selector || selector;
+      ensureFilterShowsValue(els.protocolFilter, currentProtocol);
+      ensureFilterShowsValue(els.methodFilter, currentMethod);
+      await loadProtocols();
+      setBrowserStatus(d.result || `Moved ${currentMethod} to ${currentProtocol}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function removeMethod() {
+    if (!currentClass || !currentMethod) {
+      setBrowserStatus('Select a method first', 'error');
+      return;
+    }
+    const className = currentClass;
+    const selector = currentMethod;
+    const confirmed = await requestConfirmModal(
+      'Remove Method',
+      `Remove "${selector}" from ${currentMeta ? `${className} class` : className}?`,
+      {okLabel: 'Remove'}
+    );
+    if (!confirmed) return;
+    setBrowserStatus('Removing method…');
+    try {
+      const d = await apiPost('/class-browser/remove-method', {
+        className,
+        dictionary: currentDict || '',
+        selector,
+        meta: currentMeta,
+      });
+      if (!d.success) throw new Error(d.exception || 'Method removal failed');
+      clearBrowserCache();
+      currentMethod = null;
+      await loadProtocols();
+      setBrowserStatus(d.result || `Removed ${selector}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function removeCategory() {
+    if (!currentClass || !currentProtocol || currentProtocol === '-- all --') {
+      setBrowserStatus('Select a category first', 'error');
+      return;
+    }
+    const className = currentClass;
+    const category = currentProtocol;
+    const selectedMethod = currentMethod;
+    const confirmed = await requestConfirmModal(
+      'Remove Category',
+      `Remove "${category}" and move its methods to "as yet unclassified"?`,
+      {okLabel: 'Move Methods'}
+    );
+    if (!confirmed) return;
+    setBrowserStatus('Removing category…');
+    try {
+      const d = await apiPost('/class-browser/remove-category', {
+        className,
+        dictionary: currentDict || '',
+        category,
+        meta: currentMeta,
+      });
+      if (!d.success) throw new Error(d.exception || 'Category removal failed');
+      clearBrowserCache();
+      currentProtocol = d.category || 'as yet unclassified';
+      currentMethod = selectedMethod;
+      ensureFilterShowsValue(els.protocolFilter, currentProtocol);
+      ensureFilterShowsValue(els.methodFilter, currentMethod);
+      await loadProtocols();
+      setBrowserStatus(d.result || `Moved methods from ${category}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  function startNewMethod() {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    currentMethod = null;
+    currentSourceMode = 'newMethod';
+    syncSourceMode();
+    setActiveRow(els.methods, null);
+    els.source.value = '';
+    setSourceNote(currentMeta ? `${currentClass} class >> (new method)` : `${currentClass} >> (new method)`);
+    const targetProtocol = currentProtocol === '-- all --' ? 'as yet unclassified' : currentProtocol;
+    setBrowserStatus(`Enter a new method for ${targetProtocol}`, 'ok');
+    els.source.focus();
+  }
+
+  async function createAccessors() {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    const variableName = await requestTextModal('Create Accessors', 'Variable name', '', 'name');
+    if (!variableName) return;
+    setBrowserStatus('Creating accessors…');
+    try {
+      const d = await apiPost('/class-browser/create-accessors', {
+        className: currentClass,
+        dictionary: currentDict || '',
+        variableName,
+      });
+      if (!d.success) throw new Error(d.exception || 'Accessor generation failed');
+      const getterSelector = String(d.getterSelector || variableName).trim();
+      const accessorCategory = String(d.category || 'accessing').trim() || 'accessing';
+      clearBrowserCache();
+      currentMeta = false;
+      els.meta.checked = false;
+      currentProtocol = accessorCategory;
+      currentMethod = getterSelector || null;
+      ensureFilterShowsValue(els.protocolFilter, currentProtocol);
+      ensureFilterShowsValue(els.methodFilter, currentMethod);
+      await loadProtocols();
+      setBrowserStatus(d.result || 'Accessors created', 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function commitSession() {
+    setBrowserStatus('Committing…');
+    try {
+      const d = await apiTransaction('/transaction/commit');
+      if (!d.success) throw new Error(d.exception);
+      clearBrowserCache();
+      setBrowserStatus('Transaction committed', 'ok');
+      setStatus(true, 'committed');
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -3204,13 +5507,32 @@ function openClassBrowser(options = {}) {
     try {
       const d = await apiPost('/class-browser/compile', {
         className: currentClass,
+        dictionary: currentDict || '',
         category: currentProtocol === '-- all --' ? 'as yet unclassified' : currentProtocol,
+        selector: currentMethod || '',
         source: els.source.value,
         meta: els.meta.checked,
+        sourceKind: currentSourceMode === 'classDefinition' ? 'classDefinition' : 'method',
       });
       if (!d.success) throw new Error(d.exception || 'Compilation failed');
-      setBrowserStatus(d.result || 'Compiled', 'ok');
+      const compiledSelector = String(d.selector || currentMethod || '').trim();
+      const compiledCategory = String(d.category || currentProtocol || '').trim();
+      clearBrowserCache();
+      if (compiledCategory) currentProtocol = compiledCategory;
+      if (compiledSelector) currentMethod = compiledSelector;
+      currentSourceMode = 'method';
+      ensureFilterShowsValue(els.protocolFilter, currentProtocol);
+      ensureFilterShowsValue(els.methodFilter, currentMethod);
+      const compiledLabel = compiledSelector
+        ? `${currentClass}${currentMeta ? ' class' : ''} >> ${compiledSelector}`
+        : `${currentClass}${currentMeta ? ' class' : ''}`;
+      const renameNote = d.previousSelector && compiledSelector && d.previousSelector !== compiledSelector
+        ? ` (${d.previousSelector} → ${compiledSelector})`
+        : '';
+      const compileStatus = `${d.result || 'Compiled'}${renameNote}`;
       await loadProtocols();
+      setBrowserStatus(compileStatus, 'ok');
+      if (compiledSelector) setSourceNote(compiledLabel);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -3218,36 +5540,99 @@ function openClassBrowser(options = {}) {
   }
 
   body.querySelector(`#${id}-find`).addEventListener('click', async () => {
-    const name = prompt('Class name:', currentClass || '');
-    const className = String(name || '').trim();
+    const className = await requestTextModal('Find Class', 'Class name', currentClass || '', 'Object');
     if (!className) return;
     try {
-      await locateAndSelectClass(className);
+      const loaded = await locateAndSelectClass(className);
+      if (!loaded) {
+        setBrowserStatus('Class selection cancelled');
+        return;
+      }
       setBrowserStatus(`Selected ${className}`, 'ok');
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
     }
   });
+  body.querySelector(`#${id}-find-dictionary`).addEventListener('click', () => findDictionary());
+  body.querySelector(`#${id}-add-dictionary`).addEventListener('click', () => addDictionary());
+  body.querySelector(`#${id}-rename-dictionary`).addEventListener('click', () => renameDictionary());
+  body.querySelector(`#${id}-remove-dictionary`).addEventListener('click', () => removeDictionary());
+  body.querySelector(`#${id}-add-class`).addEventListener('click', () => addClass());
+  body.querySelector(`#${id}-rename-class`).addEventListener('click', () => renameClass());
+  body.querySelector(`#${id}-add-category`).addEventListener('click', () => addCategory());
+  body.querySelector(`#${id}-rename-category`).addEventListener('click', () => renameCategory());
+  body.querySelector(`#${id}-add-inst-var`).addEventListener('click', () => addClassVariable(
+    '/class-browser/add-instance-variable',
+    'Add Instance Variable',
+    `Instance variable name for ${currentClass}`,
+    'slotName'
+  ));
+  body.querySelector(`#${id}-add-class-var`).addEventListener('click', () => addClassVariable(
+    '/class-browser/add-class-variable',
+    'Add Class Variable',
+    `Class variable name for ${currentClass}`,
+    'SharedState'
+  ));
+  body.querySelector(`#${id}-add-class-inst-var`).addEventListener('click', () => addClassVariable(
+    '/class-browser/add-class-instance-variable',
+    'Add Class Instance Variable',
+    `Class instance variable name for ${currentClass}`,
+    'cachedState'
+  ));
+  body.querySelector(`#${id}-move-class`).addEventListener('click', () => moveClass());
+  body.querySelector(`#${id}-remove-class`).addEventListener('click', () => removeClass());
   body.querySelector(`#${id}-refresh`).addEventListener('click', () => refreshBrowser());
-  body.querySelector(`#${id}-browse-class`).addEventListener('click', () => loadClassSource(''));
+  body.querySelector(`#${id}-browse-class`).addEventListener('click', () => {
+    currentMethod = null;
+    currentSourceMode = 'classDefinition';
+    setActiveRow(els.methods, null);
+    loadClassSource('');
+  });
+  body.querySelector(`#${id}-new-method`).addEventListener('click', () => startNewMethod());
+  body.querySelector(`#${id}-move-method`).addEventListener('click', () => moveMethod());
+  body.querySelector(`#${id}-remove-method`).addEventListener('click', () => removeMethod());
+  body.querySelector(`#${id}-remove-category`).addEventListener('click', () => removeCategory());
   body.querySelector(`#${id}-hierarchy`).addEventListener('click', () => showHierarchy());
   body.querySelector(`#${id}-versions`).addEventListener('click', () => showVersions());
   body.querySelector(`#${id}-references`).addEventListener('click', () => runReferenceQuery());
+  body.querySelector(`#${id}-method-text`).addEventListener('click', () => runMethodTextQuery());
+  body.querySelector(`#${id}-inspect-dictionary`).addEventListener('click', () => inspectTarget('dictionary'));
+  body.querySelector(`#${id}-inspect-class`).addEventListener('click', () => inspectTarget('class'));
+  body.querySelector(`#${id}-inspect-method`).addEventListener('click', () => inspectTarget('method'));
+  body.querySelector(`#${id}-inspect-instances`).addEventListener('click', () => inspectTarget('instances'));
   body.querySelector(`#${id}-senders`).addEventListener('click', () => runSelectorQuery('senders', 'Senders of selector:'));
   body.querySelector(`#${id}-implementors`).addEventListener('click', () => runSelectorQuery('implementors', 'Implementors of selector:'));
+  body.querySelector(`#${id}-file-out`).addEventListener('click', () => fileOut());
+  body.querySelector(`#${id}-create-accessors`).addEventListener('click', () => createAccessors());
+  body.querySelector(`#${id}-commit`).addEventListener('click', () => commitSession());
   body.querySelector(`#${id}-compile`).addEventListener('click', () => compileSource());
+  win.addEventListener('keydown', handleClassBrowserKeydown);
   els.meta.addEventListener('change', async () => {
     currentMeta = els.meta.checked;
     currentProtocol = '-- all --';
     currentMethod = null;
+    ensureFilterShowsValue(els.classFilter, currentClass);
     await loadProtocols();
   });
 
   (async () => {
     try {
+      paneWidths = loadStoredPaneWidths();
+      applyPaneWidths();
+      initPaneSplitters();
+      initListFilters();
+      syncSourceMode();
       if (currentClass && !currentDict) {
-        await locateAndSelectClass(currentClass, currentMethod, currentMeta);
+        const loaded = await locateAndSelectClass(currentClass, currentMethod, currentMeta);
+        if (!loaded) {
+          currentClass = null;
+          currentMethod = null;
+          currentProtocol = '-- all --';
+          await loadDictionaries();
+          setBrowserStatus('Ready');
+          return;
+        }
       } else {
         await loadDictionaries();
       }
@@ -3280,23 +5665,198 @@ function makeTable(headers, rows) {
 }
 
 // ── modal ─────────────────────────────────────────────────────────────────────
-function openModal(title, fields, onOk) {
-  document.getElementById('modal-title').textContent=title;
-  const fd=document.getElementById('modal-fields'); fd.innerHTML='';
-  for(const f of fields){
-    const lbl=document.createElement('label');lbl.textContent=f.label;lbl.style.cssText='display:block;margin-bottom:2px';fd.appendChild(lbl);
-    const el=f.type==='textarea'?document.createElement('textarea'):document.createElement('input');
-    if(f.type!=='textarea')el.type='text';
-    el.placeholder=f.placeholder||'';el.id=f.id;el.style.marginBottom='6px';el.value=f.value||'';fd.appendChild(el);
+function populateModalFields(fieldsEl, fields, options = {}) {
+  fieldsEl.innerHTML = '';
+  if (options.message) {
+    const message = document.createElement('div');
+    message.className = 'modal-message';
+    message.textContent = options.message;
+    fieldsEl.appendChild(message);
   }
-  document.getElementById('modal-overlay').classList.add('visible');
-  if(fields.length)document.getElementById(fields[0].id)?.focus();
-  const cleanup=()=>document.getElementById('modal-overlay').classList.remove('visible');
-  document.getElementById('modal-cancel').onclick=cleanup;
-  document.getElementById('modal-ok').onclick=async()=>{
-    const vals={};for(const f of fields)vals[f.id]=document.getElementById(f.id).value;
-    try{await onOk(vals);cleanup();}catch(e){setStatus(false,'Error: '+e.message);}
+  for (const field of fields) {
+    const label = document.createElement('label');
+    label.textContent = field.label;
+    label.style.cssText = 'display:block;margin-bottom:2px';
+    fieldsEl.appendChild(label);
+    let el;
+    if (field.type === 'textarea') {
+      el = document.createElement('textarea');
+    } else if (field.type === 'select') {
+      el = document.createElement('select');
+      (field.options || []).forEach(option => {
+        const opt = document.createElement('option');
+        if (option && typeof option === 'object') {
+          opt.value = option.value;
+          opt.textContent = option.label ?? option.value;
+        } else {
+          opt.value = String(option);
+          opt.textContent = String(option);
+        }
+        el.appendChild(opt);
+      });
+    } else {
+      el = document.createElement('input');
+      el.type = field.type || 'text';
+    }
+    el.placeholder = field.placeholder || '';
+    el.id = field.id;
+    el.style.marginBottom = '6px';
+    el.value = field.value || '';
+    fieldsEl.appendChild(el);
+  }
+}
+
+function requestModal(title, fields, options = {}) {
+  const overlay = document.getElementById('modal-overlay');
+  const titleEl = document.getElementById('modal-title');
+  const fieldsEl = document.getElementById('modal-fields');
+  const cancelBtn = document.getElementById('modal-cancel');
+  const okBtn = document.getElementById('modal-ok');
+
+  titleEl.textContent = title;
+  okBtn.textContent = options.okLabel || 'OK';
+  cancelBtn.textContent = options.cancelLabel || 'Cancel';
+  populateModalFields(fieldsEl, fields, options);
+
+  overlay.classList.add('visible');
+  const firstField = fields.length ? document.getElementById(fields[0].id) : null;
+  if (firstField) {
+    firstField.focus();
+    firstField.select?.();
+  } else {
+    okBtn.focus();
+  }
+
+  return new Promise(resolve => {
+    let settled = false;
+    const cleanup = result => {
+      if (settled) return;
+      settled = true;
+      overlay.classList.remove('visible');
+      document.removeEventListener('keydown', onKey, true);
+      cancelBtn.onclick = null;
+      okBtn.onclick = null;
+      resolve(result);
+    };
+    const collectValues = () => {
+      const vals = {};
+      for (const field of fields) vals[field.id] = document.getElementById(field.id)?.value ?? '';
+      return vals;
+    };
+    const submit = () => cleanup(collectValues());
+    const onKey = e => {
+      if (!overlay.classList.contains('visible')) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cleanup(null);
+        return;
+      }
+      if (e.key === 'Enter') {
+        const active = document.activeElement;
+        const isTextarea = active && active.tagName === 'TEXTAREA';
+        if ((isTextarea && (e.ctrlKey || e.metaKey)) || !isTextarea) {
+          e.preventDefault();
+          submit();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    cancelBtn.onclick = () => cleanup(null);
+    okBtn.onclick = submit;
+  });
+}
+
+function openModal(title, fields, onOk, options = {}) {
+  const overlay = document.getElementById('modal-overlay');
+  const titleEl = document.getElementById('modal-title');
+  const fieldsEl = document.getElementById('modal-fields');
+  const cancelBtn = document.getElementById('modal-cancel');
+  const okBtn = document.getElementById('modal-ok');
+
+  titleEl.textContent = title;
+  okBtn.textContent = options.okLabel || 'OK';
+  cancelBtn.textContent = options.cancelLabel || 'Cancel';
+  populateModalFields(fieldsEl, fields, options);
+
+  overlay.classList.add('visible');
+  const firstField = fields.length ? document.getElementById(fields[0].id) : null;
+  if (firstField) {
+    firstField.focus();
+    firstField.select?.();
+  } else {
+    okBtn.focus();
+  }
+
+  const cleanup = () => {
+    overlay.classList.remove('visible');
+    document.removeEventListener('keydown', onKey, true);
+    cancelBtn.onclick = null;
+    okBtn.onclick = null;
   };
+  const collectValues = () => {
+    const vals = {};
+    for (const field of fields) vals[field.id] = document.getElementById(field.id)?.value ?? '';
+    return vals;
+  };
+  const submit = async () => {
+    try {
+      await onOk(collectValues());
+      cleanup();
+    } catch (e) {
+      setStatus(false, 'Error: ' + e.message);
+    }
+  };
+  const onKey = e => {
+    if (!overlay.classList.contains('visible')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cleanup();
+      return;
+    }
+    if (e.key === 'Enter') {
+      const active = document.activeElement;
+      const isTextarea = active && active.tagName === 'TEXTAREA';
+      if ((isTextarea && (e.ctrlKey || e.metaKey)) || !isTextarea) {
+        e.preventDefault();
+        submit();
+      }
+    }
+  };
+
+  document.addEventListener('keydown', onKey, true);
+  cancelBtn.onclick = cleanup;
+  okBtn.onclick = submit;
+}
+
+async function requestTextModal(title, label, value = '', placeholder = '', options = {}) {
+  const vals = await requestModal(title, [{
+    label,
+    id: 'modal-value',
+    type: 'input',
+    placeholder,
+    value,
+  }], options);
+  return vals ? String(vals['modal-value'] || '').trim() : '';
+}
+
+async function requestSelectModal(title, label, optionsList, value = '', options = {}) {
+  const vals = await requestModal(title, [{
+    label,
+    id: 'modal-value',
+    type: 'select',
+    options: optionsList,
+    value,
+  }], options);
+  return vals ? String(vals['modal-value'] || '').trim() : '';
+}
+
+async function requestConfirmModal(title, message, options = {}) {
+  return !!(await requestModal(title, [], {
+    okLabel: 'OK',
+    cancelLabel: 'Cancel',
+    ...options,
+    message,
+  }));
 }
 
 // ── startup ───────────────────────────────────────────────────────────────────
@@ -3328,7 +5888,7 @@ async function startup() {
   }
 
   cascadeX = 80; cascadeY = 80;
-  setTimeout(startThreadPoller, 5000);
+  startThreadPoller();
 }
 startup();
 </script>
