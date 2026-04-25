@@ -3,7 +3,7 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test:ui": "playwright test",
+    "test:ui": "node tests/ui/run_ui_suites.js",
     "test:ui:mock": "playwright test",
     "test:ui:live": "node tests/ui/check_live_env.js && playwright test -c playwright.live.config.js"
   },

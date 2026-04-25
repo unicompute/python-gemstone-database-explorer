@@ -9,11 +9,12 @@ function windowByTitle(page, title) {
 async function submitModal(page, value = null) {
   const overlay = page.locator('#modal-overlay');
   const title = page.locator('#modal-title');
+  const fields = page.locator('#modal-fields').locator('input, textarea, select');
   await expect(overlay).toHaveClass(/visible/);
   const previousTitle = await title.textContent();
+  const previousFieldCount = await fields.count();
   const values = Array.isArray(value) ? value : (value == null ? [] : [value]);
-  const fields = page.locator('#modal-fields').locator('input, textarea, select');
-  const count = await fields.count();
+  const count = previousFieldCount;
   for (let index = 0; index < Math.min(values.length, count); index += 1) {
     const field = fields.nth(index);
     const tagName = await field.evaluate(el => el.tagName.toLowerCase());
@@ -28,7 +29,8 @@ async function submitModal(page, value = null) {
     const overlayClass = await overlay.getAttribute('class') || '';
     if (!/visible/.test(overlayClass)) return 'closed';
     const currentTitle = await title.textContent();
-    return currentTitle !== previousTitle ? 'replaced' : 'visible';
+    const currentFieldCount = await fields.count();
+    return currentTitle !== previousTitle || currentFieldCount !== previousFieldCount ? 'replaced' : 'visible';
   }).not.toBe('visible');
 }
 

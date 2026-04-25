@@ -526,6 +526,16 @@ def _class_definition(class_name: str, meta: bool) -> str:
     )
 
 
+def _class_variable_slots(class_name: str, variable_kind: str) -> list[str]:
+    if variable_kind == "instance":
+        return CLASS_INSTANCE_VARS.setdefault(class_name, [])
+    if variable_kind == "class":
+        return CLASS_VARS.setdefault(class_name, [])
+    if variable_kind == "class-instance":
+        return CLASS_INST_VARS.setdefault(class_name, [])
+    raise ValueError(f"unsupported variable kind: {variable_kind}")
+
+
 def _symbol_preview(value: dict | None) -> dict | None:
     if value is None:
         return None
@@ -784,6 +794,7 @@ def debug_request_counts():
 def transaction_action():
     global PERSISTENT_MODE
     if request.path.endswith("persistent-mode"):
+        _count_request("transaction.persistent-mode")
         if request.method == "POST":
             PERSISTENT_MODE = bool((request.get_json(silent=True) or {}).get("enable"))
             return jsonify(
@@ -793,10 +804,13 @@ def transaction_action():
             )
         return jsonify(success=True, persistent=PERSISTENT_MODE)
     if request.path.endswith("commit"):
+        _count_request("transaction.commit")
         return jsonify(success=True, result="committed")
     if request.path.endswith("abort"):
+        _count_request("transaction.abort")
         return jsonify(success=True, result="aborted")
     if request.path.endswith("continue"):
+        _count_request("transaction.continue")
         return jsonify(success=True, result="continued")
     return jsonify(success=True)
 
@@ -1456,6 +1470,44 @@ def class_browser_add_instance_variable():
     return jsonify(success=True, result=f"Added instance variable {variable_name}", variableName=variable_name)
 
 
+@app.post("/class-browser/rename-instance-variable")
+def class_browser_rename_instance_variable():
+    _count_request("class-browser.rename-instance-variable")
+    data = request.get_json(force=True) or {}
+    class_name = str(data.get("className", "")).strip()
+    variable_name = str(data.get("variableName", "")).strip()
+    target_variable_name = str(data.get("targetVariableName", "")).strip()
+    if not class_name or not variable_name or not target_variable_name:
+        return jsonify(success=False, exception="missing class or variable name"), 400
+    slots = _class_variable_slots(class_name, "instance")
+    if variable_name not in slots:
+        return jsonify(success=False, exception="variable not found"), 404
+    slots[:] = [name for name in slots if name != variable_name]
+    if target_variable_name not in slots:
+        slots.append(target_variable_name)
+    return jsonify(
+        success=True,
+        result=f"Renamed instance variable {variable_name} to {target_variable_name}",
+        variableName=variable_name,
+        targetVariableName=target_variable_name,
+    )
+
+
+@app.post("/class-browser/remove-instance-variable")
+def class_browser_remove_instance_variable():
+    _count_request("class-browser.remove-instance-variable")
+    data = request.get_json(force=True) or {}
+    class_name = str(data.get("className", "")).strip()
+    variable_name = str(data.get("variableName", "")).strip()
+    if not class_name or not variable_name:
+        return jsonify(success=False, exception="missing class or variable name"), 400
+    slots = _class_variable_slots(class_name, "instance")
+    if variable_name not in slots:
+        return jsonify(success=False, exception="variable not found"), 404
+    slots[:] = [name for name in slots if name != variable_name]
+    return jsonify(success=True, result=f"Removed instance variable {variable_name}", variableName=variable_name)
+
+
 @app.post("/class-browser/add-class-variable")
 def class_browser_add_class_variable():
     _count_request("class-browser.add-class-variable")
@@ -1470,6 +1522,44 @@ def class_browser_add_class_variable():
     return jsonify(success=True, result=f"Added class variable {variable_name}", variableName=variable_name)
 
 
+@app.post("/class-browser/rename-class-variable")
+def class_browser_rename_class_variable():
+    _count_request("class-browser.rename-class-variable")
+    data = request.get_json(force=True) or {}
+    class_name = str(data.get("className", "")).strip()
+    variable_name = str(data.get("variableName", "")).strip()
+    target_variable_name = str(data.get("targetVariableName", "")).strip()
+    if not class_name or not variable_name or not target_variable_name:
+        return jsonify(success=False, exception="missing class or variable name"), 400
+    slots = _class_variable_slots(class_name, "class")
+    if variable_name not in slots:
+        return jsonify(success=False, exception="variable not found"), 404
+    slots[:] = [name for name in slots if name != variable_name]
+    if target_variable_name not in slots:
+        slots.append(target_variable_name)
+    return jsonify(
+        success=True,
+        result=f"Renamed class variable {variable_name} to {target_variable_name}",
+        variableName=variable_name,
+        targetVariableName=target_variable_name,
+    )
+
+
+@app.post("/class-browser/remove-class-variable")
+def class_browser_remove_class_variable():
+    _count_request("class-browser.remove-class-variable")
+    data = request.get_json(force=True) or {}
+    class_name = str(data.get("className", "")).strip()
+    variable_name = str(data.get("variableName", "")).strip()
+    if not class_name or not variable_name:
+        return jsonify(success=False, exception="missing class or variable name"), 400
+    slots = _class_variable_slots(class_name, "class")
+    if variable_name not in slots:
+        return jsonify(success=False, exception="variable not found"), 404
+    slots[:] = [name for name in slots if name != variable_name]
+    return jsonify(success=True, result=f"Removed class variable {variable_name}", variableName=variable_name)
+
+
 @app.post("/class-browser/add-class-instance-variable")
 def class_browser_add_class_instance_variable():
     _count_request("class-browser.add-class-instance-variable")
@@ -1482,6 +1572,44 @@ def class_browser_add_class_instance_variable():
     if variable_name not in slots:
         slots.append(variable_name)
     return jsonify(success=True, result=f"Added class instance variable {variable_name}", variableName=variable_name)
+
+
+@app.post("/class-browser/rename-class-instance-variable")
+def class_browser_rename_class_instance_variable():
+    _count_request("class-browser.rename-class-instance-variable")
+    data = request.get_json(force=True) or {}
+    class_name = str(data.get("className", "")).strip()
+    variable_name = str(data.get("variableName", "")).strip()
+    target_variable_name = str(data.get("targetVariableName", "")).strip()
+    if not class_name or not variable_name or not target_variable_name:
+        return jsonify(success=False, exception="missing class or variable name"), 400
+    slots = _class_variable_slots(class_name, "class-instance")
+    if variable_name not in slots:
+        return jsonify(success=False, exception="variable not found"), 404
+    slots[:] = [name for name in slots if name != variable_name]
+    if target_variable_name not in slots:
+        slots.append(target_variable_name)
+    return jsonify(
+        success=True,
+        result=f"Renamed class instance variable {variable_name} to {target_variable_name}",
+        variableName=variable_name,
+        targetVariableName=target_variable_name,
+    )
+
+
+@app.post("/class-browser/remove-class-instance-variable")
+def class_browser_remove_class_instance_variable():
+    _count_request("class-browser.remove-class-instance-variable")
+    data = request.get_json(force=True) or {}
+    class_name = str(data.get("className", "")).strip()
+    variable_name = str(data.get("variableName", "")).strip()
+    if not class_name or not variable_name:
+        return jsonify(success=False, exception="missing class or variable name"), 400
+    slots = _class_variable_slots(class_name, "class-instance")
+    if variable_name not in slots:
+        return jsonify(success=False, exception="variable not found"), 404
+    slots[:] = [name for name in slots if name != variable_name]
+    return jsonify(success=True, result=f"Removed class instance variable {variable_name}", variableName=variable_name)
 
 
 @app.get("/class-browser/file-out")

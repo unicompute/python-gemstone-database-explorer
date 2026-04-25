@@ -934,8 +934,8 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["variableName"], "slotOne")
         self.assertEqual(data["result"], "Added instance variable slotOne")
         script = session.eval.call_args[0][0]
-        self.assertIn("cls addInstVarName: 'slotOne' asSymbol.", script)
-        self.assertIn("cls respondsTo: #addInstVarName:", script)
+        self.assertIn("target addInstVarName: 'slotOne' asSymbol.", script)
+        self.assertIn("target respondsTo: #addInstVarName:", script)
         self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
 
     @patch("gemstone_p.app.gs_session.request_session")
@@ -957,8 +957,8 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["variableName"], "SharedState")
         self.assertEqual(data["result"], "Added class variable SharedState")
         script = session.eval.call_args[0][0]
-        self.assertIn("cls addClassVarName: 'SharedState' asSymbol.", script)
-        self.assertIn("cls respondsTo: #addClassVarName:", script)
+        self.assertIn("target addClassVarName: 'SharedState' asSymbol.", script)
+        self.assertIn("target respondsTo: #addClassVarName:", script)
         self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
 
     @patch("gemstone_p.app.gs_session.request_session")
@@ -980,8 +980,149 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["variableName"], "cachedState")
         self.assertEqual(data["result"], "Added class instance variable cachedState")
         script = session.eval.call_args[0][0]
-        self.assertIn("meta addInstVarName: 'cachedState' asSymbol.", script)
-        self.assertIn("meta respondsTo: #addInstVarName:", script)
+        self.assertIn("target addInstVarName: 'cachedState' asSymbol.", script)
+        self.assertIn("target respondsTo: #addInstVarName:", script)
+        self.assertIn("target := cls ifNil: [nil] ifNotNil: [:base | base class].", script)
+        self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_rename_instance_variable_uses_mutating_session(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|slotOne|slotTwo"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.post(
+            "/class-browser/rename-instance-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "slotOne",
+                "targetVariableName": "slotTwo",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["variableName"], "slotOne")
+        self.assertEqual(data["targetVariableName"], "slotTwo")
+        self.assertEqual(data["result"], "Renamed instance variable slotOne to slotTwo")
+        script = session.eval.call_args[0][0]
+        self.assertIn("target addInstVarName: 'slotTwo' asSymbol.", script)
+        self.assertIn("target removeInstVar: 'slotOne'.", script)
+        self.assertIn("target respondsTo: #removeInstVar:", script)
+        self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_remove_instance_variable_uses_mutating_session(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|slotOne"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.post(
+            "/class-browser/remove-instance-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "slotOne",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["result"], "Removed instance variable slotOne")
+        script = session.eval.call_args[0][0]
+        self.assertIn("target removeInstVar: 'slotOne'.", script)
+        self.assertIn("target respondsTo: #removeInstVar:", script)
+        self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_rename_class_variable_uses_mutating_session(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|SharedState|RenamedState"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.post(
+            "/class-browser/rename-class-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "SharedState",
+                "targetVariableName": "RenamedState",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["result"], "Renamed class variable SharedState to RenamedState")
+        script = session.eval.call_args[0][0]
+        self.assertIn("target addClassVarName: 'RenamedState' asSymbol.", script)
+        self.assertIn("target removeClassVarName: 'SharedState'.", script)
+        self.assertIn("target respondsTo: #removeClassVarName:", script)
+        self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_remove_class_variable_uses_mutating_session(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|SharedState"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.post(
+            "/class-browser/remove-class-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "SharedState",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["result"], "Removed class variable SharedState")
+        script = session.eval.call_args[0][0]
+        self.assertIn("target removeClassVarName: 'SharedState'.", script)
+        self.assertIn("target respondsTo: #removeClassVarName:", script)
+        self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_rename_class_instance_variable_uses_mutating_session(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|cachedState|renamedCache"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.post(
+            "/class-browser/rename-class-instance-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "cachedState",
+                "targetVariableName": "renamedCache",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["result"], "Renamed class instance variable cachedState to renamedCache")
+        script = session.eval.call_args[0][0]
+        self.assertIn("target addInstVarName: 'renamedCache' asSymbol.", script)
+        self.assertIn("target removeInstVar: 'cachedState'.", script)
+        self.assertIn("target := cls ifNil: [nil] ifNotNil: [:base | base class].", script)
+        self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_remove_class_instance_variable_uses_mutating_session(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|cachedState"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.post(
+            "/class-browser/remove-class-instance-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "cachedState",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["result"], "Removed class instance variable cachedState")
+        script = session.eval.call_args[0][0]
+        self.assertIn("target removeInstVar: 'cachedState'.", script)
+        self.assertIn("target := cls ifNil: [nil] ifNotNil: [:base | base class].", script)
         self.assertEqual(mock_rs.call_args.kwargs, {"read_only": False})
 
     @patch("gemstone_p.app.gs_session.request_session")

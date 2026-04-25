@@ -64,13 +64,15 @@ Install the Playwright dev dependency once:
 npm install
 ```
 
-Run the deterministic mock-backed browser smoke suite:
+Run the browser suite:
 
 ```bash
 npm run test:ui
 ```
 
-Run the live GemStone browser suite against a real session:
+That always runs the deterministic mock-backed suite first. If `GEMSTONE`, `GS_USERNAME`, and `GS_PASSWORD` are present, it automatically chains the live GemStone suite after the mock run; otherwise it prints a skip message and stops after the mock suite.
+
+Run only the live GemStone browser suite against a real session:
 
 ```bash
 export GEMSTONE=/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin

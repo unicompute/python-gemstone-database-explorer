@@ -46,6 +46,8 @@
       padding: 0 8px;
       z-index: 9999;
       flex-shrink: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
     #taskbar-title {
       font-size: 11px;
@@ -794,9 +796,30 @@
 
     /* ── query / versions windows ───────────────────────────────────── */
     .qv-wrap { display: flex; height: 100%; min-height: 0; }
+    .qv-side {
+      width: 280px; border-right: 1px solid #313244; flex-shrink: 0;
+      background: #11111b; display: flex; flex-direction: column; min-height: 0;
+    }
+    .qv-filter-wrap {
+      padding: 6px; border-bottom: 1px solid #313244; background: #181825; flex-shrink: 0;
+    }
+    .qv-filter {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid #313244; border-radius: 4px;
+      background: #11111b; color: #cdd6f4;
+      font-size: 10px; padding: 4px 6px; outline: none;
+    }
+    .qv-filter::placeholder { color: #6c7086; }
+    .qv-filter:focus {
+      border-color: #89dceb;
+      box-shadow: 0 0 0 1px rgba(137, 220, 235, 0.15);
+    }
     .qv-list {
       width: 280px; border-right: 1px solid #313244; overflow-y: auto; flex-shrink: 0;
-      background: #11111b;
+      background: #11111b; flex: 1; min-height: 0; outline: none; border-right: none;
+    }
+    .qv-list:focus {
+      box-shadow: inset 0 0 0 1px rgba(137, 220, 235, 0.22);
     }
     .qv-item {
       padding: 5px 8px; cursor: pointer; font-size: 11px;
@@ -972,6 +995,13 @@
   <button class="taskbar-btn" onclick="openWorkspace()">Workspace</button>
   <button class="taskbar-btn" onclick="openSymbolList()">Symbol List</button>
   <button class="taskbar-btn" onclick="openWebBrowser()">Web Browser</button>
+  <button class="taskbar-btn" onclick="cascadeWindows()">Cascade</button>
+  <button class="taskbar-btn" onclick="tileWindows()">Tile</button>
+  <button class="taskbar-btn" onclick="raiseRelatedWindows()">Raise Related</button>
+  <button class="taskbar-btn" onclick="closeWindowGroup()">Close Group</button>
+  <button class="taskbar-btn" onclick="minimiseAllWindows()">Minimise All</button>
+  <button class="taskbar-btn" onclick="closeOtherWindows()">Close Others</button>
+  <button class="taskbar-btn" onclick="resetStartupLayout()">Reset Startup</button>
   <div id="halted-threads-bar"></div>
   <div id="taskbar-sep"></div>
   <span id="status-dot"></span>
@@ -1043,6 +1073,9 @@ function setStatus(ok, msg) {
 
 const LEAF_BASETYPES = new Set(['string', 'symbol', 'fixnum', 'float', 'boolean', 'nilclass']);
 const windowState = new Map();
+const windowLayoutStorageKey = 'python-gemstone-window-layout-v1';
+const restorableWindowKinds = new Set(['object', 'class-browser', 'workspace', 'web-browser', 'symbol-list', 'debugger', 'method-query', 'hierarchy', 'versions']);
+let suppressWindowLayoutPersist = false;
 
 function isLeafBasetype(basetype) {
   return LEAF_BASETYPES.has(basetype);
@@ -1054,9 +1087,535 @@ function shortLabel(value, max = 32) {
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
 
+function sanitizeSelectionIndex(index, items) {
+  const numeric = Number(index);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min((items?.length || 1) - 1, Math.round(numeric)));
+}
+
+function getClassBrowserRuntime(sourceWindowId) {
+  if (!sourceWindowId) return null;
+  const sourceState = windowState.get(sourceWindowId);
+  if (!sourceState || sourceState.kind !== 'class-browser') return null;
+  return sourceState.browserRuntime || null;
+}
+
 function upsertWindowState(id, patch) {
   const current = windowState.get(id) || {};
   windowState.set(id, {...current, ...patch});
+  persistWindowLayout();
+}
+
+function getManagedWindows() {
+  return Array.from(document.querySelectorAll('.win'));
+}
+
+function getOrderedManagedWindows() {
+  return getManagedWindows().sort((left, right) => {
+    const leftZ = Number(left.style.zIndex || 0);
+    const rightZ = Number(right.style.zIndex || 0);
+    return leftZ - rightZ;
+  });
+}
+
+function isRestorableWindowState(state) {
+  return !!state && restorableWindowKinds.has(state.kind);
+}
+
+function parsePixelValue(value, fallback = 0) {
+  const numeric = Number.parseInt(String(value || ''), 10);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function serializeWindowLayoutEntry(id, state) {
+  if (!isRestorableWindowState(state)) return null;
+  const win = document.getElementById(id);
+  if (!win) return null;
+  const width = Math.max(320, Math.round(win.offsetWidth || parsePixelValue(win.style.width, 320)));
+  const liveHeight = Math.max(180, Math.round(win.offsetHeight || parsePixelValue(win.style.height, 180)));
+  const savedHeight = parsePixelValue(win.dataset.savedH, liveHeight);
+  const base = {
+    savedId: id,
+    kind: state.kind,
+    x: Math.round(win.offsetLeft || parsePixelValue(win.style.left, 0)),
+    y: Math.round(win.offsetTop || parsePixelValue(win.style.top, 0)),
+    width,
+    height: win.dataset.minimised === '1' ? savedHeight : liveHeight,
+    minimised: win.dataset.minimised === '1',
+    zIndex: Number(win.style.zIndex || 0),
+  };
+  if (state.sourceWindowId) base.sourceWindowId = state.sourceWindowId;
+  if (state.kind === 'object') {
+    return {
+      ...base,
+      oop: state.objectOop || state.object?.oop || null,
+      label: state.objectLabel || state.object?.inspection || '',
+      currentTab: state.currentTab || 'instvars',
+      compactMode: !!state.compactMode,
+      query: state.objectQuery || {},
+    };
+  }
+  if (state.kind === 'class-browser') {
+    return {
+      ...base,
+      dictionary: state.dictionary || '',
+      className: state.className || '',
+      protocol: state.protocol || '-- all --',
+      method: state.method || '',
+      meta: !!state.meta,
+    };
+  }
+  if (state.kind === 'workspace') {
+    return {
+      ...base,
+      draft: state.draft || '',
+    };
+  }
+  if (state.kind === 'web-browser') {
+    return {
+      ...base,
+      url: state.url || '',
+    };
+  }
+  if (state.kind === 'symbol-list') {
+    return {
+      ...base,
+      user: state.user || '',
+      dictionary: state.dictionary || '',
+      key: state.key || '',
+    };
+  }
+  if (state.kind === 'debugger') {
+    return {
+      ...base,
+      threadOop: state.threadOop || 0,
+      threadLabel: state.threadLabel || '',
+      currentTab: state.currentTab || 'stack',
+      frameIndex: Number.isFinite(Number(state.frameIndex)) ? Number(state.frameIndex) : 0,
+    };
+  }
+  if (state.kind === 'method-query') {
+    return {
+      ...base,
+      title: state.title || '',
+      results: Array.isArray(state.results) ? state.results : [],
+      filterText: state.filterText || '',
+      selectedIndex: Number.isFinite(Number(state.selectedIndex)) ? Number(state.selectedIndex) : 0,
+      loadLabel: state.loadLabel || 'Load Into Browser',
+    };
+  }
+  if (state.kind === 'hierarchy') {
+    return {
+      ...base,
+      title: state.title || '',
+      classes: Array.isArray(state.classes) ? state.classes : [],
+      filterText: state.filterText || '',
+      selectedIndex: Number.isFinite(Number(state.selectedIndex)) ? Number(state.selectedIndex) : 0,
+      meta: !!state.meta,
+      loadLabel: state.loadLabel || 'Load Into Browser',
+    };
+  }
+  if (state.kind === 'versions') {
+    return {
+      ...base,
+      title: state.title || '',
+      versions: Array.isArray(state.versions) ? state.versions : [],
+      filterText: state.filterText || '',
+      selectedIndex: Number.isFinite(Number(state.selectedIndex)) ? Number(state.selectedIndex) : 0,
+      loadLabel: state.loadLabel || 'Load Into Browser',
+      versionContext: state.versionContext || null,
+    };
+  }
+  return base;
+}
+
+function persistWindowLayout() {
+  if (suppressWindowLayoutPersist) return;
+  const windows = Array.from(windowState.entries())
+    .map(([id, state]) => serializeWindowLayoutEntry(id, state))
+    .filter(Boolean)
+    .sort((left, right) => left.zIndex - right.zIndex);
+  try {
+    localStorage.setItem(windowLayoutStorageKey, JSON.stringify({
+      version: 1,
+      windows,
+    }));
+  } catch (_) {
+    // Ignore layout persistence failures in restricted/private browser modes.
+  }
+}
+
+function readWindowLayout() {
+  try {
+    const raw = localStorage.getItem(windowLayoutStorageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.windows) ? parsed.windows : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function clearWindowLayout() {
+  try {
+    localStorage.removeItem(windowLayoutStorageKey);
+  } catch (_) {
+    // ignore storage failures
+  }
+}
+
+function applyRestoredSourceLinks(restoredIdMap, pendingSourceLinks) {
+  pendingSourceLinks.forEach(link => {
+    const liveSourceWindowId = restoredIdMap.get(link.sourceWindowId) || link.sourceWindowId;
+    if (!liveSourceWindowId || !document.getElementById(liveSourceWindowId)) return;
+    const currentState = windowState.get(link.windowId);
+    if (!currentState) return;
+    windowState.set(link.windowId, {...currentState, sourceWindowId: liveSourceWindowId});
+  });
+}
+
+function restoreWindowBounds(win, desc) {
+  if (!win || !desc) return;
+  win.style.left = `${Math.max(0, Math.round(desc.x || 0))}px`;
+  win.style.top = `${Math.max(0, Math.round(desc.y || 0))}px`;
+  win.style.width = `${Math.max(320, Math.round(desc.width || 320))}px`;
+  win.style.height = `${Math.max(180, Math.round(desc.height || 180))}px`;
+  if (Number.isFinite(Number(desc.zIndex))) {
+    const zIndex = Math.max(1, Math.round(Number(desc.zIndex)));
+    win.style.zIndex = zIndex;
+    zTop = Math.max(zTop, zIndex);
+  }
+  if (desc.minimised && win.dataset.minimised !== '1') {
+    toggleMinimise(win, win.id);
+  }
+}
+
+function closeAllWindows() {
+  getManagedWindows().forEach(win => closeWindow(win, win.id));
+}
+
+function getFocusedOrTopWindow() {
+  return document.querySelector('.win.focused') || getOrderedManagedWindows().slice(-1)[0] || null;
+}
+
+function getRelatedWindowIds(seedId) {
+  if (!seedId) return [];
+  const visited = new Set([seedId]);
+  const queue = [seedId];
+  while (queue.length) {
+    const currentId = queue.shift();
+    const currentState = windowState.get(currentId) || {};
+    const connected = new Set();
+    for (const arrow of arrows) {
+      if (arrow.srcWinId === currentId) connected.add(arrow.dstWinId);
+      if (arrow.dstWinId === currentId) connected.add(arrow.srcWinId);
+    }
+    if (currentState.sourceWindowId) connected.add(currentState.sourceWindowId);
+    for (const [otherId, otherState] of windowState.entries()) {
+      if (otherId !== currentId && otherState?.sourceWindowId === currentId) {
+        connected.add(otherId);
+      }
+    }
+    connected.forEach(otherId => {
+      if (!otherId || visited.has(otherId)) return;
+      visited.add(otherId);
+      queue.push(otherId);
+    });
+  }
+  return Array.from(visited);
+}
+
+function cascadeWindows() {
+  const windows = getOrderedManagedWindows();
+  if (!windows.length) return;
+  let nextX = 28;
+  let nextY = 24;
+  suppressWindowLayoutPersist = true;
+  try {
+    windows.forEach(win => {
+      if (win.dataset.minimised === '1') toggleMinimise(win, win.id);
+      win.style.left = `${nextX}px`;
+      win.style.top = `${nextY}px`;
+      focusWin(win);
+      nextX += CASCADE_STEP;
+      nextY += CASCADE_STEP;
+      if (nextX > CASCADE_MAX_X || nextY > CASCADE_MAX_Y) {
+        nextX = 28;
+        nextY = 24;
+      }
+    });
+    cascadeX = nextX;
+    cascadeY = nextY;
+  } finally {
+    suppressWindowLayoutPersist = false;
+    persistWindowLayout();
+    redrawArrows();
+  }
+}
+
+function tileWindows() {
+  const windows = getOrderedManagedWindows();
+  if (!windows.length) return;
+  windows.forEach(win => {
+    if (win.dataset.minimised === '1') toggleMinimise(win, win.id);
+  });
+  const count = windows.length;
+  const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const inset = 10;
+  const taskbarHeight = 42;
+  const availableWidth = Math.max(320, window.innerWidth - inset * 2);
+  const availableHeight = Math.max(220, window.innerHeight - taskbarHeight - inset * 2);
+  const cellWidth = Math.max(320, Math.floor(availableWidth / cols));
+  const cellHeight = Math.max(180, Math.floor(availableHeight / rows));
+  suppressWindowLayoutPersist = true;
+  try {
+    windows.forEach((win, index) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const left = inset + col * cellWidth;
+      const top = inset + row * cellHeight;
+      const width = Math.max(320, cellWidth - 8);
+      const height = Math.max(180, cellHeight - 8);
+      win.style.left = `${left}px`;
+      win.style.top = `${top}px`;
+      win.style.width = `${width}px`;
+      win.style.height = `${height}px`;
+      focusWin(win);
+    });
+  } finally {
+    suppressWindowLayoutPersist = false;
+    persistWindowLayout();
+    redrawArrows();
+  }
+}
+
+function raiseRelatedWindows() {
+  const seed = getFocusedOrTopWindow();
+  if (!seed) return;
+  const relatedIds = new Set(getRelatedWindowIds(seed.id));
+  if (!relatedIds.size) return;
+  const ordered = getOrderedManagedWindows().filter(win => relatedIds.has(win.id));
+  suppressWindowLayoutPersist = true;
+  try {
+    ordered
+      .filter(win => win.id !== seed.id)
+      .forEach(win => focusWin(win));
+    focusWin(seed);
+  } finally {
+    suppressWindowLayoutPersist = false;
+    persistWindowLayout();
+  }
+}
+
+function minimiseAllWindows() {
+  suppressWindowLayoutPersist = true;
+  try {
+    getManagedWindows().forEach(win => {
+      if (win.dataset.minimised !== '1') toggleMinimise(win, win.id);
+    });
+  } finally {
+    suppressWindowLayoutPersist = false;
+    persistWindowLayout();
+  }
+}
+
+function closeWindowGroup() {
+  const seed = getFocusedOrTopWindow();
+  if (!seed) return;
+  const relatedIds = new Set(getRelatedWindowIds(seed.id));
+  if (!relatedIds.size) return;
+  getOrderedManagedWindows()
+    .filter(win => relatedIds.has(win.id))
+    .forEach(win => closeWindow(win, win.id));
+}
+
+function closeOtherWindows() {
+  const focused = document.querySelector('.win.focused') || getOrderedManagedWindows().slice(-1)[0] || null;
+  if (!focused) return;
+  getManagedWindows().forEach(win => {
+    if (win !== focused) closeWindow(win, win.id);
+  });
+  focusWin(focused);
+}
+
+async function restoreSavedLayout() {
+  const layout = readWindowLayout();
+  if (!layout.length) return false;
+  const restoredIdMap = new Map();
+  const pendingSourceLinks = [];
+  suppressWindowLayoutPersist = true;
+  try {
+    const sortedLayout = layout
+      .slice()
+      .sort((left, right) => Number(left.zIndex || 0) - Number(right.zIndex || 0));
+    for (const desc of sortedLayout) {
+      let win = null;
+      if (desc.kind === 'object' && desc.oop) {
+        win = openObjectBrowser(
+          desc.oop,
+          desc.label || 'object',
+          desc.x,
+          desc.y,
+          desc.width,
+          desc.height,
+          {
+            initialTab: desc.currentTab || 'instvars',
+            compact: !!desc.compactMode,
+            query: desc.query || {},
+          },
+        );
+      } else if (desc.kind === 'class-browser') {
+        win = openClassBrowser({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          dictionary: desc.dictionary || null,
+          className: desc.className || null,
+          protocol: desc.protocol || '-- all --',
+          method: desc.method || null,
+          meta: !!desc.meta,
+        });
+      } else if (desc.kind === 'workspace') {
+        win = openWorkspace({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          draft: desc.draft || '',
+        });
+      } else if (desc.kind === 'web-browser') {
+        win = openWebBrowser(desc.url || '', {
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+        });
+      } else if (desc.kind === 'symbol-list') {
+        win = openSymbolList({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          user: desc.user || '',
+          dictionary: desc.dictionary || '',
+          key: desc.key || '',
+        });
+      } else if (desc.kind === 'debugger' && desc.threadOop) {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
+        win = openDebugger({
+          oop: desc.threadOop,
+          printString: desc.threadLabel || 'Debugger',
+        }, null, {
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          currentTab: desc.currentTab || 'stack',
+          frameIndex: Number.isFinite(Number(desc.frameIndex)) ? Number(desc.frameIndex) : 0,
+          sourceWindowId: resolvedSourceWindowId,
+        });
+      } else if (desc.kind === 'method-query' && Array.isArray(desc.results)) {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
+        win = openMethodQueryWindow(desc.title || 'Method Query', desc.results, {
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          filterText: desc.filterText || '',
+          selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.results),
+          sourceWindowId: resolvedSourceWindowId,
+          loadLabel: desc.loadLabel || 'Load Into Browser',
+        });
+      } else if (desc.kind === 'hierarchy' && Array.isArray(desc.classes)) {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
+        win = openHierarchyWindow(desc.title || 'Hierarchy', desc.classes, {
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          filterText: desc.filterText || '',
+          selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.classes),
+          sourceWindowId: resolvedSourceWindowId,
+          loadLabel: desc.loadLabel || 'Load Into Browser',
+          meta: !!desc.meta,
+        });
+      } else if (desc.kind === 'versions' && Array.isArray(desc.versions)) {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
+        win = openVersionsWindow(desc.title || 'Versions', desc.versions, {
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          filterText: desc.filterText || '',
+          selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.versions),
+          sourceWindowId: resolvedSourceWindowId,
+          loadLabel: desc.loadLabel || 'Load Into Browser',
+          versionContext: desc.versionContext || null,
+        });
+      }
+      restoreWindowBounds(win, desc);
+      if (win && desc.savedId) restoredIdMap.set(desc.savedId, win.id);
+      if (win && desc.sourceWindowId) {
+        pendingSourceLinks.push({windowId: win.id, sourceWindowId: desc.sourceWindowId});
+      }
+    }
+    applyRestoredSourceLinks(restoredIdMap, pendingSourceLinks);
+    const topWindow = getOrderedManagedWindows().slice(-1)[0];
+    if (topWindow) focusWin(topWindow);
+  } finally {
+    suppressWindowLayoutPersist = false;
+    persistWindowLayout();
+    redrawArrows();
+  }
+  setTimeout(() => {
+    applyRestoredSourceLinks(restoredIdMap, pendingSourceLinks);
+    persistWindowLayout();
+  }, 0);
+  return getManagedWindows().length > 0;
+}
+
+function openDefaultStartupLayout() {
+  const vw = window.innerWidth;
+  const vh = Math.max(420, window.innerHeight - 42);
+
+  const hashOop = startupIds.persistentRootId || roots['UserGlobals'] || roots['Globals'];
+  const hashLabel = 'Persistent Root';
+  const hashW = Math.min(vw - 32, Math.max(900, Math.floor(vw * 0.72)));
+  const hashH = Math.min(300, Math.max(220, Math.floor(vh * 0.34)));
+  const hashX = Math.max(16, vw - hashW - 16);
+  const hashY = 10;
+
+  const systemW = Math.min(vw - 32, Math.max(980, Math.floor(vw * 0.9)));
+  const systemH = Math.min(340, Math.max(280, Math.floor(vh * 0.46)));
+  const systemX = 20;
+  const systemY = Math.min(Math.max(180, hashY + hashH + 34), Math.max(20, vh - systemH - 20));
+
+  if (hashOop) {
+    openObjectBrowser(hashOop, hashLabel, hashX, hashY, hashW, hashH, {initialTab: 'instvars', compact: true});
+  } else {
+    openObjectBrowser(undefined, undefined, 10, 10, 520, 480);
+  }
+
+  if (startupIds.systemId || roots['System']) {
+    openObjectBrowser(startupIds.systemId || roots['System'], 'System', systemX, systemY, systemW, systemH, {initialTab: 'control', compact: true});
+  }
+
+  cascadeX = 80;
+  cascadeY = 80;
+}
+
+function resetStartupLayout() {
+  clearWindowLayout();
+  suppressWindowLayoutPersist = true;
+  try {
+    closeAllWindows();
+    openDefaultStartupLayout();
+  } finally {
+    suppressWindowLayoutPersist = false;
+    persistWindowLayout();
+  }
 }
 
 function shouldDrawManualArrow(sourceWinId) {
@@ -1234,6 +1793,7 @@ function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
 
   win.addEventListener('mousedown', () => focusWin(win));
   upsertWindowState(id, {kind: 'generic', title});
+  persistWindowLayout();
 
   return {win, body: win.querySelector('.win-body'), id};
 }
@@ -1245,6 +1805,7 @@ function focusWin(win) {
   document.querySelectorAll('.taskbar-btn').forEach(b => b.classList.remove('active'));
   const tb = document.getElementById('tb-' + win.id);
   if (tb) tb.classList.add('active');
+  persistWindowLayout();
 }
 
 function closeWindow(win, id) {
@@ -1253,6 +1814,7 @@ function closeWindow(win, id) {
   win.remove();
   const tb = document.getElementById('tb-' + id);
   if (tb) tb.remove();
+  persistWindowLayout();
 }
 
 function toggleMinimise(win, id) {
@@ -1271,6 +1833,7 @@ function toggleMinimise(win, id) {
     win.style.height = '28px';
   }
   redrawArrows();
+  persistWindowLayout();
 }
 
 function makeDraggable(win) {
@@ -1287,7 +1850,11 @@ function makeDraggable(win) {
       win.style.top  = Math.max(0, oy + e2.clientY - startY) + 'px';
       redrawArrows();
     };
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      persistWindowLayout();
+    };
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
   });
@@ -1306,7 +1873,11 @@ function makeResizable(win) {
       win.style.height = Math.max(180, startH + e2.clientY - startY) + 'px';
       redrawArrows();
     };
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      persistWindowLayout();
+    };
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
   });
@@ -1500,7 +2071,7 @@ function makeChip(text, oop, winId, evalContext) {
       if (isExc) {
         resEl.classList.add('error');
         resEl.textContent = '⚑ '+(rv.inspection||'Exception');
-        maybeOpenEvalDebugger(rv, code);
+        maybeOpenEvalDebugger(rv, code, winId);
       }
       else resEl.textContent = rv.inspection || 'nil';
     } catch(e) { resEl.classList.add('error'); resEl.textContent = e.message; }
@@ -1621,7 +2192,7 @@ async function refreshHaltedThreadsBar() {
   } catch (_) {}
 }
 
-function maybeOpenEvalDebugger(rv, code) {
+function maybeOpenEvalDebugger(rv, code, sourceWindowId = null) {
   const threadOop = Number(rv?.debugThreadOop || 0);
   if (!(threadOop > 20)) return false;
   refreshHaltedThreadsBar();
@@ -1630,7 +2201,7 @@ function maybeOpenEvalDebugger(rv, code) {
     printString: rv?.inspection || 'Debugger',
     exceptionText: rv?.exceptionText || rv?.inspection || 'Exception',
     sourcePreview: rv?.sourcePreview || code || '',
-  });
+  }, null, {sourceWindowId});
   return true;
 }
 
@@ -1678,7 +2249,19 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     'gem-ver': 'Gem Version Report',
     control: 'Control Panel',
   };
-  upsertWindowState(id, {kind: 'object', object: null});
+
+  function syncObjectBrowserWindowState() {
+    upsertWindowState(id, {
+      kind: 'object',
+      object: currentObjData,
+      objectOop: currentObjData?.oop ?? currentOop ?? initialOop ?? null,
+      objectLabel: history[history.length - 1]?.label || currentObjData?.inspection || initialLabel || '',
+      currentTab: currentItab,
+      compactMode,
+      objectQuery: {...currentObjectQuery},
+    });
+  }
+  syncObjectBrowserWindowState();
 
   // Replace plain titlebar with MagLev-style chip titlebar
   const titlebar = win.querySelector(`#${id}-titlebar`);
@@ -1972,6 +2555,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       body.querySelector(`#${id}-mb`).classList.add('hidden');
     }
     updateMethodBrowserActions();
+    syncObjectBrowserWindowState();
     showItab();
     return true;
   }
@@ -2110,7 +2694,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       instPage = 0;
       modulePage = 0;
     }
-    upsertWindowState(id, {kind: 'object', object: null});
+    syncObjectBrowserWindowState();
     syncObjectWindowArrows(id);
     renderBc();
     body.querySelectorAll(`#${id}-roots li`).forEach(li => li.classList.toggle('active', parseInt(li.dataset.oop) === oop));
@@ -2123,7 +2707,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       const d = await api(buildObjectIndexUrl(oop));
       if (!d.success) throw new Error(d.exception);
       currentObjData = d.result;
-      upsertWindowState(id, {kind: 'object', object: currentObjData});
+      syncObjectBrowserWindowState();
       updateTitlebar(currentObjData);
       syncObjectWindowArrows(id);
       applyItabVisibility(currentObjData);
@@ -2135,6 +2719,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       }
     } catch(e) {
       ibody.innerHTML = `<p style="color:#f38ba8;padding:10px">Error: ${escHtml(e.message)}</p>`;
+      syncObjectBrowserWindowState();
     }
   }
 
@@ -2950,7 +3535,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       if (isExc) {
         evalRes.className='eval-result error';
         evalRes.textContent='⚑ '+(rv.inspection||'Exception');
-        maybeOpenEvalDebugger(rv, code);
+        maybeOpenEvalDebugger(rv, code, id);
       }
       else {
         evalRes.textContent = rv.inspection || 'nil';
@@ -2967,16 +3552,31 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     finally { clearInspectorTabCache(evalOop); }
   }
 
-  if (initialOop) { history = [{label: initialLabel||'object', oop: initialOop}]; loadObj(initialOop, initialLabel||'object'); }
+  if (initialOop) {
+    history = [{label: initialLabel||'object', oop: initialOop}];
+    loadObj(initialOop, initialLabel||'object', {
+      query: options.query || null,
+      preserveCurrentTab: !!options.initialTab,
+    });
+  }
   return win;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORKSPACE WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openWorkspace() {
-  const {win, body, id} = createWindow({title:'Workspace', width:520, height:440, taskbarLabel:'Workspace'});
-  upsertWindowState(id, {kind: 'workspace'});
+function openWorkspace(options = {}) {
+  const {win, body, id} = createWindow({
+    title:'Workspace',
+    width: options.width || 520,
+    height: options.height || 440,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Workspace'
+  });
+  function syncWorkspaceWindowState() {
+    upsertWindowState(id, {kind: 'workspace', draft: wsc?.value || ''});
+  }
   // The outer div must be display:flex;flex-direction:column so ws-history can flex:1
   // and ws-input-row / txbar stay at the bottom.
   body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;min-height:0';
@@ -2999,9 +3599,12 @@ function openWorkspace() {
   `;
   const wsh = body.querySelector(`#${id}-wsh`);
   const wsc = body.querySelector(`#${id}-wsc`);
+  wsc.value = options.draft || '';
+  syncWorkspaceWindowState();
   body.querySelector(`#${id}-doit`).addEventListener('click', wsDoIt);
-  body.querySelector(`#${id}-clr`).addEventListener('click', () => { wsh.innerHTML = ''; });
+  body.querySelector(`#${id}-clr`).addEventListener('click', () => { wsh.innerHTML = ''; syncWorkspaceWindowState(); });
   wsc.addEventListener('keydown', e => { if (e.ctrlKey && e.key==='Enter') wsDoIt(); });
+  wsc.addEventListener('input', syncWorkspaceWindowState);
   body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
     try { const d=await apiTransaction('/transaction/abort'); setStatus(d.success, d.success?'aborted':d.exception); } catch(e){setStatus(false,e.message);}
   });
@@ -3029,7 +3632,7 @@ function openWorkspace() {
       if (isExc) {
         resEl.className='ws-result error';
         textSpan.textContent='⚑ '+(rv.inspection||'Exception');
-        maybeOpenEvalDebugger(rv, code);
+        maybeOpenEvalDebugger(rv, code, id);
       }
       else {
         textSpan.textContent = '=> ' + (rv.inspection||'nil');
@@ -3044,6 +3647,7 @@ function openWorkspace() {
       }
     } catch(e) { resEl.className='ws-result error'; textSpan.textContent='Error: '+e.message; }
     wsh.scrollTop=wsh.scrollHeight;
+    syncWorkspaceWindowState();
   }
   return win;
 }
@@ -3051,10 +3655,16 @@ function openWorkspace() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // WEB BROWSER WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openWebBrowser(initialUrl) {
-  const {win, body, id} = createWindow({title:'Web Browser', width:700, height:520, taskbarLabel:'Web Browser'});
-  upsertWindowState(id, {kind: 'web-browser'});
-  const defaultUrl = initialUrl || 'https://pandas.pydata.org';
+function openWebBrowser(initialUrl, options = {}) {
+  const {win, body, id} = createWindow({
+    title:'Web Browser',
+    width: options.width || 700,
+    height: options.height || 520,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Web Browser'
+  });
+  const defaultUrl = initialUrl || options.url || 'https://pandas.pydata.org';
   body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;min-height:0';
   body.innerHTML = `
     <div class="wb-urlbar" style="flex-shrink:0">
@@ -3069,17 +3679,26 @@ function openWebBrowser(initialUrl) {
   `;
   const urlInput = body.querySelector(`#${id}-url`);
   const iframe   = body.querySelector(`#${id}-iframe`);
-  function navigate() { iframe.src = urlInput.value; }
+  function syncWebBrowserWindowState() {
+    upsertWindowState(id, {kind: 'web-browser', url: urlInput?.value || iframe?.src || defaultUrl});
+  }
+  function navigate() {
+    iframe.src = urlInput.value;
+    syncWebBrowserWindowState();
+  }
   body.querySelector(`#${id}-go`).addEventListener('click', navigate);
-  body.querySelector(`#${id}-reload`).addEventListener('click', () => { iframe.src = iframe.src; });
+  body.querySelector(`#${id}-reload`).addEventListener('click', () => { iframe.src = iframe.src; syncWebBrowserWindowState(); });
   urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') navigate(); });
+  urlInput.addEventListener('input', syncWebBrowserWindowState);
+  iframe.addEventListener('load', syncWebBrowserWindowState);
+  syncWebBrowserWindowState();
   return win;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEBUGGER WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
-function openDebugger(threadOrOop, threadName) {
+function openDebugger(threadOrOop, threadName, options = {}) {
   const thread = (threadOrOop && typeof threadOrOop === 'object')
     ? threadOrOop
     : { oop: threadOrOop, printString: threadName || '', exceptionText: '', sourcePreview: '' };
@@ -3087,11 +3706,29 @@ function openDebugger(threadOrOop, threadName) {
   const threadLabel = thread.sourcePreview || thread.exceptionText || thread.printString || '';
   const {win, body, id} = createWindow({
     title: 'Debugger — ' + threadLabel.slice(0,40),
-    width: 660, height: 600, taskbarLabel: 'Debugger'
+    width: options.width || 660,
+    height: options.height || 600,
+    x: options.x,
+    y: options.y,
+    taskbarLabel: 'Debugger'
   });
-  upsertWindowState(id, {kind: 'debugger', threadOop});
+  let currentTab = options.currentTab === 'tls' ? 'tls' : 'stack';
+  let currentFrameIdx = Number.isFinite(Number(options.frameIndex)) ? Math.max(0, Number(options.frameIndex)) : 0;
+  let sourceWindowId = options.sourceWindowId || null;
 
-  let currentFrameIdx = 0;
+  function syncDebuggerWindowState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (!sourceWindowId && existingSourceWindowId) sourceWindowId = existingSourceWindowId;
+    upsertWindowState(id, {
+      kind: 'debugger',
+      threadOop,
+      threadLabel,
+      currentTab,
+      frameIndex: currentFrameIdx,
+      sourceWindowId: sourceWindowId || null,
+    });
+  }
+
   let frames = [];
   let currentFrameVars = [];
 
@@ -3148,13 +3785,18 @@ function openDebugger(threadOrOop, threadName) {
     summaryEl.classList.add('hidden');
   }
 
+  function showDebuggerTab(name) {
+    currentTab = name === 'tls' ? 'tls' : 'stack';
+    body.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.dataset.dtab === currentTab));
+    body.querySelector(`#${id}-stack`).style.display = currentTab === 'stack' ? 'flex' : 'none';
+    body.querySelector(`#${id}-tls`).style.display = currentTab === 'tls' ? 'block' : 'none';
+    if (currentTab === 'tls') loadTLS();
+    syncDebuggerWindowState();
+  }
+
   body.querySelector('.tab-strip').addEventListener('click', e => {
     const tab = e.target.closest('.tab-item'); if (!tab) return;
-    body.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active')); tab.classList.add('active');
-    const name = tab.dataset.dtab;
-    body.querySelector(`#${id}-stack`).style.display = name==='stack' ? 'flex' : 'none';
-    body.querySelector(`#${id}-tls`).style.display   = name==='tls'   ? 'block' : 'none';
-    if (name==='tls') loadTLS();
+    showDebuggerTab(tab.dataset.dtab);
   });
 
   body.querySelector(`#${id}-proceed`).addEventListener('click', async () => {
@@ -3166,7 +3808,12 @@ function openDebugger(threadOrOop, threadName) {
     } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-stepinto`).addEventListener('click', async () => {
-    try { await apiPost(`/debug/step-into/${threadOop}`, {}); loadFrames(); } catch(e){setStatus(false,e.message);}
+    try {
+      currentFrameIdx = 0;
+      syncDebuggerWindowState();
+      await apiPost(`/debug/step-into/${threadOop}`, {});
+      loadFrames();
+    } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-stepover`).addEventListener('click', async () => {
     try { await apiPost(`/debug/step-over/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
@@ -3251,7 +3898,13 @@ function openDebugger(threadOrOop, threadName) {
         });
         framesEl.appendChild(el);
       });
-      if (frames.length) selectFrame(0, framesEl.querySelector('.dbg-frame-item'), true);
+      if (frames.length) {
+        const targetFrame = frames.find(frame => frame.index === currentFrameIdx)
+          || frames[Math.max(0, Math.min(frames.length - 1, currentFrameIdx))]
+          || frames[0];
+        const targetEl = framesEl.querySelector(`.dbg-frame-item[data-idx="${targetFrame.index}"]`);
+        if (targetEl) selectFrame(targetFrame.index, targetEl, true);
+      }
     } catch(e) { framesEl.innerHTML = `<p style="color:#f38ba8;padding:8px">${escHtml(e.message)}</p>`; }
   }
 
@@ -3310,6 +3963,7 @@ function openDebugger(threadOrOop, threadName) {
 
   async function selectFrame(idx, el, focusEl=false) {
     currentFrameIdx = idx;
+    syncDebuggerWindowState();
     body.querySelectorAll('.dbg-frame-item').forEach(e=>e.classList.remove('active'));
     if (el) {
       el.classList.add('active');
@@ -3368,6 +4022,8 @@ function openDebugger(threadOrOop, threadName) {
     } catch(e) { spin.style.display='none'; lst.innerHTML=`<li style="color:#f38ba8">${escHtml(e.message)}</li>`; }
   }
 
+  syncDebuggerWindowState();
+  showDebuggerTab(currentTab);
   loadFrames();
 }
 
@@ -3375,10 +4031,30 @@ function openDebugger(threadOrOop, threadName) {
 // SYMBOL LIST WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function openSymbolList(px, py, pw, ph) {
-  const {win, body, id} = createWindow({title:'Symbol List Browser', width: pw||480, height: ph||460, taskbarLabel:'Symbol List', x: px, y: py});
-  upsertWindowState(id, {kind: 'symbol-list'});
+  const options = (px && typeof px === 'object' && !Array.isArray(px))
+    ? px
+    : {x: px, y: py, width: pw, height: ph};
+  const {win, body, id} = createWindow({
+    title:'Symbol List Browser',
+    width: options.width || 480,
+    height: options.height || 460,
+    taskbarLabel:'Symbol List',
+    x: options.x,
+    y: options.y,
+  });
 
   let slUser=null, slDict=null, slKey=null, slKeyOop=null;
+
+  function syncSymbolListWindowState() {
+    upsertWindowState(id, {
+      kind: 'symbol-list',
+      user: slUser || '',
+      dictionary: slDict || '',
+      key: slKey || '',
+    });
+  }
+
+  syncSymbolListWindowState();
 
   body.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid #313244;flex-shrink:0;background:#1e1e2e">
@@ -3441,7 +4117,7 @@ function openSymbolList(px, py, pw, ph) {
     openModal('Add Dictionary',[{label:'Name',id:'m-dn',type:'input',placeholder:'MyDictionary'}], async f => {
       const name=f['m-dn'].trim(); if(!name)return;
       const r=await apiPost('/symbol-list/add-dictionary',{user:slUser,name}); if(!r.success)throw new Error(r.exception);
-      await loadDicts(slUser);
+      await loadDicts(slUser, name);
     });
   });
   body.querySelector(`#${id}-add-entry`).addEventListener('click', () => {
@@ -3452,12 +4128,13 @@ function openSymbolList(px, py, pw, ph) {
     ], async f => {
       const key=f['m-ek'].trim(); const val=f['m-ev'].trim()||'nil'; if(!key)return;
       const r=await apiPost('/symbol-list/add-entry',{user:slUser,dictionary:slDict,key,value:val}); if(!r.success)throw new Error(r.exception);
-      await loadEntries(slUser,slDict);
+      await loadEntries(slUser,slDict,key);
     });
   });
   body.querySelector(`#${id}-user`).addEventListener('change', async () => {
     slUser=body.querySelector(`#${id}-user`).value; slDict=slKey=slKeyOop=null;
     body.querySelector(`#${id}-dicts`).innerHTML=''; body.querySelector(`#${id}-entries`).innerHTML=''; clearKV();
+    syncSymbolListWindowState();
     if (slUser) await loadDicts(slUser);
   });
 
@@ -3468,18 +4145,32 @@ function openSymbolList(px, py, pw, ph) {
       const d=await api('/symbol-list/users'); if(!d.success)throw new Error(d.exception);
       sel.innerHTML='';
       for(const u of d.users){const o=document.createElement('option');o.value=o.textContent=u;sel.appendChild(o);}
-      if(d.users.length){const pref='DataCurator'; slUser=d.users.includes(pref)?pref:d.users[0]; sel.value=slUser; await loadDicts(slUser);}
+      if(d.users.length){
+        const pref='DataCurator';
+        const preferredUser = options.user && d.users.includes(options.user) ? options.user : null;
+        slUser = preferredUser || (d.users.includes(pref) ? pref : d.users[0]);
+        sel.value=slUser;
+        syncSymbolListWindowState();
+        await loadDicts(slUser, options.dictionary || '', options.key || '');
+      }
     } catch(e){sel.innerHTML=`<option>${escHtml(e.message)}</option>`;}
   }
 
-  async function loadDicts(user) {
+  async function loadDicts(user, preferredDict='', preferredKey='') {
     const ul=body.querySelector(`#${id}-dicts`);
     ul.innerHTML='<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
     try {
       const d=await api(`/symbol-list/dictionaries/${encodeURIComponent(user)}`); if(!d.success)throw new Error(d.exception);
       ul.innerHTML=''; let first=null;
-      for(const name of d.dictionaries){const li=makeDictItem(name);ul.appendChild(li);if(!first)first={li,name};}
-      if(first)selectDict(first.name,first.li);
+      let preferred=null;
+      for(const name of d.dictionaries){
+        const li=makeDictItem(name);
+        ul.appendChild(li);
+        if(!first)first={li,name};
+        if(preferredDict && name===preferredDict) preferred={li,name};
+      }
+      const selection = preferred || first;
+      if(selection)selectDict(selection.name,selection.li,preferredKey);
     } catch(e){ul.innerHTML=`<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;}
   }
 
@@ -3491,7 +4182,7 @@ function openSymbolList(px, py, pw, ph) {
       e.stopPropagation();
       const confirmed = await requestConfirmModal('Remove Dictionary', `Remove "${name}"?`, {okLabel:'Remove'});
       if(!confirmed)return;
-      try{const r=await apiPost('/symbol-list/remove-dictionary',{user:slUser,name});if(!r.success)throw new Error(r.exception);li.remove();if(slDict===name){slDict=null;body.querySelector(`#${id}-entries`).innerHTML='';clearKV();}}
+      try{const r=await apiPost('/symbol-list/remove-dictionary',{user:slUser,name});if(!r.success)throw new Error(r.exception);li.remove();if(slDict===name){slDict=null;body.querySelector(`#${id}-entries`).innerHTML='';clearKV();syncSymbolListWindowState();}}
       catch(err){setStatus(false,'Error: '+err.message);}
     });
     li.append(sp,del);
@@ -3499,21 +4190,28 @@ function openSymbolList(px, py, pw, ph) {
     return li;
   }
 
-  async function selectDict(name,liEl) {
+  async function selectDict(name,liEl,preferredKey='') {
     slDict=name;slKey=slKeyOop=null;clearKV();
     body.querySelector(`#${id}-dicts`).querySelectorAll('li').forEach(l=>l.classList.remove('active'));
     liEl.classList.add('active');
-    await loadEntries(slUser,name);
+    syncSymbolListWindowState();
+    await loadEntries(slUser,name,preferredKey);
   }
 
-  async function loadEntries(user,dict) {
+  async function loadEntries(user,dict,preferredKey='') {
     const ul=body.querySelector(`#${id}-entries`);
     ul.innerHTML='<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
     try {
       const d=await api(`/symbol-list/entries/${encodeURIComponent(user)}/${encodeURIComponent(dict)}`); if(!d.success)throw new Error(d.exception);
       ul.innerHTML='';
       const sorted=d.entries.slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
-      for(const key of sorted)ul.appendChild(makeEntryItem(key));
+      let preferred=null;
+      for(const key of sorted){
+        const li=makeEntryItem(key);
+        ul.appendChild(li);
+        if(preferredKey && key===preferredKey) preferred={key, li};
+      }
+      if (preferred) await selectEntry(preferred.key, preferred.li);
     } catch(e){ul.innerHTML=`<li style="color:#f38ba8;cursor:default">${escHtml(e.message)}</li>`;}
   }
 
@@ -3525,7 +4223,7 @@ function openSymbolList(px, py, pw, ph) {
       e.stopPropagation();
       const confirmed = await requestConfirmModal('Remove Entry', `Remove "${key}"?`, {okLabel:'Remove'});
       if(!confirmed)return;
-      try{const r=await apiPost('/symbol-list/remove-entry',{user:slUser,dictionary:slDict,key});if(!r.success)throw new Error(r.exception);li.remove();if(slKey===key){slKey=slKeyOop=null;clearKV();}}
+      try{const r=await apiPost('/symbol-list/remove-entry',{user:slUser,dictionary:slDict,key});if(!r.success)throw new Error(r.exception);li.remove();if(slKey===key){slKey=slKeyOop=null;clearKV();syncSymbolListWindowState();}}
       catch(err){setStatus(false,'Error: '+err.message);}
     });
     li.append(sp,del);
@@ -3540,12 +4238,14 @@ function openSymbolList(px, py, pw, ph) {
     body.querySelector(`#${id}-selval`).textContent=key;
     body.querySelector(`#${id}-inspect`).classList.add('hidden');
     clearKV();
+    syncSymbolListWindowState();
     const kv=body.querySelector(`#${id}-kv`);
     kv.innerHTML='<tr><td colspan="2" style="color:#6c7086"><span class="spinner"></span> Loading…</td></tr>';
     try {
       const d=await api(`/symbol-list/preview/${encodeURIComponent(slUser)}/${encodeURIComponent(slDict)}/${encodeURIComponent(key)}`);
       if(!d.success)throw new Error(d.exception);
       slKeyOop=d.oop||null;
+      syncSymbolListWindowState();
       if(slKeyOop)body.querySelector(`#${id}-inspect`).classList.remove('hidden');
       body.querySelector(`#${id}-ps`).textContent=d.inspection||'nil';
       kv.innerHTML='';
@@ -3573,7 +4273,7 @@ function openSymbolList(px, py, pw, ph) {
     body.querySelector(`#${id}-ps`).textContent='';
   }
 
-  setTimeout(loadUsers, 1500);
+  loadUsers();
   return win;
 }
 
@@ -3625,12 +4325,169 @@ function openTextWindow(title, text, taskbarLabel='Report', px, py, pw=560, ph=3
   body.querySelector('textarea').value = text || '';
 }
 
+function setupQueryWindowList({listEl, filterInput, items, labelForItem, onSelectItem, onOpenItem, defaultIndex = 0}) {
+  let currentItem = items[defaultIndex] || items[0] || null;
+
+  function visibleItems() {
+    const filterText = String(filterInput?.value || '').trim().toLowerCase();
+    if (!filterText) return items.slice();
+    return items.filter(item => String(labelForItem(item) || '').toLowerCase().includes(filterText));
+  }
+
+  function updateSelection(focusList = false) {
+    let activeRow = null;
+    listEl.querySelectorAll('.qv-item').forEach(row => {
+      const isActive = row.dataset.itemKey === String(items.indexOf(currentItem));
+      row.classList.toggle('active', isActive);
+      if (isActive) activeRow = row;
+    });
+    if (activeRow) {
+      activeRow.scrollIntoView({block: 'nearest'});
+      if (focusList) listEl.focus({preventScroll: true});
+    } else if (focusList) {
+      listEl.focus({preventScroll: true});
+    }
+    onSelectItem(currentItem, activeRow);
+  }
+
+  function render() {
+    const visible = visibleItems();
+    if (currentItem && !visible.includes(currentItem)) {
+      currentItem = visible[0] || null;
+    }
+    listEl.innerHTML = '';
+    if (!items.length) {
+      listEl.innerHTML = '<div class="cb-empty">(empty)</div>';
+      onSelectItem(null, null);
+      return;
+    }
+    if (!visible.length) {
+      listEl.innerHTML = '<div class="cb-empty">(no matches)</div>';
+      onSelectItem(null, null);
+      return;
+    }
+    visible.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'qv-item';
+      row.dataset.itemKey = String(items.indexOf(item));
+      row.textContent = labelForItem(item);
+      row.title = row.textContent;
+      row.addEventListener('click', () => {
+        currentItem = item;
+        updateSelection();
+      });
+      row.addEventListener('dblclick', () => {
+        currentItem = item;
+        updateSelection();
+        onOpenItem?.(item);
+      });
+      listEl.appendChild(row);
+    });
+    updateSelection();
+  }
+
+  function selectRelative(delta) {
+    const visible = visibleItems();
+    if (!visible.length) return;
+    let currentIndex = visible.indexOf(currentItem);
+    if (currentIndex < 0) currentIndex = delta >= 0 ? -1 : visible.length;
+    currentItem = visible[Math.max(0, Math.min(visible.length - 1, currentIndex + delta))];
+    updateSelection(true);
+  }
+
+  function selectBoundary(boundary) {
+    const visible = visibleItems();
+    if (!visible.length) return;
+    currentItem = boundary === 'last' ? visible[visible.length - 1] : visible[0];
+    updateSelection(true);
+  }
+
+  filterInput?.addEventListener('input', render);
+  filterInput?.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && filterInput.value) {
+      event.preventDefault();
+      filterInput.value = '';
+      render();
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectRelative(1);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectRelative(-1);
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      selectBoundary('first');
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      selectBoundary('last');
+      return;
+    }
+    if (event.key === 'Enter' && currentItem) {
+      event.preventDefault();
+      onOpenItem?.(currentItem);
+    }
+  });
+
+  listEl.tabIndex = 0;
+  listEl.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectRelative(1);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectRelative(-1);
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      selectBoundary('first');
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      selectBoundary('last');
+      return;
+    }
+    if (event.key === 'Enter' && currentItem) {
+      event.preventDefault();
+      onOpenItem?.(currentItem);
+    }
+  });
+
+  render();
+  return {
+    getCurrentItem: () => currentItem,
+    refresh: render,
+  };
+}
+
 function openMethodQueryWindow(title, results, options = {}) {
-  const canLoadResult = typeof options.onLoadResult === 'function';
-  const {body} = createWindow({title, width: 760, height: 520, taskbarLabel:'Method Query'});
+  let sourceWindowId = options.sourceWindowId || null;
+  const canLoadResult = typeof options.onLoadResult === 'function' || !!sourceWindowId;
+  const {body, id} = createWindow({
+    title,
+    width: options.width || 760,
+    height: options.height || 520,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Method Query'
+  });
   body.innerHTML = `
     <div class="qv-wrap">
-      <div class="qv-list"></div>
+      <div class="qv-side">
+        <div class="qv-filter-wrap"><input class="qv-filter" placeholder="Filter results"></div>
+        <div class="qv-list"></div>
+      </div>
       <div class="qv-main">
         <div class="qv-toolbar">
           <span class="qv-title">Select a result</span>
@@ -3643,22 +4500,47 @@ function openMethodQueryWindow(title, results, options = {}) {
   `;
 
   const listEl = body.querySelector('.qv-list');
+  const filterInput = body.querySelector('.qv-filter');
   const titleEl = body.querySelector('.qv-title');
   const previewEl = body.querySelector('.qv-preview');
   const loadBtn = body.querySelector('#qv-load');
   const openBtn = body.querySelector('#qv-open');
+  filterInput.value = options.filterText || '';
   let currentRef = null;
+
+  function syncMethodQueryWindowState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (existingSourceWindowId) sourceWindowId = existingSourceWindowId;
+    upsertWindowState(id, {
+      kind: 'method-query',
+      title,
+      results,
+      filterText: filterInput?.value || '',
+      selectedIndex: Math.max(0, results.indexOf(currentRef)),
+      loadLabel: options.loadLabel || 'Load Into Browser',
+      sourceWindowId: sourceWindowId || null,
+    });
+  }
 
   async function selectRef(ref, row) {
     currentRef = ref;
     listEl.querySelectorAll('.qv-item').forEach(el => el.classList.remove('active'));
     row?.classList.add('active');
+    if (!ref) {
+      titleEl.textContent = 'Select a result';
+      previewEl.value = '';
+      if (loadBtn) loadBtn.disabled = true;
+      openBtn.disabled = true;
+      syncMethodQueryWindowState();
+      return;
+    }
     const parsed = parseMethodReference(ref);
     if (!parsed) {
       titleEl.textContent = ref;
       previewEl.value = ref;
       if (loadBtn) loadBtn.disabled = true;
       openBtn.disabled = true;
+      syncMethodQueryWindowState();
       return;
     }
     if (loadBtn) loadBtn.disabled = false;
@@ -3677,6 +4559,8 @@ function openMethodQueryWindow(title, results, options = {}) {
       previewEl.value = d.source || '';
     } catch (e) {
       previewEl.value = 'Error: ' + e.message;
+    } finally {
+      syncMethodQueryWindowState();
     }
   }
 
@@ -3686,7 +4570,14 @@ function openMethodQueryWindow(title, results, options = {}) {
     loadBtn.disabled = true;
     openBtn.disabled = true;
     try {
-      await options.onLoadResult(parsed, currentRef);
+      sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
+      const loadResult = typeof options.onLoadResult === 'function'
+        ? options.onLoadResult
+        : (getClassBrowserRuntime(sourceWindowId)?.loadMethodReference || null);
+      if (typeof loadResult !== 'function') throw new Error('Source browser is no longer available');
+      await loadResult(parsed, currentRef);
+    } catch (e) {
+      setStatus(false, e.message);
     } finally {
       const stillParsed = parseMethodReference(currentRef);
       if (stillParsed) {
@@ -3707,41 +4598,48 @@ function openMethodQueryWindow(title, results, options = {}) {
     });
   });
 
-  if (!results.length) {
-    listEl.innerHTML = '<div class="cb-empty">(no matches)</div>';
-    previewEl.value = '';
-    return;
-  }
-
-  results.forEach(ref => {
-    const row = document.createElement('div');
-    row.className = 'qv-item';
-    const parsed = parseMethodReference(ref);
-    row.textContent = parsed?.label || String(ref || '');
-    if (parsed?.dictionary) row.title = `${row.textContent} (${parsed.dictionary})`;
-    row.addEventListener('click', () => selectRef(ref, row));
-    row.addEventListener('dblclick', () => {
-      const parsed = parseMethodReference(ref);
-      if (parsed) {
-        openClassBrowser({
-          dictionary: parsed.dictionary || null,
-          className: parsed.className,
-          method: parsed.selector,
-          meta: parsed.meta,
-        });
-      }
-    });
-    listEl.appendChild(row);
+  setupQueryWindowList({
+    listEl,
+    filterInput,
+    items: results,
+    labelForItem(item) {
+      const parsed = parseMethodReference(item);
+      return parsed?.label || String(item || '');
+    },
+    onSelectItem: selectRef,
+    onOpenItem(item) {
+      const parsed = parseMethodReference(item);
+      if (!parsed) return;
+      openClassBrowser({
+        dictionary: parsed.dictionary || null,
+        className: parsed.className,
+        method: parsed.selector,
+        meta: parsed.meta,
+      });
+    },
+    defaultIndex: sanitizeSelectionIndex(options.selectedIndex, results),
   });
-  selectRef(results[0], listEl.querySelector('.qv-item'));
+  filterInput.addEventListener('input', syncMethodQueryWindowState);
+  syncMethodQueryWindowState();
 }
 
 function openHierarchyWindow(title, classes, options = {}) {
-  const canLoadClass = typeof options.onLoadClass === 'function';
-  const {body} = createWindow({title, width: 640, height: 480, taskbarLabel:'Hierarchy'});
+  let sourceWindowId = options.sourceWindowId || null;
+  const canLoadClass = typeof options.onLoadClass === 'function' || !!sourceWindowId;
+  const {body, id} = createWindow({
+    title,
+    width: options.width || 640,
+    height: options.height || 480,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Hierarchy'
+  });
   body.innerHTML = `
     <div class="qv-wrap">
-      <div class="qv-list"></div>
+      <div class="qv-side">
+        <div class="qv-filter-wrap"><input class="qv-filter" placeholder="Filter classes"></div>
+        <div class="qv-list"></div>
+      </div>
       <div class="qv-main">
         <div class="qv-toolbar">
           <span class="qv-title">Select a class</span>
@@ -3754,11 +4652,31 @@ function openHierarchyWindow(title, classes, options = {}) {
   `;
 
   const listEl = body.querySelector('.qv-list');
+  const filterInput = body.querySelector('.qv-filter');
   const titleEl = body.querySelector('.qv-title');
   const previewEl = body.querySelector('.qv-preview');
   const loadBtn = body.querySelector('#qv-load-class');
   const openBtn = body.querySelector('#qv-open-class');
+  filterInput.value = options.filterText || '';
   let currentEntry = null;
+
+  function syncHierarchyWindowState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (existingSourceWindowId) sourceWindowId = existingSourceWindowId;
+    upsertWindowState(id, {
+      kind: 'hierarchy',
+      title,
+      classes,
+      filterText: filterInput?.value || '',
+      selectedIndex: Math.max(0, classes.findIndex(entry => {
+        const parsed = parseHierarchyEntry(entry);
+        return parsed.className === currentEntry?.className && parsed.dictionary === currentEntry?.dictionary;
+      })),
+      meta: !!options.meta,
+      loadLabel: options.loadLabel || 'Load Into Browser',
+      sourceWindowId: sourceWindowId || null,
+    });
+  }
 
   async function selectClass(entry, row) {
     const parsed = parseHierarchyEntry(entry);
@@ -3770,6 +4688,7 @@ function openHierarchyWindow(title, classes, options = {}) {
     openBtn.disabled = !currentEntry;
     if (!currentEntry) {
       previewEl.value = '';
+      syncHierarchyWindowState();
       return;
     }
     previewEl.value = 'Loading…';
@@ -3781,6 +4700,8 @@ function openHierarchyWindow(title, classes, options = {}) {
       previewEl.value = d.source || '';
     } catch (e) {
       previewEl.value = 'Error: ' + e.message;
+    } finally {
+      syncHierarchyWindowState();
     }
   }
 
@@ -3789,7 +4710,16 @@ function openHierarchyWindow(title, classes, options = {}) {
     loadBtn.disabled = true;
     openBtn.disabled = true;
     try {
-      await options.onLoadClass(currentEntry);
+      sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
+      const loadClass = typeof options.onLoadClass === 'function'
+        ? options.onLoadClass
+        : (getClassBrowserRuntime(sourceWindowId)?.loadHierarchyEntry
+            ? (entry => getClassBrowserRuntime(sourceWindowId)?.loadHierarchyEntry(entry, !!options.meta))
+            : null);
+      if (typeof loadClass !== 'function') throw new Error('Source browser is no longer available');
+      await loadClass(currentEntry);
+    } catch (e) {
+      setStatus(false, e.message);
     } finally {
       if (currentEntry) {
         loadBtn.disabled = false;
@@ -3807,36 +4737,48 @@ function openHierarchyWindow(title, classes, options = {}) {
     });
   });
 
-  if (!classes.length) {
-    listEl.innerHTML = '<div class="cb-empty">(no classes)</div>';
-    previewEl.value = '';
-    return;
-  }
-
-  classes.forEach(entry => {
-    const parsed = parseHierarchyEntry(entry);
-    const row = document.createElement('div');
-    row.className = 'qv-item';
-    row.textContent = parsed.className;
-    if (parsed.dictionary) row.title = `${parsed.className} (${parsed.dictionary})`;
-    row.addEventListener('click', () => selectClass(entry, row));
-    row.addEventListener('dblclick', () => openClassBrowser({
-      dictionary: parsed.dictionary || null,
-      className: parsed.className,
-      meta: !!options.meta,
-    }));
-    listEl.appendChild(row);
+  setupQueryWindowList({
+    listEl,
+    filterInput,
+    items: classes,
+    defaultIndex: Number.isFinite(Number(options.selectedIndex))
+      ? sanitizeSelectionIndex(options.selectedIndex, classes)
+      : Math.max(0, classes.length - 1),
+    labelForItem(item) {
+      return parseHierarchyEntry(item).className;
+    },
+    onSelectItem: selectClass,
+    onOpenItem(item) {
+      const parsed = parseHierarchyEntry(item);
+      if (!parsed.className) return;
+      openClassBrowser({
+        dictionary: parsed.dictionary || null,
+        className: parsed.className,
+        meta: !!options.meta,
+      });
+    },
   });
-  const defaultIndex = Math.max(0, classes.length - 1);
-  selectClass(classes[defaultIndex], listEl.querySelectorAll('.qv-item')[defaultIndex]);
+  filterInput.addEventListener('input', syncHierarchyWindowState);
+  syncHierarchyWindowState();
 }
 
 function openVersionsWindow(title, versions, options = {}) {
-  const canLoadVersion = typeof options.onLoadVersion === 'function';
-  const {body} = createWindow({title, width: 760, height: 520, taskbarLabel:'Versions'});
+  let sourceWindowId = options.sourceWindowId || null;
+  const canLoadVersion = typeof options.onLoadVersion === 'function' || !!sourceWindowId;
+  const {body, id} = createWindow({
+    title,
+    width: options.width || 760,
+    height: options.height || 520,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Versions'
+  });
   body.innerHTML = `
     <div class="qv-wrap">
-      <div class="qv-list"></div>
+      <div class="qv-side">
+        <div class="qv-filter-wrap"><input class="qv-filter" placeholder="Filter versions"></div>
+        <div class="qv-list"></div>
+      </div>
       <div class="qv-main">
         <div class="qv-toolbar">
           <span class="qv-title">Select a version</span>
@@ -3848,10 +4790,27 @@ function openVersionsWindow(title, versions, options = {}) {
   `;
 
   const listEl = body.querySelector('.qv-list');
+  const filterInput = body.querySelector('.qv-filter');
   const titleEl = body.querySelector('.qv-title');
   const previewEl = body.querySelector('.qv-preview');
   const loadBtn = body.querySelector('#qv-load-version');
+  filterInput.value = options.filterText || '';
   let currentVersion = null;
+
+  function syncVersionsWindowState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (existingSourceWindowId) sourceWindowId = existingSourceWindowId;
+    upsertWindowState(id, {
+      kind: 'versions',
+      title,
+      versions,
+      filterText: filterInput?.value || '',
+      selectedIndex: Math.max(0, versions.indexOf(currentVersion)),
+      loadLabel: options.loadLabel || 'Load Into Browser',
+      versionContext: options.versionContext || null,
+      sourceWindowId: sourceWindowId || null,
+    });
+  }
 
   function selectVersion(version, row) {
     currentVersion = version || null;
@@ -3860,30 +4819,46 @@ function openVersionsWindow(title, versions, options = {}) {
     titleEl.textContent = version?.label || 'Select a version';
     previewEl.value = version?.source || '';
     if (loadBtn) loadBtn.disabled = !currentVersion;
+    syncVersionsWindowState();
   }
 
   loadBtn?.addEventListener('click', () => {
     if (!currentVersion) return;
-    options.onLoadVersion(currentVersion);
+    sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
+    const loadVersion = typeof options.onLoadVersion === 'function'
+      ? options.onLoadVersion
+      : (getClassBrowserRuntime(sourceWindowId)?.loadVersion
+          ? (version => getClassBrowserRuntime(sourceWindowId)?.loadVersion(version, options.versionContext || {}))
+          : null);
+    if (typeof loadVersion !== 'function') {
+      setStatus(false, 'Source browser is no longer available');
+      return;
+    }
+    loadVersion(currentVersion);
   });
 
-  if (!versions.length) {
-    listEl.innerHTML = '<div class="cb-empty">(no versions)</div>';
-    return;
-  }
-
-  versions.forEach(version => {
-    const row = document.createElement('div');
-    row.className = 'qv-item';
-    row.textContent = version.label;
-    row.addEventListener('click', () => selectVersion(version, row));
-    row.addEventListener('dblclick', () => {
-      selectVersion(version, row);
-      options.onLoadVersion?.(version);
-    });
-    listEl.appendChild(row);
+  setupQueryWindowList({
+    listEl,
+    filterInput,
+    items: versions,
+    labelForItem(item) {
+      return item?.label || '';
+    },
+    onSelectItem: selectVersion,
+    onOpenItem(item) {
+      if (!item) return;
+      sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
+      const loadVersion = typeof options.onLoadVersion === 'function'
+        ? options.onLoadVersion
+        : (getClassBrowserRuntime(sourceWindowId)?.loadVersion
+            ? (version => getClassBrowserRuntime(sourceWindowId)?.loadVersion(version, options.versionContext || {}))
+            : null);
+      loadVersion?.(item);
+    },
+    defaultIndex: sanitizeSelectionIndex(options.selectedIndex, versions),
   });
-  selectVersion(versions[0], listEl.querySelector('.qv-item'));
+  filterInput.addEventListener('input', syncVersionsWindowState);
+  syncVersionsWindowState();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3908,9 +4883,22 @@ function openClassBrowser(options = {}) {
   let currentSourceMode = currentMethod ? 'method' : 'classDefinition';
   const browserCache = new Map();
   const paneWidthStorageKey = 'python-gemstone-class-browser-pane-widths-v1';
+  const autoCommitStorageKey = 'python-gemstone-class-browser-auto-commit-v1';
   const paneMinWidths = [120, 160, 140, 180];
   const defaultPaneWidths = [160, 220, 180, 220];
   let paneWidths = [...defaultPaneWidths];
+  let autoCommitEnabled = false;
+
+  function syncClassBrowserWindowState() {
+    upsertWindowState(id, {
+      kind: 'class-browser',
+      dictionary: currentDict || '',
+      className: currentClass || '',
+      protocol: currentProtocol || '-- all --',
+      method: currentMethod || '',
+      meta: currentMeta,
+    });
+  }
 
   body.innerHTML = `
     <div class="cb-wrap">
@@ -3927,10 +4915,14 @@ function openClassBrowser(options = {}) {
         <button class="btn-ghost" id="${id}-add-inst-var">Inst Var</button>
         <button class="btn-ghost" id="${id}-add-class-var">Class Var</button>
         <button class="btn-ghost" id="${id}-add-class-inst-var">Class Inst Var</button>
+        <button class="btn-ghost" id="${id}-rename-var">Rename Var</button>
+        <button class="btn-ghost" id="${id}-remove-var">Remove Var</button>
         <button class="btn-ghost" id="${id}-move-class">Move Class</button>
         <button class="btn-ghost" id="${id}-remove-class">Remove Class</button>
         <button class="btn-ghost" id="${id}-refresh">Refresh</button>
         <button class="btn-ghost" id="${id}-browse-class">Browse Class</button>
+        <button class="btn-ghost" id="${id}-browse-category">Browse Category</button>
+        <button class="btn-ghost" id="${id}-browse-method">Browse Method</button>
         <button class="btn-ghost" id="${id}-new-method">New Method</button>
         <button class="btn-ghost" id="${id}-move-method">Move Method</button>
         <button class="btn-ghost" id="${id}-remove-method">Remove Method</button>
@@ -3967,8 +4959,11 @@ function openClassBrowser(options = {}) {
         </label>
         <button class="btn-ghost" id="${id}-file-out">File Out</button>
         <button class="btn-ghost" id="${id}-create-accessors">Create Accessors</button>
+        <button class="btn-ghost" id="${id}-continue-tx">Continue</button>
+        <button class="btn-ghost" id="${id}-abort-tx">Abort</button>
         <button class="btn-ghost" id="${id}-commit">Commit</button>
         <button class="btn" id="${id}-compile">Compile</button>
+        <label class="cb-meta"><input type="checkbox" id="${id}-auto-commit"> Auto Commit</label>
         <label class="cb-meta"><input type="checkbox" id="${id}-meta"> Class side</label>
       </div>
       <div class="cb-lists" id="${id}-lists">
@@ -4033,9 +5028,13 @@ function openClassBrowser(options = {}) {
     addInstVar: body.querySelector(`#${id}-add-inst-var`),
     addClassVar: body.querySelector(`#${id}-add-class-var`),
     addClassInstVar: body.querySelector(`#${id}-add-class-inst-var`),
+    renameVar: body.querySelector(`#${id}-rename-var`),
+    removeVar: body.querySelector(`#${id}-remove-var`),
     moveClass: body.querySelector(`#${id}-move-class`),
     removeClass: body.querySelector(`#${id}-remove-class`),
     browseClass: body.querySelector(`#${id}-browse-class`),
+    browseCategory: body.querySelector(`#${id}-browse-category`),
+    browseMethod: body.querySelector(`#${id}-browse-method`),
     newMethod: body.querySelector(`#${id}-new-method`),
     moveMethod: body.querySelector(`#${id}-move-method`),
     removeMethod: body.querySelector(`#${id}-remove-method`),
@@ -4046,9 +5045,19 @@ function openClassBrowser(options = {}) {
     inspectClass: body.querySelector(`#${id}-inspect-class`),
     inspectMethod: body.querySelector(`#${id}-inspect-method`),
     inspectInstances: body.querySelector(`#${id}-inspect-instances`),
+    continueTx: body.querySelector(`#${id}-continue-tx`),
+    abortTx: body.querySelector(`#${id}-abort-tx`),
     compile: body.querySelector(`#${id}-compile`),
+    autoCommit: body.querySelector(`#${id}-auto-commit`),
   };
   els.meta.checked = currentMeta;
+  try {
+    autoCommitEnabled = localStorage.getItem(autoCommitStorageKey) === '1';
+  } catch (_) {
+    autoCommitEnabled = false;
+  }
+  els.autoCommit.checked = autoCommitEnabled;
+  syncClassBrowserWindowState();
   const listStates = {
     dicts: {container: els.dicts, filterInput: els.dictFilter, items: [], active: null, onSelect: null},
     classes: {container: els.classes, filterInput: els.classFilter, items: [], active: null, onSelect: null},
@@ -4076,6 +5085,14 @@ function openClassBrowser(options = {}) {
 
   function setSourceNote(text) {
     els.sourceNote.textContent = text || '';
+  }
+
+  function storeAutoCommitEnabled() {
+    try {
+      localStorage.setItem(autoCommitStorageKey, autoCommitEnabled ? '1' : '0');
+    } catch (_) {
+      // Ignore storage failures in private browsing / restricted environments.
+    }
   }
 
   function clampPaneWidths(widths) {
@@ -4351,19 +5368,63 @@ function openClassBrowser(options = {}) {
     setButtonAvailability(els.addInstVar, hasClass, 'Select a class first');
     setButtonAvailability(els.addClassVar, hasClass, 'Select a class first');
     setButtonAvailability(els.addClassInstVar, hasClass, 'Select a class first');
+    setButtonAvailability(els.renameVar, hasClass, 'Select a class first');
+    setButtonAvailability(els.removeVar, hasClass, 'Select a class first');
     setButtonAvailability(els.moveClass, hasClass, 'Select a class first');
     setButtonAvailability(els.removeClass, hasClass, 'Select a class first');
     setButtonAvailability(els.browseClass, hasClass, 'Select a class first');
+    setButtonAvailability(els.browseCategory, hasCategory, 'Select a category first');
+    setButtonAvailability(els.browseMethod, hasMethod, 'Select a method first');
     setButtonAvailability(els.newMethod, hasClass, 'Select a class first');
     setButtonAvailability(els.moveMethod, hasMethod, 'Select a method first');
     setButtonAvailability(els.removeMethod, hasMethod, 'Select a method first');
     setButtonAvailability(els.removeCategory, hasCategory, 'Select a category first');
     setButtonAvailability(els.hierarchy, hasClass, 'Select a class first');
     setButtonAvailability(els.versions, hasMethod, 'Select a method first');
+    syncClassBrowserWindowState();
   }
 
   function clearBrowserCache() {
     browserCache.clear();
+  }
+
+  async function finalizeBrowserWrite(message) {
+    const successMessage = String(message || 'Done').trim() || 'Done';
+    if (!autoCommitEnabled) {
+      setBrowserStatus(successMessage, 'ok');
+      return true;
+    }
+    try {
+      const d = await apiTransaction('/transaction/commit');
+      if (!d.success) throw new Error(d.exception || 'Transaction commit failed');
+      clearBrowserCache();
+      setBrowserStatus(`${successMessage}; transaction committed`, 'ok');
+      setStatus(true, 'committed');
+      return true;
+    } catch (e) {
+      setBrowserStatus(`${successMessage}; auto-commit failed: ${e.message}`, 'error');
+      setStatus(false, e.message);
+      return false;
+    }
+  }
+
+  async function runBrowserTransaction(path, busyMessage, successMessage) {
+    setBrowserStatus(busyMessage);
+    try {
+      const d = await apiTransaction(path);
+      if (!d.success) throw new Error(d.exception || successMessage);
+      clearBrowserCache();
+      if (currentDict || currentClass) {
+        await loadDictionaries();
+      }
+      setBrowserStatus(successMessage, 'ok');
+      setStatus(true, successMessage.toLowerCase());
+      return true;
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+      return false;
+    }
   }
 
   async function fetchBrowserCached(name, keyParts, loader) {
@@ -4496,20 +5557,7 @@ function openClassBrowser(options = {}) {
     }
     showLoading(els.methods);
     try {
-      const d = await fetchBrowserCached('methods', {
-        dictionary: currentDict || '',
-        class: currentClass,
-        protocol: currentProtocol,
-        meta: currentMeta ? 1 : 0,
-      }, () => {
-        const params = {
-          class: currentClass,
-          protocol: currentProtocol,
-          meta: currentMeta ? 1 : 0,
-        };
-        if (currentDict) params.dictionary = currentDict;
-        return apiWithParams('/class-browser/methods', params);
-      });
+      const d = await fetchCurrentMethods();
       if (!d.success) throw new Error(d.exception);
       const methods = d.methods || [];
       if (!methods.includes(currentMethod)) currentMethod = null;
@@ -4532,6 +5580,70 @@ function openClassBrowser(options = {}) {
       setStatus(false, e.message);
     }
     syncBrowserActions();
+  }
+
+  async function fetchCurrentMethods() {
+    return fetchBrowserCached('methods', {
+        dictionary: currentDict || '',
+        class: currentClass,
+        protocol: currentProtocol,
+        meta: currentMeta ? 1 : 0,
+      }, () => {
+        const params = {
+          class: currentClass,
+          protocol: currentProtocol,
+          meta: currentMeta ? 1 : 0,
+        };
+        if (currentDict) params.dictionary = currentDict;
+        return apiWithParams('/class-browser/methods', params);
+      });
+  }
+
+  async function browseCategory() {
+    if (!currentClass || !currentProtocol || currentProtocol === '-- all --') {
+      setBrowserStatus('Select a category first', 'error');
+      return;
+    }
+    const ownerLabel = currentMeta ? `${currentClass} class` : currentClass;
+    setBrowserStatus(`Opening ${currentProtocol}…`);
+    try {
+      const d = await fetchCurrentMethods();
+      if (!d.success) throw new Error(d.exception);
+      const results = (d.methods || []).map(selector => ({
+        label: `${ownerLabel}>>${selector}`,
+        className: currentClass,
+        selector,
+        meta: currentMeta,
+        dictionary: currentDict || '',
+      }));
+      if (!results.length) {
+        setBrowserStatus(`No methods in ${currentProtocol}`, 'error');
+        return;
+      }
+      openMethodQueryWindow(`Category ${currentProtocol} in ${ownerLabel} (${results.length})`, results, {
+        sourceWindowId: id,
+        loadLabel: 'Load Into Browser',
+        onLoadResult: loadMethodReferenceIntoBrowser,
+      });
+      setBrowserStatus(`${results.length} methods in ${currentProtocol}`, 'ok');
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  function browseMethod() {
+    if (!currentClass || !currentMethod) {
+      setBrowserStatus('Select a method first', 'error');
+      return;
+    }
+    openClassBrowser({
+      dictionary: currentDict || null,
+      className: currentClass,
+      method: currentMethod,
+      meta: currentMeta,
+    });
+    setBrowserStatus(`Opened ${currentMeta ? `${currentClass} class >> ${currentMethod}` : `${currentClass} >> ${currentMethod}`}`, 'ok');
   }
 
   async function loadProtocols() {
@@ -4692,6 +5804,39 @@ function openClassBrowser(options = {}) {
     return true;
   }
 
+  async function loadMethodReferenceIntoBrowser(parsed) {
+    await locateAndSelectClass(parsed.className, parsed.selector, parsed.meta, parsed.dictionary || null);
+    setBrowserStatus(`Loaded ${parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`}`, 'ok');
+    focusWin(win);
+  }
+
+  async function loadHierarchyEntryIntoBrowser(entry, meta = currentMeta) {
+    await locateAndSelectClass(entry.className, null, meta, entry.dictionary || null);
+    setBrowserStatus(`Loaded ${meta ? `${entry.className} class` : entry.className}`, 'ok');
+    focusWin(win);
+  }
+
+  function loadVersionIntoBrowser(version, context = {}) {
+    if (!version) return;
+    const noteClass = context.className || currentClass || '';
+    const noteMethod = context.method || currentMethod || '';
+    const noteMeta = typeof context.meta === 'boolean' ? context.meta : currentMeta;
+    els.source.value = version.source || '';
+    const ownerLabel = noteMeta ? `${noteClass} class` : noteClass;
+    const sourceLabel = noteMethod ? `${ownerLabel} >> ${noteMethod}` : ownerLabel;
+    setSourceNote(sourceLabel ? `${sourceLabel} (${version.label})` : (version.label || ''));
+    setBrowserStatus(`Loaded ${version.label} into editor`, 'ok');
+    focusWin(win);
+  }
+
+  upsertWindowState(id, {
+    browserRuntime: {
+      loadMethodReference: loadMethodReferenceIntoBrowser,
+      loadHierarchyEntry: loadHierarchyEntryIntoBrowser,
+      loadVersion: loadVersionIntoBrowser,
+    },
+  });
+
   async function refreshBrowser() {
     const saved = {
       dict: currentDict,
@@ -4747,12 +5892,9 @@ function openClassBrowser(options = {}) {
       }
       const titlePrefix = query.scope === 'all' ? promptTitle.replace(/:$/, '') : `${promptTitle.replace(/:$/, '')} (${hierarchyScopeLabel(query.scope)})`;
       openMethodQueryWindow(`${titlePrefix} (${d.results.length})`, d.results, {
+        sourceWindowId: id,
         loadLabel: 'Load Into Browser',
-        async onLoadResult(parsed) {
-          await locateAndSelectClass(parsed.className, parsed.selector, parsed.meta, parsed.dictionary || null);
-          setBrowserStatus(`Loaded ${parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`}`, 'ok');
-          focusWin(win);
-        },
+        onLoadResult: loadMethodReferenceIntoBrowser,
       });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
     } catch (e) {
@@ -4781,12 +5923,9 @@ function openClassBrowser(options = {}) {
         return;
       }
       openMethodQueryWindow(`References to ${selector} (${d.results.length})`, d.results, {
+        sourceWindowId: id,
         loadLabel: 'Load Into Browser',
-        async onLoadResult(parsed) {
-          await locateAndSelectClass(parsed.className, parsed.selector, parsed.meta, parsed.dictionary || null);
-          setBrowserStatus(`Loaded ${parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`}`, 'ok');
-          focusWin(win);
-        },
+        onLoadResult: loadMethodReferenceIntoBrowser,
       });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
     } catch (e) {
@@ -4813,12 +5952,9 @@ function openClassBrowser(options = {}) {
         return;
       }
       openMethodQueryWindow(`Methods with "${selector}" (${d.results.length})`, d.results, {
+        sourceWindowId: id,
         loadLabel: 'Load Into Browser',
-        async onLoadResult(parsed) {
-          await locateAndSelectClass(parsed.className, parsed.selector, parsed.meta, parsed.dictionary || null);
-          setBrowserStatus(`Loaded ${parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`}`, 'ok');
-          focusWin(win);
-        },
+        onLoadResult: loadMethodReferenceIntoBrowser,
       });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
     } catch (e) {
@@ -4843,13 +5979,10 @@ function openClassBrowser(options = {}) {
       });
       if (!d.success) throw new Error(d.exception);
       openHierarchyWindow(`${currentClass} Hierarchy`, d.hierarchy || [], {
+        sourceWindowId: id,
         loadLabel: 'Load Into Browser',
         meta: currentMeta,
-        async onLoadClass(entry) {
-          await locateAndSelectClass(entry.className, null, currentMeta, entry.dictionary || null);
-          setBrowserStatus(`Loaded ${currentMeta ? `${entry.className} class` : entry.className}`, 'ok');
-          focusWin(win);
-        },
+        onLoadClass: entry => loadHierarchyEntryIntoBrowser(entry, currentMeta),
       });
       setBrowserStatus('Hierarchy loaded', 'ok');
     } catch (e) {
@@ -4884,13 +6017,21 @@ function openClassBrowser(options = {}) {
         return;
       }
       openVersionsWindow(`${currentClass} >> ${currentMethod} Versions`, d.versions, {
+        sourceWindowId: id,
         loadLabel: 'Load Into Browser',
+        versionContext: {
+          className: currentClass,
+          method: currentMethod,
+          meta: currentMeta,
+          dictionary: currentDict || '',
+        },
         onLoadVersion(version) {
-          if (!version) return;
-          els.source.value = version.source || '';
-          setSourceNote(`${currentMeta ? `${currentClass} class >> ${currentMethod}` : `${currentClass} >> ${currentMethod}`} (${version.label})`);
-          setBrowserStatus(`Loaded ${version.label} into editor`, 'ok');
-          focusWin(win);
+          loadVersionIntoBrowser(version, {
+            className: currentClass,
+            method: currentMethod,
+            meta: currentMeta,
+            dictionary: currentDict || '',
+          });
         },
       });
       setBrowserStatus(`${d.versions.length} versions`, 'ok');
@@ -4967,7 +6108,7 @@ function openClassBrowser(options = {}) {
       currentSourceMode = 'classDefinition';
       ensureFilterShowsValue(els.dictFilter, currentDict);
       await loadDictionaries();
-      setBrowserStatus(d.result || `Added ${currentDict}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Added ${currentDict}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -4994,7 +6135,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.dictFilter, currentDict);
       ensureFilterShowsValue(els.classFilter, currentClass);
       await loadDictionaries();
-      setBrowserStatus(d.result || `Renamed ${oldName} to ${currentDict}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Renamed ${oldName} to ${currentDict}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5020,7 +6161,7 @@ function openClassBrowser(options = {}) {
       currentMethod = null;
       currentSourceMode = 'classDefinition';
       await loadDictionaries();
-      setBrowserStatus(d.result || `Removed ${dictionary}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Removed ${dictionary}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5111,7 +6252,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.dictFilter, currentDict);
       ensureFilterShowsValue(els.classFilter, currentClass);
       await loadDictionaries();
-      setBrowserStatus(d.result || `Created ${currentClass} in ${currentDict}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Created ${currentClass} in ${currentDict}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5145,7 +6286,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.dictFilter, currentDict);
       ensureFilterShowsValue(els.classFilter, currentClass);
       await loadDictionaries();
-      setBrowserStatus(d.result || `Renamed ${oldClassName} to ${currentClass}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Renamed ${oldClassName} to ${currentClass}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5179,7 +6320,7 @@ function openClassBrowser(options = {}) {
       currentSourceMode = 'classDefinition';
       ensureFilterShowsValue(els.protocolFilter, currentProtocol);
       await loadProtocols();
-      setBrowserStatus(d.result || `Added category ${currentProtocol}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Added category ${currentProtocol}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5214,7 +6355,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.protocolFilter, currentProtocol);
       ensureFilterShowsValue(els.methodFilter, currentMethod);
       await loadProtocols();
-      setBrowserStatus(d.result || `Renamed ${oldCategory} to ${currentProtocol}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Renamed ${oldCategory} to ${currentProtocol}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5244,7 +6385,157 @@ function openClassBrowser(options = {}) {
       currentSourceMode = 'classDefinition';
       ensureFilterShowsValue(els.classFilter, currentClass);
       await loadProtocols();
-      setBrowserStatus(d.result || `${title} succeeded`, 'ok');
+      await finalizeBrowserWrite(d.result || `${title} succeeded`);
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  function parseDefinitionVariableNames(source, fieldName) {
+    const match = String(source || '').match(new RegExp(`${fieldName}:\\s*'([^']*)'`));
+    if (!match) return [];
+    return String(match[1] || '').trim().split(/\s+/).filter(Boolean);
+  }
+
+  async function fetchClassVariableEntries() {
+    if (!currentClass) return [];
+    const params = {class: currentClass, meta: 0};
+    if (currentDict) params.dictionary = currentDict;
+    const d = await apiWithParams('/class-browser/source', params);
+    if (!d.success) throw new Error(d.exception || 'Unable to load class definition');
+    const source = d.source || '';
+    return [
+      ...parseDefinitionVariableNames(source, 'instanceVariableNames').map(name => ({
+        key: `instance:${name}`,
+        kind: 'instance',
+        name,
+        label: `Instance — ${name}`,
+      })),
+      ...parseDefinitionVariableNames(source, 'classVariableNames').map(name => ({
+        key: `class:${name}`,
+        kind: 'class',
+        name,
+        label: `Class — ${name}`,
+      })),
+      ...parseDefinitionVariableNames(source, 'classInstanceVariableNames').map(name => ({
+        key: `classInstance:${name}`,
+        kind: 'classInstance',
+        name,
+        label: `Class Instance — ${name}`,
+      })),
+    ];
+  }
+
+  async function renameVariable() {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    try {
+      const variables = await fetchClassVariableEntries();
+      if (!variables.length) {
+        setBrowserStatus('No variables available', 'error');
+        return;
+      }
+      const values = await requestModal('Rename Variable', [
+        {
+          label: 'Variable',
+          id: 'variable-key',
+          type: 'select',
+          options: variables.map(variable => ({value: variable.key, label: variable.label})),
+          value: variables[0].key,
+        },
+        {
+          label: 'New name',
+          id: 'target-name',
+          type: 'input',
+          placeholder: variables[0].name,
+          value: variables[0].name,
+        },
+      ], {okLabel: 'Rename'});
+      if (!values) return;
+      const selected = variables.find(variable => variable.key === values['variable-key']);
+      const targetName = String(values['target-name'] || '').trim();
+      if (!selected || !targetName || targetName === selected.name) return;
+      const route = ({
+        instance: '/class-browser/rename-instance-variable',
+        class: '/class-browser/rename-class-variable',
+        classInstance: '/class-browser/rename-class-instance-variable',
+      })[selected.kind];
+      if (!route) throw new Error('unsupported variable type');
+      setBrowserStatus('Renaming variable…');
+      const d = await apiPost(route, {
+        className: currentClass,
+        dictionary: currentDict || '',
+        variableName: selected.name,
+        targetVariableName: targetName,
+      });
+      if (!d.success) throw new Error(d.exception || 'Variable rename failed');
+      clearBrowserCache();
+      currentMeta = false;
+      els.meta.checked = false;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.classFilter, currentClass);
+      await loadProtocols();
+      await finalizeBrowserWrite(d.result || `Renamed ${selected.name} to ${targetName}`);
+    } catch (e) {
+      setBrowserStatus(e.message, 'error');
+      setStatus(false, e.message);
+    }
+  }
+
+  async function removeVariable() {
+    if (!currentClass) {
+      setBrowserStatus('Select a class first', 'error');
+      return;
+    }
+    try {
+      const variables = await fetchClassVariableEntries();
+      if (!variables.length) {
+        setBrowserStatus('No variables available', 'error');
+        return;
+      }
+      const selectedKey = await requestSelectModal(
+        'Remove Variable',
+        'Variable',
+        variables.map(variable => ({value: variable.key, label: variable.label})),
+        variables[0].key,
+        {okLabel: 'Remove'}
+      );
+      if (!selectedKey) return;
+      const selected = variables.find(variable => variable.key === selectedKey);
+      if (!selected) return;
+      const confirmed = await requestConfirmModal(
+        'Remove Variable',
+        `Remove "${selected.name}"?`,
+        {okLabel: 'Remove'}
+      );
+      if (!confirmed) return;
+      const route = ({
+        instance: '/class-browser/remove-instance-variable',
+        class: '/class-browser/remove-class-variable',
+        classInstance: '/class-browser/remove-class-instance-variable',
+      })[selected.kind];
+      if (!route) throw new Error('unsupported variable type');
+      setBrowserStatus('Removing variable…');
+      const d = await apiPost(route, {
+        className: currentClass,
+        dictionary: currentDict || '',
+        variableName: selected.name,
+      });
+      if (!d.success) throw new Error(d.exception || 'Variable removal failed');
+      clearBrowserCache();
+      currentMeta = false;
+      els.meta.checked = false;
+      currentProtocol = '-- all --';
+      currentMethod = null;
+      currentSourceMode = 'classDefinition';
+      ensureFilterShowsValue(els.classFilter, currentClass);
+      await loadProtocols();
+      await finalizeBrowserWrite(d.result || `Removed ${selected.name}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5292,7 +6583,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.dictFilter, currentDict);
       ensureFilterShowsValue(els.classFilter, currentClass);
       await loadDictionaries();
-      setBrowserStatus(d.result || `Moved ${currentClass} to ${currentDict}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Moved ${currentClass} to ${currentDict}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5322,7 +6613,7 @@ function openClassBrowser(options = {}) {
       currentMethod = null;
       currentSourceMode = 'classDefinition';
       await loadDictionaries();
-      setBrowserStatus(d.result || `Removed ${className}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Removed ${className}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5361,7 +6652,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.protocolFilter, currentProtocol);
       ensureFilterShowsValue(els.methodFilter, currentMethod);
       await loadProtocols();
-      setBrowserStatus(d.result || `Moved ${currentMethod} to ${currentProtocol}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Moved ${currentMethod} to ${currentProtocol}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5393,7 +6684,7 @@ function openClassBrowser(options = {}) {
       clearBrowserCache();
       currentMethod = null;
       await loadProtocols();
-      setBrowserStatus(d.result || `Removed ${selector}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Removed ${selector}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5429,7 +6720,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.protocolFilter, currentProtocol);
       ensureFilterShowsValue(els.methodFilter, currentMethod);
       await loadProtocols();
-      setBrowserStatus(d.result || `Moved methods from ${category}`, 'ok');
+      await finalizeBrowserWrite(d.result || `Moved methods from ${category}`);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5477,7 +6768,7 @@ function openClassBrowser(options = {}) {
       ensureFilterShowsValue(els.protocolFilter, currentProtocol);
       ensureFilterShowsValue(els.methodFilter, currentMethod);
       await loadProtocols();
-      setBrowserStatus(d.result || 'Accessors created', 'ok');
+      await finalizeBrowserWrite(d.result || 'Accessors created');
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5485,17 +6776,15 @@ function openClassBrowser(options = {}) {
   }
 
   async function commitSession() {
-    setBrowserStatus('Committing…');
-    try {
-      const d = await apiTransaction('/transaction/commit');
-      if (!d.success) throw new Error(d.exception);
-      clearBrowserCache();
-      setBrowserStatus('Transaction committed', 'ok');
-      setStatus(true, 'committed');
-    } catch (e) {
-      setBrowserStatus(e.message, 'error');
-      setStatus(false, e.message);
-    }
+    await runBrowserTransaction('/transaction/commit', 'Committing…', 'Transaction committed');
+  }
+
+  async function abortSession() {
+    await runBrowserTransaction('/transaction/abort', 'Aborting…', 'Transaction aborted');
+  }
+
+  async function continueSession() {
+    await runBrowserTransaction('/transaction/continue', 'Continuing…', 'Transaction continued');
   }
 
   async function compileSource() {
@@ -5531,8 +6820,8 @@ function openClassBrowser(options = {}) {
         : '';
       const compileStatus = `${d.result || 'Compiled'}${renameNote}`;
       await loadProtocols();
-      setBrowserStatus(compileStatus, 'ok');
       if (compiledSelector) setSourceNote(compiledLabel);
+      await finalizeBrowserWrite(compileStatus);
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
@@ -5580,6 +6869,8 @@ function openClassBrowser(options = {}) {
     `Class instance variable name for ${currentClass}`,
     'cachedState'
   ));
+  body.querySelector(`#${id}-rename-var`).addEventListener('click', () => renameVariable());
+  body.querySelector(`#${id}-remove-var`).addEventListener('click', () => removeVariable());
   body.querySelector(`#${id}-move-class`).addEventListener('click', () => moveClass());
   body.querySelector(`#${id}-remove-class`).addEventListener('click', () => removeClass());
   body.querySelector(`#${id}-refresh`).addEventListener('click', () => refreshBrowser());
@@ -5589,6 +6880,8 @@ function openClassBrowser(options = {}) {
     setActiveRow(els.methods, null);
     loadClassSource('');
   });
+  body.querySelector(`#${id}-browse-category`).addEventListener('click', () => browseCategory());
+  body.querySelector(`#${id}-browse-method`).addEventListener('click', () => browseMethod());
   body.querySelector(`#${id}-new-method`).addEventListener('click', () => startNewMethod());
   body.querySelector(`#${id}-move-method`).addEventListener('click', () => moveMethod());
   body.querySelector(`#${id}-remove-method`).addEventListener('click', () => removeMethod());
@@ -5605,8 +6898,15 @@ function openClassBrowser(options = {}) {
   body.querySelector(`#${id}-implementors`).addEventListener('click', () => runSelectorQuery('implementors', 'Implementors of selector:'));
   body.querySelector(`#${id}-file-out`).addEventListener('click', () => fileOut());
   body.querySelector(`#${id}-create-accessors`).addEventListener('click', () => createAccessors());
+  body.querySelector(`#${id}-continue-tx`).addEventListener('click', () => continueSession());
+  body.querySelector(`#${id}-abort-tx`).addEventListener('click', () => abortSession());
   body.querySelector(`#${id}-commit`).addEventListener('click', () => commitSession());
   body.querySelector(`#${id}-compile`).addEventListener('click', () => compileSource());
+  els.autoCommit.addEventListener('change', () => {
+    autoCommitEnabled = els.autoCommit.checked;
+    storeAutoCommitEnabled();
+    setBrowserStatus(autoCommitEnabled ? 'Auto Commit enabled' : 'Auto Commit disabled', 'ok');
+  });
   win.addEventListener('keydown', handleClassBrowserKeydown);
   els.meta.addEventListener('change', async () => {
     currentMeta = els.meta.checked;
@@ -5862,32 +7162,8 @@ async function requestConfirmModal(title, message, options = {}) {
 // ── startup ───────────────────────────────────────────────────────────────────
 async function startup() {
   await init();
-  const vw = window.innerWidth;
-  const vh = Math.max(420, window.innerHeight - 42);
-
-  const hashOop = startupIds.persistentRootId || roots['UserGlobals'] || roots['Globals'];
-  const hashLabel = 'Persistent Root';
-  const hashW = Math.min(vw - 32, Math.max(900, Math.floor(vw * 0.72)));
-  const hashH = Math.min(300, Math.max(220, Math.floor(vh * 0.34)));
-  const hashX = Math.max(16, vw - hashW - 16);
-  const hashY = 10;
-
-  const systemW = Math.min(vw - 32, Math.max(980, Math.floor(vw * 0.9)));
-  const systemH = Math.min(340, Math.max(280, Math.floor(vh * 0.46)));
-  const systemX = 20;
-  const systemY = Math.min(Math.max(180, hashY + hashH + 34), Math.max(20, vh - systemH - 20));
-
-  if (hashOop) {
-    openObjectBrowser(hashOop, hashLabel, hashX, hashY, hashW, hashH, {initialTab: 'instvars', compact: true});
-  } else {
-    openObjectBrowser(undefined, undefined, 10, 10, 520, 480);
-  }
-
-  if (startupIds.systemId || roots['System']) {
-    openObjectBrowser(startupIds.systemId || roots['System'], 'System', systemX, systemY, systemW, systemH, {initialTab: 'control', compact: true});
-  }
-
-  cascadeX = 80; cascadeY = 80;
+  const restored = await restoreSavedLayout();
+  if (!restored) openDefaultStartupLayout();
   startThreadPoller();
 }
 startup();

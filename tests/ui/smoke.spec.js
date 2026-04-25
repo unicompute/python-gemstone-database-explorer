@@ -27,6 +27,129 @@ test('startup opens root/system windows and renders MaglevRecord custom tabs', a
   await expect(record).toContainText("'value-21'");
 });
 
+test('window manager commands tile, minimise, and restore persisted layouts', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'Workspace' }).click();
+  await page.getByRole('button', { name: 'Web Browser' }).click();
+  await expect(page.locator('.win')).toHaveCount(4);
+
+  await page.getByRole('button', { name: 'Tile' }).click();
+  const tiledWidth = await windowByTitle(page, 'Workspace').evaluate(el => Math.round(el.getBoundingClientRect().width));
+  expect(tiledWidth).toBeGreaterThan(560);
+
+  await page.reload();
+  await expect(page.locator('.win')).toHaveCount(4);
+  await expect(windowByTitle(page, 'Workspace')).toBeVisible();
+  await expect(windowByTitle(page, 'Web Browser')).toBeVisible();
+  const restoredWidth = await windowByTitle(page, 'Workspace').evaluate(el => Math.round(el.getBoundingClientRect().width));
+  expect(restoredWidth).toBeGreaterThan(560);
+
+  await page.getByRole('button', { name: 'Minimise All' }).click();
+  await expect(page.locator('.win[data-minimised="1"]')).toHaveCount(4);
+
+  await page.getByRole('button', { name: 'Reset Startup' }).click();
+  await expect(page.locator('.win')).toHaveCount(2);
+});
+
+test('symbol list and debugger persist across reload and close group only removes related windows', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'Workspace' }).click();
+  await page.getByRole('button', { name: 'Symbol List' }).click();
+
+  const workspace = windowByTitle(page, 'Workspace');
+  await workspace.locator('.ws-code-area').fill('1/0');
+  await workspace.getByRole('button', { name: 'Do it' }).click();
+
+  const debuggerWindow = windowByTitle(page, 'Debugger');
+  const symbolList = windowByTitle(page, 'Symbol List Browser');
+  await expect(debuggerWindow).toBeVisible();
+  await expect(symbolList).toBeVisible();
+  await expect(symbolList.locator('select')).toHaveValue('DataCurator');
+  await expect(workspace.locator('.ws-code-area')).toHaveValue('1/0');
+
+  await page.reload();
+
+  const restoredWorkspace = windowByTitle(page, 'Workspace');
+  const restoredDebugger = windowByTitle(page, 'Debugger');
+  const restoredSymbolList = windowByTitle(page, 'Symbol List Browser');
+  await expect(restoredWorkspace).toBeVisible();
+  await expect(restoredDebugger).toBeVisible();
+  await expect(restoredSymbolList).toBeVisible();
+  await expect(restoredSymbolList.locator('select')).toHaveValue('DataCurator');
+  await expect(restoredWorkspace.locator('.ws-code-area')).toHaveValue('1/0');
+
+  const restoredWorkspaceId = await restoredWorkspace.evaluate(el => el.id);
+  await page.evaluate(id => {
+    const win = document.getElementById(id);
+    if (win) focusWin(win);
+  }, restoredWorkspaceId);
+  await page.getByRole('button', { name: 'Close Group' }).click();
+
+  await expect(page.locator('.win').filter({
+    has: page.locator('.win-title', { hasText: 'Workspace' }),
+  })).toHaveCount(0);
+  await expect(page.locator('.win').filter({
+    has: page.locator('.win-title', { hasText: 'Debugger' }),
+  })).toHaveCount(0);
+  await expect(windowByTitle(page, 'Symbol List Browser')).toBeVisible();
+});
+
+test('class browser helper windows persist across reload and keep load actions', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'Class Browser' }).click();
+  const browser = windowByTitle(page, 'Class Browser');
+  const toolbar = browser.locator('.cb-toolbar');
+  await expect(browser).toBeVisible();
+
+  await toolbar.getByRole('button', { name: 'Find Class' }).click();
+  await submitModal(page, 'Object');
+  await submitModal(page, 'Globals');
+  await browser.locator('.cb-pane').nth(3).getByText('printString').click();
+
+  await toolbar.getByRole('button', { name: 'Hierarchy' }).click();
+  const hierarchyWin = windowByTitle(page, 'Object Hierarchy');
+  await hierarchyWin.locator('.qv-item').filter({ hasText: /^ProtoObject$/ }).click();
+  await hierarchyWin.locator('.qv-filter').fill('Proto');
+  await expect(hierarchyWin.locator('.qv-preview')).toHaveValue(/ProtoObject/);
+
+  await toolbar.getByRole('button', { name: 'Versions' }).click();
+  const versionsWin = windowByTitle(page, 'Object >> printString Versions');
+  await versionsWin.locator('.qv-filter').fill('version 1');
+  await expect(versionsWin.locator('.qv-item')).toContainText('version 1');
+  await expect(versionsWin.locator('.qv-preview')).toHaveValue(/version 1/);
+
+  await toolbar.getByRole('button', { name: 'Implementors' }).click();
+  const implementorsWin = windowByTitle(page, 'Implementors of selector');
+  await implementorsWin.locator('.qv-item').filter({ hasText: 'Behavior>>printString' }).first().click();
+  await implementorsWin.locator('.qv-filter').fill('Behavior');
+  await expect(implementorsWin.locator('.qv-item.active')).toContainText('Behavior>>printString');
+
+  await page.reload();
+
+  const restoredBrowser = windowByTitle(page, 'Class Browser');
+  const restoredHierarchyWin = windowByTitle(page, 'Object Hierarchy');
+  const restoredVersionsWin = windowByTitle(page, 'Object >> printString Versions');
+  const restoredImplementorsWin = windowByTitle(page, 'Implementors of selector');
+  await expect(restoredBrowser).toBeVisible();
+  await expect(restoredHierarchyWin).toBeVisible();
+  await expect(restoredVersionsWin).toBeVisible();
+  await expect(restoredImplementorsWin).toBeVisible();
+  await expect(restoredHierarchyWin.locator('.qv-filter')).toHaveValue('Proto');
+  await expect(restoredHierarchyWin.locator('.qv-item.active')).toContainText('ProtoObject');
+  await expect(restoredVersionsWin.locator('.qv-filter')).toHaveValue('version 1');
+  await expect(restoredVersionsWin.locator('.qv-item.active')).toContainText('version 1');
+  await expect(restoredImplementorsWin.locator('.qv-filter')).toHaveValue('Behavior');
+  await expect(restoredImplementorsWin.locator('.qv-item.active')).toContainText('Behavior>>printString');
+
+  await restoredImplementorsWin.locator('.qv-item.active').click({ force: true });
+  await restoredImplementorsWin.getByRole('button', { name: 'Load Into Browser' }).click({ force: true });
+  await expect(restoredBrowser.locator('.cb-pane').nth(1).locator('.cb-item.active')).toContainText('Behavior');
+  await expect(restoredBrowser.locator('.cb-source-note')).toContainText('Behavior >> printString');
+});
+
 test('system startup window keeps report tabs cached and persistent mode synced to backend state', async ({ page }) => {
   await page.goto('/');
 
@@ -393,12 +516,12 @@ test('class browser caches repeated loads and refresh invalidates them', async (
   await expect(browser.locator('.cb-pane').nth(1)).toContainText('Object');
   const classesPane = browser.locator('.cb-pane').nth(1).locator('.cb-list');
   expect(await classesPane.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
-  expect(await browser.locator('.cb-pane').nth(1).locator('.cb-item.active').evaluate(el => {
+  await expect.poll(async () => browser.locator('.cb-pane').nth(1).locator('.cb-item.active').evaluate(el => {
     const container = el.parentElement;
     if (!container) return false;
     const rowRect = el.getBoundingClientRect();
     const paneRect = container.getBoundingClientRect();
-    return rowRect.top >= paneRect.top && rowRect.bottom <= paneRect.bottom;
+    return rowRect.top >= paneRect.top - 2 && rowRect.bottom <= paneRect.bottom + 2;
   })).toBe(true);
   expect(await requestCount(page, 'class-browser.dictionaries')).toBe(1);
   expect(await requestCount(page, 'class-browser.classes')).toBe(1);
@@ -644,12 +767,14 @@ test('class browser supports dictionary search and inspect actions', async ({ pa
   await expect(classWindow.locator('.insp-titlebar-left')).toContainText('Object');
 
   const afterClassInspectCount = await page.locator('.win').count();
-  await toolbar.getByRole('button', { name: 'Inspect Method', exact: true }).click();
+  await browser.locator('.win-titlebar').click();
+  await toolbar.getByRole('button', { name: 'Inspect Method', exact: true }).click({ force: true });
   await expect(page.locator('.win')).toHaveCount(afterClassInspectCount + 1);
   const methodWindow = page.locator('.win').last();
   await expect(methodWindow.locator('.insp-titlebar-left [title]').first()).toHaveAttribute('title', 'aCompiledMethod(Object>>printString)');
 
   const afterMethodInspectCount = await page.locator('.win').count();
+  await browser.locator('.win-titlebar').click();
   await toolbar.getByRole('button', { name: 'Inspect All Instances', exact: true }).click();
   await expect(page.locator('.win')).toHaveCount(afterMethodInspectCount + 1);
   const instancesWindow = page.locator('.win').last();
@@ -702,6 +827,25 @@ test('class browser supports category add-rename and class structure edits', asy
   await expect(browser.locator('.cb-source')).toHaveValue(/classInstanceVariableNames: 'cachedState'/);
   await expect(browser.locator('.cb-status')).toContainText('Added class instance variable cachedState');
   expect(await requestCount(page, 'class-browser.add-class-instance-variable')).toBe(1);
+
+  await toolbar.getByRole('button', { name: 'Rename Var', exact: true }).click();
+  await submitModal(page, ['instance:slotOne', 'slotRenamed']);
+  await expect(browser.locator('.cb-source')).toHaveValue(/instanceVariableNames: 'slotRenamed'/);
+  await expect(browser.locator('.cb-status')).toContainText('Renamed instance variable slotOne to slotRenamed');
+  expect(await requestCount(page, 'class-browser.rename-instance-variable')).toBe(1);
+
+  await toolbar.getByRole('button', { name: 'Rename Var', exact: true }).click();
+  await submitModal(page, ['classInstance:cachedState', 'renamedCache']);
+  await expect(browser.locator('.cb-source')).toHaveValue(/classInstanceVariableNames: 'renamedCache'/);
+  await expect(browser.locator('.cb-status')).toContainText('Renamed class instance variable cachedState to renamedCache');
+  expect(await requestCount(page, 'class-browser.rename-class-instance-variable')).toBe(1);
+
+  await toolbar.getByRole('button', { name: 'Remove Var', exact: true }).click();
+  await submitModal(page, 'class:SharedState');
+  await submitModal(page);
+  await expect(browser.locator('.cb-source')).toHaveValue(/classVariableNames: ''/);
+  await expect(browser.locator('.cb-status')).toContainText('Removed class variable SharedState');
+  expect(await requestCount(page, 'class-browser.remove-class-variable')).toBe(1);
 });
 
 test('class browser supports hierarchy queries, text search, file-out, accessors, and commit', async ({ page }) => {
@@ -757,7 +901,11 @@ test('class browser supports hierarchy queries, text search, file-out, accessors
   const versionsWin = windowByTitle(page, 'Object >> printString Versions');
   await expect(versionsWin).toBeVisible();
   await expect(versionsWin.locator('.qv-preview')).toHaveValue(/version 1/);
-  await versionsWin.getByRole('button', { name: 'Load Into Browser' }).click();
+  await versionsWin.locator('.qv-filter').fill('version 1');
+  await expect(versionsWin.locator('.qv-item')).toContainText('version 1');
+  await expect(versionsWin.locator('.qv-preview')).toHaveValue(/version 1/);
+  await versionsWin.locator('.qv-list').focus();
+  await page.keyboard.press('Enter');
   await expect(browser.locator('.cb-source')).toHaveValue(/version 1/);
   await expect(browser.locator('.cb-source-note')).toContainText('version 1');
   await versionsWin.locator('.win-btn-close').click({ force: true });
@@ -798,6 +946,18 @@ test('class browser supports hierarchy queries, text search, file-out, accessors
   expect(await requestCount(page, 'class-browser.query')).toBe(queryCountBeforeClassRefs + 1);
   await classReferencesWin.locator('.win-btn-close').click({ force: true });
 
+  await browser.locator('.cb-pane').nth(2).locator('.cb-item').filter({ hasText: /^printing$/ }).click();
+  await expect(browser.locator('.cb-pane').nth(3)).toContainText('printString');
+  const methodsCountBeforeBrowseCategory = await requestCount(page, 'class-browser.methods');
+  await toolbar.getByRole('button', { name: 'Browse Category' }).click();
+  const browseCategoryWin = windowByTitle(page, 'Category printing in Object');
+  await expect(browseCategoryWin.locator('.qv-item').filter({ hasText: 'Object>>printString' }).first()).toBeVisible();
+  await expect(browseCategoryWin.locator('.qv-preview')).toHaveValue(/printString/);
+  expect(await requestCount(page, 'class-browser.methods')).toBe(methodsCountBeforeBrowseCategory);
+  await browseCategoryWin.getByRole('button', { name: 'Load Into Browser' }).click();
+  await expect(browser.locator('.cb-source-note')).toContainText('Object >> printString');
+  await browseCategoryWin.locator('.win-btn-close').click({ force: true });
+
   await browser.getByLabel('Class side').check();
   await expect(browser.locator('.cb-pane').nth(3)).toContainText('new');
   await browser.locator('.cb-pane').nth(3).getByText('new').click();
@@ -817,6 +977,17 @@ test('class browser supports hierarchy queries, text search, file-out, accessors
   await browser.locator('.cb-pane').nth(1).getByText('Behavior').click();
   await browser.locator('.cb-pane').nth(3).getByText('printString').click();
   await expect(browser.locator('.cb-source-note')).toContainText('Behavior >> printString');
+  const classBrowserCountBeforeBrowseMethod = await page.locator('.win').filter({
+    has: page.locator('.win-title', { hasText: 'Class Browser' }),
+  }).count();
+  await toolbar.getByRole('button', { name: 'Browse Method' }).click();
+  const methodBrowsers = page.locator('.win').filter({
+    has: page.locator('.win-title', { hasText: 'Class Browser' }),
+  });
+  await expect(methodBrowsers).toHaveCount(classBrowserCountBeforeBrowseMethod + 1);
+  await expect(methodBrowsers.last().locator('.cb-source-note')).toContainText('Behavior >> printString');
+  await methodBrowsers.last().locator('.win-btn-close').click();
+  await expect(methodBrowsers).toHaveCount(classBrowserCountBeforeBrowseMethod);
 
   await toolbar.locator('select').nth(1).selectOption('method');
   const downloadPromise = page.waitForEvent('download');
@@ -824,13 +995,20 @@ test('class browser supports hierarchy queries, text search, file-out, accessors
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('Behavior-printString.st');
 
+  const transactionCommitCountBeforeAuto = await requestCount(page, 'transaction.commit');
+  await browser.getByLabel('Auto Commit').check();
+  await expect(browser.locator('.cb-status')).toContainText('Auto Commit enabled');
   await browser.locator('.cb-source').fill("displayString\n^ self name");
   await toolbar.getByRole('button', { name: 'Compile' }).click();
   await expect(browser.locator('.cb-status')).toContainText('printString → displayString');
+  await expect(browser.locator('.cb-status')).toContainText('transaction committed');
+  expect(await requestCount(page, 'transaction.commit')).toBe(transactionCommitCountBeforeAuto + 1);
   await expect(browser.locator('.cb-pane').nth(3)).toContainText('displayString');
   await expect(browser.locator('.cb-pane').nth(3)).not.toContainText('printString');
   await expect(browser.locator('.cb-source-note')).toContainText('Behavior >> displayString');
   await expect(browser.locator('.cb-source')).toHaveValue(/displayString/);
+  await browser.getByLabel('Auto Commit').uncheck();
+  await expect(browser.locator('.cb-status')).toContainText('Auto Commit disabled');
 
   await toolbar.getByRole('button', { name: 'Create Accessors' }).click();
   await submitModal(page, 'name');
@@ -839,6 +1017,17 @@ test('class browser supports hierarchy queries, text search, file-out, accessors
   await expect(browser.locator('.cb-source-note')).toContainText('Behavior >> name');
   await expect(browser.locator('.cb-source')).toHaveValue(/^name\b/);
 
+  const transactionContinueCountBefore = await requestCount(page, 'transaction.continue');
+  await toolbar.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(browser.locator('.cb-status')).toContainText('Transaction continued');
+  expect(await requestCount(page, 'transaction.continue')).toBe(transactionContinueCountBefore + 1);
+
+  const transactionAbortCountBefore = await requestCount(page, 'transaction.abort');
+  await toolbar.getByRole('button', { name: 'Abort', exact: true }).click();
+  await expect(browser.locator('.cb-status')).toContainText('Transaction aborted');
+  expect(await requestCount(page, 'transaction.abort')).toBe(transactionAbortCountBefore + 1);
+
   await toolbar.getByRole('button', { name: 'Commit' }).click();
   await expect(browser.locator('.cb-status')).toContainText('Transaction committed');
+  expect(await requestCount(page, 'transaction.commit')).toBe(transactionCommitCountBeforeAuto + 2);
 });

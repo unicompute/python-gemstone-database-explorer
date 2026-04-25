@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Iterator
 
-from flask import Flask
+from flask import Flask, has_request_context, request
 
 from gemstone_py import GemStoneConfig, GemStoneSession
 
@@ -69,13 +69,40 @@ class _SessionBroker:
             self._apply_defaults(session)
         return managed, session
 
+    def _resolve_channel(self, *, read_only: bool, channel: str) -> str:
+        explicit = str(channel or "main").strip() or "main"
+        if explicit != "main":
+            return explicit
+        if not has_request_context():
+            return f"main-{'r' if read_only else 'w'}"
+        path = str(request.path or "")
+        if path.startswith("/debug"):
+            base = "debug"
+        elif path.startswith("/transaction"):
+            base = "transaction"
+        elif path.startswith("/class-browser"):
+            base = "class-browser"
+        elif path.startswith("/object/evaluate"):
+            base = "eval"
+        elif path.startswith("/object/"):
+            base = "object"
+        elif path.startswith("/symbol-list"):
+            base = "symbol-list"
+        elif path == "/ids":
+            base = "roots"
+        elif path == "/version":
+            base = "version"
+        else:
+            base = "main"
+        return f"{base}-{'r' if read_only else 'w'}"
+
     @contextmanager
     def request_session(self, *, read_only: bool = True, channel: str = "main") -> Iterator[GemStoneSession]:
         with _gci_lock:
             managed: _ManagedSession | None = None
             session: GemStoneSession | None = None
             try:
-                managed, session = self._ensure_session(channel)
+                managed, session = self._ensure_session(self._resolve_channel(read_only=read_only, channel=channel))
                 yield session
                 if read_only:
                     try:
