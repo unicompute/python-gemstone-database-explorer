@@ -1,26 +1,25 @@
 """
 GemStone Database Explorer — Flask application.
 
-Mirrors the Sinatra routes in mdbe/app.rb using gemstone-py as the backend
-instead of the MagLev runtime primitives.
+The current app is a window-heavy single-page tool rather than a small
+object-browser-only port. `create_app()` serves the UI plus route groups for:
 
-Routes
-------
-GET  /                          — serve the explorer UI
-GET  /ids                       — return well-known root OOPs
-GET  /object/index/<id>         — view an object by OOP
-GET  /object/evaluate/<id>      — evaluate code in the context of an object
-GET  /code/selectors/<id>       — list selectors by category for an object
-GET  /code/code/<id>            — return source for a selector
-GET  /transaction/commit        — commit the current transaction
-GET  /transaction/abort         — abort the current transaction
+- object inspection, eval, and inspector helper tabs
+- Class Browser reads/writes
+- Symbol List Browser
+- debugger windows
+- transaction and persistent-mode control
+- root/version/health metadata
 """
 
 from __future__ import annotations
 
 import os
+import platform
+import sys
 from flask import Flask, jsonify, request, render_template
 
+from gemstone_p import __version__
 from gemstone_p import session as gs_session
 from gemstone_p.object_view import object_view, eval_in_context, _escape_st, _eval_str
 from gemstone_py._smalltalk_batch import (
@@ -799,7 +798,7 @@ def create_app() -> Flask:
             with gs_session.request_session() as session:
                 raw = _eval_str(
                     session,
-                    f"| cls sel stream versions src encode |\n"
+                    f"| cls sel stream versions src oopText encode |\n"
                     f"{_ENCODE_SRC}\n"
                     f"cls := {_cb_behavior_expr(class_name, meta, dictionary)}.\n"
                     f"sel := '{_escape_st(selector)}' asSymbol.\n"
@@ -810,9 +809,17 @@ def create_app() -> Flask:
                     "    ifFalse: [#()].\n"
                     "  versions isEmpty\n"
                     "    ifTrue: [\n"
-                    "      src := [[(cls compiledMethodAt: sel) sourceString] on: Error do: [:e | '']].\n"
+                    "      | method |\n"
+                    "      method := [cls compiledMethodAt: sel ifAbsent: [nil]] on: Error do: [:e | nil].\n"
+                    "      src := [method ifNil: [''] ifNotNil: [[method sourceString] on: Error do: [:e | '']]] on: Error do: [:e | ''].\n"
+                    "      oopText := [method ifNil: [''] ifNotNil: [[method asOop printString] on: Error do: [:e | '']]] on: Error do: [:e | ''].\n"
                     "      src isEmpty ifFalse: [\n"
-                    "        stream nextPutAll: (encode value: 'version 1'); nextPut: $|; nextPutAll: (encode value: src); lf\n"
+                    "        stream nextPutAll: (encode value: 'version 1');\n"
+                    "          nextPut: $|;\n"
+                    "          nextPutAll: (encode value: src);\n"
+                    "          nextPut: $|;\n"
+                    "          nextPutAll: (encode value: oopText);\n"
+                    "          lf\n"
                     "      ]\n"
                     "    ]\n"
                     "    ifFalse: [\n"
@@ -820,7 +827,13 @@ def create_app() -> Flask:
                     "        | method |\n"
                     "        method := versions at: ix.\n"
                     "        src := [[method sourceString] on: Error do: [:e | '']].\n"
-                    "        stream nextPutAll: (encode value: 'version ', ix printString); nextPut: $|; nextPutAll: (encode value: src); lf\n"
+                    "        oopText := [[method asOop printString] on: Error do: [:e | '']].\n"
+                    "        stream nextPutAll: (encode value: 'version ', ix printString);\n"
+                    "          nextPut: $|;\n"
+                    "          nextPutAll: (encode value: src);\n"
+                    "          nextPut: $|;\n"
+                    "          nextPutAll: (encode value: oopText);\n"
+                    "          lf\n"
                     "      ]\n"
                     "    ]\n"
                     "].\n"
@@ -830,8 +843,15 @@ def create_app() -> Flask:
                 for line in str(raw).splitlines():
                     if "|" not in line:
                         continue
-                    label, _, source = line.partition("|")
-                    versions.append({"label": _decode_field(label), "source": _decode_field(source)})
+                    parts = str(line).split("|", 2)
+                    label = _decode_field(parts[0]) if len(parts) > 0 else ""
+                    source = _decode_field(parts[1]) if len(parts) > 1 else ""
+                    method_oop = _decode_field(parts[2]) if len(parts) > 2 else ""
+                    versions.append({
+                        "label": label,
+                        "source": source,
+                        "methodOop": int(method_oop) if method_oop.isdigit() else None,
+                    })
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 
@@ -3100,23 +3120,65 @@ def create_app() -> Flask:
     # Version / health                                                     #
     # ------------------------------------------------------------------ #
 
+    def _runtime_version_payload() -> dict:
+        with gs_session.request_session() as session:
+            stone_ver = _eval_str(
+                session,
+                "[System stoneVersionReport at: 'gsVersion' ifAbsent: [System stoneVersionReport at: #gsVersion ifAbsent: ['']]] "
+                "on: Error do: [:e | '']"
+            )
+            gem_ver = _eval_str(
+                session,
+                "[System gemVersionReport at: 'gsVersion' ifAbsent: [System gemVersionReport at: #gsVersion ifAbsent: ['']]] "
+                "on: Error do: [:e | '']"
+            )
+        return {
+            "success": True,
+            "app": __version__,
+            "stone": str(stone_ver),
+            "gem": str(gem_ver),
+        }
+
     @app.get("/version")
     def version():
         try:
-            with gs_session.request_session() as session:
-                stone_ver = _eval_str(
-                    session,
-                    "[System stoneVersionReport at: 'gsVersion' ifAbsent: [System stoneVersionReport at: #gsVersion ifAbsent: ['']]] "
-                    "on: Error do: [:e | '']"
-                )
-                gem_ver = _eval_str(
-                    session,
-                    "[System gemVersionReport at: 'gsVersion' ifAbsent: [System gemVersionReport at: #gsVersion ifAbsent: ['']]] "
-                    "on: Error do: [:e | '']"
-                )
+            return jsonify(**_runtime_version_payload())
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, stone=str(stone_ver), gem=str(gem_ver))
+
+    @app.get("/healthz")
+    def healthz():
+        try:
+            payload = _runtime_version_payload()
+        except Exception as exc:
+            return jsonify(success=False, status="error", app=__version__, exception=str(exc)), 503
+        return jsonify(status="ok", **payload)
+
+    @app.get("/diagnostics")
+    def diagnostics():
+        runtime = {
+            "python": sys.version.split()[0],
+            "implementation": platform.python_implementation(),
+            "platform": platform.platform(),
+        }
+        broker = gs_session.broker_snapshot()
+        try:
+            payload = _runtime_version_payload()
+        except Exception as exc:
+            return jsonify(
+                success=False,
+                status="error",
+                app=__version__,
+                runtime=runtime,
+                sessionBroker=broker,
+                exception=str(exc),
+            ), 503
+        return jsonify(
+            status="ok",
+            runtime=runtime,
+            sessionBroker=broker,
+            **payload,
+        )
 
     return app
 

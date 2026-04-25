@@ -5,6 +5,7 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
+from gemstone_p import __version__
 import gemstone_p.session  # Ensure patch("gemstone_p.session...") resolves normally.
 
 
@@ -49,6 +50,57 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         data = json.loads(r.data)
         self.assertIn("persistentRootId", data)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_version_includes_app_and_runtime_versions(self, mock_rs):
+        session = _mock_session()
+        session.eval.side_effect = ["3.7.5", "3.7.5"]
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.get("/version")
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["app"], __version__)
+        self.assertEqual(data["stone"], "3.7.5")
+        self.assertEqual(data["gem"], "3.7.5")
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_healthz_includes_ok_status_and_runtime_versions(self, mock_rs):
+        session = _mock_session()
+        session.eval.side_effect = ["3.7.5", "3.7.5"]
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.get("/healthz")
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["app"], __version__)
+        self.assertEqual(data["stone"], "3.7.5")
+        self.assertEqual(data["gem"], "3.7.5")
+
+    @patch("gemstone_p.app.gs_session.broker_snapshot")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_diagnostics_includes_runtime_and_broker_snapshot(self, mock_rs, mock_snapshot):
+        session = _mock_session()
+        session.eval.side_effect = ["3.7.5", "3.7.5"]
+        mock_rs.return_value = _mock_request_session(session)
+        mock_snapshot.return_value = {
+            "defaultAutoBegin": None,
+            "managedSessionCount": 2,
+            "channels": [{"name": "object:win-1-r", "hasSession": True, "loggedIn": True}],
+        }
+        r = self.client.get("/diagnostics")
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["app"], __version__)
+        self.assertEqual(data["stone"], "3.7.5")
+        self.assertEqual(data["gem"], "3.7.5")
+        self.assertEqual(data["sessionBroker"]["managedSessionCount"], 2)
+        self.assertEqual(data["sessionBroker"]["channels"][0]["name"], "object:win-1-r")
+        self.assertIn("python", data["runtime"])
+        self.assertIn("platform", data["runtime"])
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_object_index(self, mock_rs):
@@ -562,6 +614,24 @@ class TestRoutes(unittest.TestCase):
         script = session.eval.call_args[0][0]
         self.assertIn("objectNamed: 'Globals' asSymbol) at: 'Object' asSymbol ifAbsent: [nil]", script)
         self.assertIn("compiledMethodAt: 'printString' asSymbol", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_versions_include_method_oops(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "version 1|printString ^ 'old'|940\n"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.get("/class-browser/versions?class=Object&dictionary=Globals&selector=printString")
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["versions"], [{
+            "label": "version 1",
+            "source": "printString ^ 'old'",
+            "methodOop": 940,
+        }])
+        script = session.eval.call_args[0][0]
+        self.assertIn("method asOop printString", script)
+        self.assertIn("compiledMethodAt: sel ifAbsent: [nil]", script)
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_class_browser_query_implementors(self, mock_rs):

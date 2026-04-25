@@ -89,6 +89,354 @@
       font-weight: 600;
     }
     .thread-pill:hover { background: #eba0ac; }
+    .about-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #cba6f7;
+    }
+    .about-subtitle {
+      font-size: 12px;
+      color: #a6adc8;
+      line-height: 1.5;
+    }
+    .about-grid {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 8px 12px;
+      align-items: start;
+      background: #181825;
+      border: 1px solid #313244;
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 4px;
+    }
+    .about-key {
+      font-size: 11px;
+      font-weight: 700;
+      color: #a6adc8;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .about-value {
+      font-size: 12px;
+      color: #cdd6f4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .about-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: auto;
+      padding-top: 4px;
+    }
+    .status-log-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .status-log-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .status-log-filter {
+      min-width: 180px;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: #cdd6f4;
+      background: #11111b;
+      border: 1px solid #313244;
+      border-radius: 6px;
+      outline: none;
+    }
+    .status-log-filter:focus {
+      border-color: #89b4fa;
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.25);
+    }
+    .status-log-scope {
+      display: inline-flex;
+      gap: 6px;
+    }
+    .status-log-scope .btn-ghost.active {
+      border-color: #89b4fa;
+      color: #89b4fa;
+      background: rgba(137, 180, 250, 0.08);
+    }
+    .status-log-meta {
+      font-size: 11px;
+      color: #a6adc8;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .status-log-list {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 2px;
+    }
+    .status-log-entry {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 4px 12px;
+      padding: 8px 10px;
+      border: 1px solid #313244;
+      border-radius: 6px;
+      background: #181825;
+    }
+    .status-log-entry.error {
+      border-color: #f38ba8;
+      background: rgba(243, 139, 168, 0.08);
+    }
+    .status-log-time {
+      font-size: 10px;
+      color: #a6adc8;
+      white-space: nowrap;
+    }
+    .status-log-message {
+      font-size: 12px;
+      color: #cdd6f4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .status-log-source {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 10px;
+      color: #a6adc8;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .status-log-source-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #45475a;
+      background: rgba(137, 180, 250, 0.08);
+      color: #89b4fa;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: none;
+    }
+    .status-log-source-button {
+      cursor: pointer;
+      transition: background .12s ease, border-color .12s ease, transform .12s ease;
+    }
+    .status-log-source-button:hover {
+      border-color: #89b4fa;
+      background: rgba(137, 180, 250, 0.16);
+      transform: translateY(-1px);
+    }
+    .status-log-source-button:focus {
+      outline: none;
+      border-color: #89b4fa;
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.25);
+    }
+    .status-log-source-badge.missing {
+      border-color: #585b70;
+      background: rgba(88, 91, 112, 0.2);
+      color: #bac2de;
+    }
+    .status-log-source-note {
+      color: #f9e2af;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: none;
+    }
+    .status-log-count {
+      color: #f9e2af;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+    .status-log-empty {
+      padding: 12px;
+      border: 1px dashed #313244;
+      border-radius: 6px;
+      color: #a6adc8;
+      font-size: 12px;
+      background: #181825;
+    }
+    .window-groups-list {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 2px;
+    }
+    .window-group-card {
+      border: 1px solid #313244;
+      border-radius: 6px;
+      background: #181825;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .window-group-card.focused-group {
+      border-color: #89b4fa;
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.2);
+    }
+    .window-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .window-group-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #cdd6f4;
+    }
+    .window-group-subtitle {
+      font-size: 11px;
+      color: #a6adc8;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .window-group-members {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .window-group-member {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      max-width: 100%;
+      padding: 4px 8px;
+      border: 1px solid #45475a;
+      border-radius: 999px;
+      background: #11111b;
+      color: #cdd6f4;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .window-group-member:hover {
+      border-color: #89b4fa;
+      color: #89b4fa;
+    }
+    .window-group-member-kind {
+      color: #a6adc8;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .window-group-empty {
+      padding: 12px;
+      border: 1px dashed #313244;
+      border-radius: 6px;
+      color: #a6adc8;
+      font-size: 12px;
+      background: #181825;
+      text-align: center;
+    }
+    .window-links-list {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 2px;
+    }
+    .window-link-entry {
+      border: 1px solid #313244;
+      border-radius: 6px;
+      background: #181825;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color .12s ease, background .12s ease, transform .12s ease;
+    }
+    .window-link-entry:hover {
+      border-color: #89b4fa;
+      background: #1f1f35;
+      transform: translateY(-1px);
+    }
+    .window-link-entry.active {
+      border-color: #89b4fa;
+      background: rgba(137, 180, 250, 0.1);
+      box-shadow: inset 0 0 0 1px rgba(137, 180, 250, 0.2);
+    }
+    .window-link-route {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .window-link-endpoint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid #45475a;
+      background: rgba(137, 180, 250, 0.08);
+      color: #cdd6f4;
+      font-size: 12px;
+    }
+    .window-link-endpoint.window-link-button {
+      cursor: pointer;
+      transition: background .12s ease, border-color .12s ease, transform .12s ease;
+    }
+    .window-link-endpoint.window-link-button:hover {
+      border-color: #89b4fa;
+      background: rgba(137, 180, 250, 0.16);
+      transform: translateY(-1px);
+    }
+    .window-link-endpoint.window-link-button:focus {
+      outline: none;
+      border-color: #89b4fa;
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.25);
+    }
+    .window-link-endpoint.missing {
+      border-color: #585b70;
+      background: rgba(88, 91, 112, 0.2);
+      color: #bac2de;
+    }
+    .window-link-kind {
+      color: #a6adc8;
+      font-size: 11px;
+    }
+    .window-link-type {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid #45475a;
+      background: #11111b;
+      color: #89b4fa;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .window-link-subtitle {
+      font-size: 11px;
+      color: #a6adc8;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
     /* ── floating window ─────────────────────────────────────────────── */
     .win {
@@ -995,6 +1343,8 @@
   <button class="taskbar-btn" onclick="openWorkspace()">Workspace</button>
   <button class="taskbar-btn" onclick="openSymbolList()">Symbol List</button>
   <button class="taskbar-btn" onclick="openWebBrowser()">Web Browser</button>
+  <button class="taskbar-btn" onclick="openAboutWindow()">About</button>
+  <button class="taskbar-btn" onclick="openStatusLogWindow()">Status Log</button>
   <button class="taskbar-btn" onclick="cascadeWindows()">Cascade</button>
   <button class="taskbar-btn" onclick="tileWindows()">Tile</button>
   <button class="taskbar-btn" onclick="raiseRelatedWindows()">Raise Related</button>
@@ -1033,7 +1383,11 @@ function escHtml(s) {
 }
 
 async function api(url, opts) {
-  const r = await fetch(url, opts);
+  const {sessionChannel = '', ...fetchOpts} = opts || {};
+  const headers = new Headers(fetchOpts.headers || {});
+  if (sessionChannel) headers.set('X-GS-Channel', String(sessionChannel));
+  if (Array.from(headers.keys()).length) fetchOpts.headers = headers;
+  const r = await fetch(url, fetchOpts);
   const text = await r.text();
   let data = null;
   try {
@@ -1047,35 +1401,45 @@ async function api(url, opts) {
   }
   return data;
 }
-async function apiPost(url, body) {
-  return api(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+async function apiPost(url, body, options = {}) {
+  return api(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body),
+    sessionChannel: options.sessionChannel || '',
+  });
 }
-async function apiEvaluate(oop, {code, language='smalltalk', depth=2, ranges={}} = {}) {
-  return apiPost(`/object/evaluate/${oop}`, {code, language, depth, ranges});
+async function apiEvaluate(oop, {code, language='smalltalk', depth=2, ranges={}} = {}, options = {}) {
+  return apiPost(`/object/evaluate/${oop}`, {code, language, depth, ranges}, options);
 }
-async function apiTransaction(url) {
-  return apiPost(url, {});
+async function apiTransaction(url, options = {}) {
+  return apiPost(url, {}, options);
 }
-function apiWithParams(url, params = {}) {
+function apiWithParams(url, params = {}, options = {}) {
   const qs = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
     qs.set(key, String(value));
   });
   const suffix = qs.toString();
-  return api(suffix ? `${url}?${suffix}` : url);
+  return api(suffix ? `${url}?${suffix}` : url, {sessionChannel: options.sessionChannel || ''});
 }
 
 function setStatus(ok, msg) {
   document.getElementById('status-dot').className = ok ? '' : 'error';
   document.getElementById('status-txt').textContent = msg;
+  recordStatusEntry(ok, msg);
 }
 
 const LEAF_BASETYPES = new Set(['string', 'symbol', 'fixnum', 'float', 'boolean', 'nilclass']);
 const windowState = new Map();
 const windowLayoutStorageKey = 'python-gemstone-window-layout-v1';
-const restorableWindowKinds = new Set(['object', 'class-browser', 'workspace', 'web-browser', 'symbol-list', 'debugger', 'method-query', 'hierarchy', 'versions']);
+const statusHistoryStorageKey = 'python-gemstone-status-history-v1';
+const restorableWindowKinds = new Set(['object', 'class-browser', 'workspace', 'web-browser', 'symbol-list', 'debugger', 'method-query', 'hierarchy', 'versions', 'about', 'status-log', 'window-groups', 'window-links']);
 let suppressWindowLayoutPersist = false;
+let runtimeVersionInfo = null;
+const liveWindowRenderers = new Map();
+let statusHistory = readStatusHistory();
 
 function isLeafBasetype(basetype) {
   return LEAF_BASETYPES.has(basetype);
@@ -1085,6 +1449,206 @@ function shortLabel(value, max = 32) {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim();
   if (!text) return '';
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
+}
+
+function currentStatusSource() {
+  const focused = document.querySelector('.win.focused') || getFocusedOrTopWindow();
+  if (!focused) {
+    return {
+      sourceWindowId: null,
+      sourceTitle: 'Desktop',
+      sourceKind: 'desktop',
+    };
+  }
+  const state = windowState.get(focused.id) || {};
+  return {
+    sourceWindowId: focused.id,
+    sourceTitle: focused.querySelector('.win-title')?.textContent?.trim() || state.kind || 'Window',
+    sourceKind: state.kind || 'window',
+  };
+}
+
+function sanitizeStatusHistoryEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const message = String(entry.message ?? '').trim();
+  if (!message) return null;
+  return {
+    timestamp: String(entry.timestamp || new Date().toISOString()),
+    ok: !!entry.ok,
+    message,
+    count: Math.max(1, Number(entry.count) || 1),
+    sourceWindowId: entry.sourceWindowId ? String(entry.sourceWindowId) : null,
+    sourceTitle: String(entry.sourceTitle || '').trim(),
+    sourceKind: String(entry.sourceKind || '').trim(),
+  };
+}
+
+function readStatusHistory() {
+  try {
+    const raw = localStorage.getItem(statusHistoryStorageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(sanitizeStatusHistoryEntry).filter(Boolean).slice(-200);
+  } catch (_) {
+    return [];
+  }
+}
+
+function persistStatusHistory() {
+  try {
+    localStorage.setItem(statusHistoryStorageKey, JSON.stringify(statusHistory.slice(-200)));
+  } catch (_) {
+    // ignore storage failures
+  }
+}
+
+function notifyStatusHistoryUpdated() {
+  liveWindowRenderers.forEach(render => {
+    try {
+      render();
+    } catch (_) {
+      // ignore stale render hooks
+    }
+  });
+}
+
+function notifyLiveWindowUpdated() {
+  liveWindowRenderers.forEach(render => {
+    try {
+      render();
+    } catch (_) {
+      // ignore stale render hooks
+    }
+  });
+}
+
+function getStatusHistory() {
+  return statusHistory.slice();
+}
+
+function getStatusHistorySummary(entries = null) {
+  const list = Array.isArray(entries) ? entries : getStatusHistory();
+  let ok = 0;
+  let error = 0;
+  let closedSources = 0;
+  let latestError = null;
+  list.forEach(entry => {
+    if (entry?.ok) ok += 1;
+    else {
+      error += 1;
+      latestError = entry;
+    }
+    if ((entry?.sourceTitle || entry?.sourceKind) && !resolveStatusEntrySourceWindow(entry)) {
+      closedSources += 1;
+    }
+  });
+  return {
+    total: list.length,
+    ok,
+    error,
+    closedSources,
+    latestError,
+  };
+}
+
+function clearStatusHistory() {
+  statusHistory = [];
+  persistStatusHistory();
+  notifyStatusHistoryUpdated();
+}
+
+function recordStatusEntry(ok, msg) {
+  const message = String(msg ?? '').trim();
+  if (!message) return;
+  const timestamp = new Date().toISOString();
+  const source = currentStatusSource();
+  const last = statusHistory[statusHistory.length - 1];
+  if (
+    last &&
+    last.ok === !!ok &&
+    last.message === message &&
+    (last.sourceWindowId || '') === (source.sourceWindowId || '') &&
+    (last.sourceTitle || '') === (source.sourceTitle || '') &&
+    (last.sourceKind || '') === (source.sourceKind || '')
+  ) {
+    last.timestamp = timestamp;
+    last.count = Math.max(1, Number(last.count) || 1) + 1;
+  } else {
+    statusHistory.push({
+      timestamp,
+      ok: !!ok,
+      message,
+      count: 1,
+      sourceWindowId: source.sourceWindowId,
+      sourceTitle: source.sourceTitle,
+      sourceKind: source.sourceKind,
+    });
+  }
+  if (statusHistory.length > 200) statusHistory = statusHistory.slice(-200);
+  persistStatusHistory();
+  notifyStatusHistoryUpdated();
+}
+
+function renderTaskbarVersion(info) {
+  const parts = [];
+  if (info?.app) parts.push('Explorer ' + info.app);
+  if (info?.stone) parts.push('GemStone ' + info.stone);
+  document.getElementById('taskbar-version').textContent = parts.join(' · ');
+}
+
+async function copyTextToClipboard(text) {
+  const value = String(text ?? '');
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(value);
+      window.__lastCopiedText = value;
+      return true;
+    } catch (_) {
+      // Fall back to execCommand below when clipboard API is present but unavailable.
+    }
+  }
+  const area = document.createElement('textarea');
+  area.value = value;
+  area.setAttribute('readonly', 'readonly');
+  area.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+  document.body.appendChild(area);
+  area.select();
+  area.setSelectionRange(0, area.value.length);
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } finally {
+    area.remove();
+  }
+  if (!copied) throw new Error('Clipboard unavailable');
+  window.__lastCopiedText = value;
+  return true;
+}
+
+function downloadDataFile(filename, text, mimeType = 'text/plain;charset=utf-8') {
+  window.__lastDownloadedFile = {
+    filename: String(filename || ''),
+    text: String(text || ''),
+  };
+  const blob = new Blob([text], {type: mimeType});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = String(filename || 'export.txt').replace(/[\\/:*?"<>|]+/g, '-');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+async function loadRuntimeVersionInfo() {
+  const data = await api('/version');
+  if (data?.success) {
+    runtimeVersionInfo = data;
+    renderTaskbarVersion(data);
+  }
+  return data;
 }
 
 function sanitizeSelectionIndex(index, items) {
@@ -1100,10 +1664,25 @@ function getClassBrowserRuntime(sourceWindowId) {
   return sourceState.browserRuntime || null;
 }
 
+async function resolveClassBrowserRuntime(sourceWindowId, browserOptions = {}) {
+  let runtime = getClassBrowserRuntime(sourceWindowId);
+  if (runtime) {
+    await Promise.resolve(runtime.ready);
+    return {runtime, sourceWindowId, created: false};
+  }
+  const win = openClassBrowser(browserOptions);
+  const nextSourceWindowId = win?.id || null;
+  runtime = getClassBrowserRuntime(nextSourceWindowId);
+  if (!runtime) throw new Error('Class Browser could not be opened');
+  await Promise.resolve(runtime.ready);
+  return {runtime, sourceWindowId: nextSourceWindowId, created: true};
+}
+
 function upsertWindowState(id, patch) {
   const current = windowState.get(id) || {};
   windowState.set(id, {...current, ...patch});
   persistWindowLayout();
+  notifyLiveWindowUpdated();
 }
 
 function getManagedWindows() {
@@ -1226,20 +1805,50 @@ function serializeWindowLayoutEntry(id, state) {
       versionContext: state.versionContext || null,
     };
   }
+  if (state.kind === 'about') {
+    return base;
+  }
+  if (state.kind === 'status-log') {
+    return {
+      ...base,
+      filterText: state.filterText || '',
+      level: state.level || 'all',
+    };
+  }
+  if (state.kind === 'window-groups') {
+    return {
+      ...base,
+      filterText: state.filterText || '',
+      viewMode: state.viewMode || 'all',
+    };
+  }
+  if (state.kind === 'window-links') {
+    return {
+      ...base,
+      filterText: state.filterText || '',
+      linkType: state.linkType || 'all',
+      viewMode: state.viewMode || 'all',
+      selectedIndex: Number.isFinite(Number(state.selectedIndex)) ? Number(state.selectedIndex) : 0,
+    };
+  }
   return base;
 }
 
-function persistWindowLayout() {
-  if (suppressWindowLayoutPersist) return;
+function buildWindowLayoutSnapshot() {
   const windows = Array.from(windowState.entries())
     .map(([id, state]) => serializeWindowLayoutEntry(id, state))
     .filter(Boolean)
     .sort((left, right) => left.zIndex - right.zIndex);
+  return {
+    version: 1,
+    windows,
+  };
+}
+
+function persistWindowLayout() {
+  if (suppressWindowLayoutPersist) return;
   try {
-    localStorage.setItem(windowLayoutStorageKey, JSON.stringify({
-      version: 1,
-      windows,
-    }));
+    localStorage.setItem(windowLayoutStorageKey, JSON.stringify(buildWindowLayoutSnapshot()));
   } catch (_) {
     // Ignore layout persistence failures in restricted/private browser modes.
   }
@@ -1254,6 +1863,119 @@ function readWindowLayout() {
   } catch (_) {
     return [];
   }
+}
+
+function collectOpenWindowSummaries() {
+  return getOrderedManagedWindows().map(win => {
+    const state = windowState.get(win.id) || {};
+    return {
+      id: win.id,
+      title: win.querySelector('.win-title')?.textContent?.trim() || '',
+      kind: state.kind || '',
+      minimised: win.dataset.minimised === '1',
+      focused: win.classList.contains('focused'),
+      zIndex: Number(win.style.zIndex || 0),
+      sourceWindowId: state.sourceWindowId || null,
+      x: Math.round(win.offsetLeft || parsePixelValue(win.style.left, 0)),
+      y: Math.round(win.offsetTop || parsePixelValue(win.style.top, 0)),
+      width: Math.max(320, Math.round(win.offsetWidth || parsePixelValue(win.style.width, 320))),
+      height: Math.max(180, Math.round(win.offsetHeight || parsePixelValue(win.style.height, 180))),
+    };
+  });
+}
+
+function collectWindowLinkSummaries() {
+  const openWindows = collectOpenWindowSummaries();
+  const byId = new Map(openWindows.map(each => [each.id, each]));
+  const links = [];
+  const seen = new Set();
+
+  function addLink(type, fromId, toId) {
+    if (!fromId || !toId || fromId === toId) return;
+    const from = byId.get(fromId);
+    const to = byId.get(toId);
+    if (!from || !to) return;
+    const key = type === 'arrow'
+      ? `${type}:${[fromId, toId].sort().join(':')}`
+      : `${type}:${fromId}:${toId}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push({
+      type,
+      fromId,
+      fromTitle: from.title || '',
+      fromKind: from.kind || '',
+      toId,
+      toTitle: to.title || '',
+      toKind: to.kind || '',
+    });
+  }
+
+  openWindows.forEach(each => {
+    if (each.sourceWindowId) addLink('source', each.sourceWindowId, each.id);
+  });
+  arrows.forEach(arrow => addLink('arrow', arrow.srcWinId, arrow.dstWinId));
+
+  return links.sort((left, right) => {
+    const leftKey = `${left.type}:${left.fromTitle}:${left.toTitle}`;
+    const rightKey = `${right.type}:${right.fromTitle}:${right.toTitle}`;
+    return leftKey.localeCompare(rightKey);
+  });
+}
+
+function collectWindowGroupSummaries() {
+  const openWindows = collectOpenWindowSummaries();
+  const byId = new Map(openWindows.map(each => [each.id, each]));
+  const visited = new Set();
+  const groups = [];
+
+  openWindows.forEach(each => {
+    if (!each?.id || visited.has(each.id)) return;
+    const memberIds = getRelatedWindowIds(each.id).filter(id => byId.has(id));
+    if (!memberIds.length) memberIds.push(each.id);
+    memberIds.forEach(id => visited.add(id));
+    const members = memberIds
+      .map(id => byId.get(id))
+      .filter(Boolean)
+      .sort((left, right) => {
+        const zDelta = Number(left.zIndex || 0) - Number(right.zIndex || 0);
+        if (zDelta) return zDelta;
+        return String(left.title || '').localeCompare(String(right.title || ''));
+      });
+    const memberIdSet = new Set(members.map(member => member.id));
+    const primaryMember =
+      members.find(member => !member.sourceWindowId || !memberIdSet.has(member.sourceWindowId)) ||
+      members.find(member => member.focused) ||
+      members[members.length - 1] ||
+      members[0] ||
+      null;
+    const kinds = Array.from(new Set(members.map(member => member.kind).filter(Boolean)));
+    groups.push({
+      size: members.length,
+      focused: members.some(member => member.focused),
+      minimisedCount: members.filter(member => member.minimised).length,
+      kinds,
+      primaryId: primaryMember?.id || '',
+      primaryTitle: primaryMember?.title || '',
+      titles: members.map(member => member.title || member.id),
+      members: members.map(member => ({
+        id: member.id,
+        title: member.title || '',
+        kind: member.kind || '',
+        minimised: !!member.minimised,
+        focused: !!member.focused,
+        sourceWindowId: member.sourceWindowId || null,
+      })),
+    });
+  });
+
+  return groups.sort((left, right) => {
+    const sizeDelta = Number(right.size || 0) - Number(left.size || 0);
+    if (sizeDelta) return sizeDelta;
+    const focusDelta = Number(!!right.focused) - Number(!!left.focused);
+    if (focusDelta) return focusDelta;
+    return String(left.titles?.[0] || '').localeCompare(String(right.titles?.[0] || ''));
+  });
 }
 
 function clearWindowLayout() {
@@ -1272,6 +1994,7 @@ function applyRestoredSourceLinks(restoredIdMap, pendingSourceLinks) {
     if (!currentState) return;
     windowState.set(link.windowId, {...currentState, sourceWindowId: liveSourceWindowId});
   });
+  notifyLiveWindowUpdated();
 }
 
 function restoreWindowBounds(win, desc) {
@@ -1296,6 +2019,35 @@ function closeAllWindows() {
 
 function getFocusedOrTopWindow() {
   return document.querySelector('.win.focused') || getOrderedManagedWindows().slice(-1)[0] || null;
+}
+
+function revealWindow(win) {
+  if (!win) return false;
+  if (win.dataset.minimised === '1') toggleMinimise(win, win.id);
+  focusWin(win);
+  return true;
+}
+
+function resolveStatusEntrySourceWindow(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const sourceWindowId = entry.sourceWindowId ? String(entry.sourceWindowId) : '';
+  if (sourceWindowId) {
+    const sourceWin = document.getElementById(sourceWindowId);
+    if (sourceWin) return sourceWin;
+  }
+  const sourceTitle = String(entry.sourceTitle || '').trim();
+  const sourceKind = String(entry.sourceKind || '').trim();
+  if (!sourceTitle && !sourceKind) return null;
+  const candidates = getManagedWindows().filter(win => {
+    const state = windowState.get(win.id) || {};
+    if (sourceKind && state.kind !== sourceKind) return false;
+    if (sourceTitle) {
+      const title = win.querySelector('.win-title')?.textContent?.trim() || '';
+      if (title !== sourceTitle) return false;
+    }
+    return true;
+  });
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function getRelatedWindowIds(seedId) {
@@ -1323,6 +2075,41 @@ function getRelatedWindowIds(seedId) {
     });
   }
   return Array.from(visited);
+}
+
+function raiseWindowGroupByIds(memberIds, seedId = null) {
+  const idSet = new Set((memberIds || []).map(id => String(id)).filter(Boolean));
+  if (!idSet.size) return false;
+  const ordered = getOrderedManagedWindows().filter(win => idSet.has(win.id));
+  if (!ordered.length) return false;
+  suppressWindowLayoutPersist = true;
+  try {
+    ordered.forEach(win => {
+      if (win.dataset.minimised === '1') toggleMinimise(win, win.id);
+    });
+    ordered
+      .filter(win => win.id !== seedId)
+      .forEach(win => focusWin(win));
+    const seed = ordered.find(win => win.id === seedId) || ordered[ordered.length - 1];
+    if (seed) focusWin(seed);
+  } finally {
+    suppressWindowLayoutPersist = false;
+    persistWindowLayout();
+    redrawArrows();
+    notifyLiveWindowUpdated();
+  }
+  return true;
+}
+
+function closeWindowGroupByIds(memberIds, options = {}) {
+  const {excludeIds = []} = options;
+  const excluded = new Set((excludeIds || []).map(id => String(id)).filter(Boolean));
+  const ordered = getOrderedManagedWindows().filter(win => {
+    return (memberIds || []).includes(win.id) && !excluded.has(win.id);
+  });
+  if (!ordered.length) return false;
+  ordered.forEach(win => closeWindow(win, win.id));
+  return true;
 }
 
 function cascadeWindows() {
@@ -1466,6 +2253,7 @@ async function restoreSavedLayout() {
           },
         );
       } else if (desc.kind === 'class-browser') {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
         win = openClassBrowser({
           x: desc.x,
           y: desc.y,
@@ -1476,6 +2264,7 @@ async function restoreSavedLayout() {
           protocol: desc.protocol || '-- all --',
           method: desc.method || null,
           meta: !!desc.meta,
+          sourceWindowId: resolvedSourceWindowId,
         });
       } else if (desc.kind === 'workspace') {
         win = openWorkspace({
@@ -1491,6 +2280,48 @@ async function restoreSavedLayout() {
           y: desc.y,
           width: desc.width,
           height: desc.height,
+        });
+      } else if (desc.kind === 'about') {
+        win = openAboutWindow({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+        });
+      } else if (desc.kind === 'status-log') {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
+        win = openStatusLogWindow({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          filterText: desc.filterText || '',
+          level: desc.level || 'all',
+          sourceWindowId: resolvedSourceWindowId,
+        });
+      } else if (desc.kind === 'window-groups') {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
+        win = openWindowGroupsWindow({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          filterText: desc.filterText || '',
+          viewMode: desc.viewMode || 'all',
+          sourceWindowId: resolvedSourceWindowId,
+        });
+      } else if (desc.kind === 'window-links') {
+        const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
+        win = openWindowLinksWindow({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          filterText: desc.filterText || '',
+          linkType: desc.linkType || 'all',
+          viewMode: desc.viewMode || 'all',
+          selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, collectWindowLinkSummaries()),
+          sourceWindowId: resolvedSourceWindowId,
         });
       } else if (desc.kind === 'symbol-list') {
         win = openSymbolList({
@@ -1523,11 +2354,12 @@ async function restoreSavedLayout() {
           y: desc.y,
           width: desc.width,
           height: desc.height,
-          filterText: desc.filterText || '',
-          selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.results),
-          sourceWindowId: resolvedSourceWindowId,
-          loadLabel: desc.loadLabel || 'Load Into Browser',
-        });
+      filterText: desc.filterText || '',
+      selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.results),
+      sourceWindowId: resolvedSourceWindowId,
+      sessionChannel: desc.sessionChannel || '',
+      loadLabel: desc.loadLabel || 'Load Into Browser',
+    });
       } else if (desc.kind === 'hierarchy' && Array.isArray(desc.classes)) {
         const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
         win = openHierarchyWindow(desc.title || 'Hierarchy', desc.classes, {
@@ -1535,12 +2367,13 @@ async function restoreSavedLayout() {
           y: desc.y,
           width: desc.width,
           height: desc.height,
-          filterText: desc.filterText || '',
-          selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.classes),
-          sourceWindowId: resolvedSourceWindowId,
-          loadLabel: desc.loadLabel || 'Load Into Browser',
-          meta: !!desc.meta,
-        });
+      filterText: desc.filterText || '',
+      selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.classes),
+      sourceWindowId: resolvedSourceWindowId,
+      sessionChannel: desc.sessionChannel || '',
+      loadLabel: desc.loadLabel || 'Load Into Browser',
+      meta: !!desc.meta,
+    });
       } else if (desc.kind === 'versions' && Array.isArray(desc.versions)) {
         const resolvedSourceWindowId = restoredIdMap.get(desc.sourceWindowId) || desc.sourceWindowId || null;
         win = openVersionsWindow(desc.title || 'Versions', desc.versions, {
@@ -1548,12 +2381,13 @@ async function restoreSavedLayout() {
           y: desc.y,
           width: desc.width,
           height: desc.height,
-          filterText: desc.filterText || '',
-          selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.versions),
-          sourceWindowId: resolvedSourceWindowId,
-          loadLabel: desc.loadLabel || 'Load Into Browser',
-          versionContext: desc.versionContext || null,
-        });
+      filterText: desc.filterText || '',
+      selectedIndex: sanitizeSelectionIndex(desc.selectedIndex, desc.versions),
+      sourceWindowId: resolvedSourceWindowId,
+      sessionChannel: desc.sessionChannel || '',
+      loadLabel: desc.loadLabel || 'Load Into Browser',
+      versionContext: desc.versionContext || null,
+    });
       }
       restoreWindowBounds(win, desc);
       if (win && desc.savedId) restoredIdMap.set(desc.savedId, win.id);
@@ -1791,14 +2625,21 @@ function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
   });
   document.getElementById('halted-threads-bar').before(tbBtn);
 
-  win.addEventListener('mousedown', () => focusWin(win));
+  win.addEventListener('mousedown', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const isInteractive = !!target?.closest('button, input, textarea, select, option, a, [role="button"], [contenteditable="true"], [data-obj-button="1"]');
+    focusWin(win, {deferLiveUpdate: isInteractive});
+  });
   upsertWindowState(id, {kind: 'generic', title});
   persistWindowLayout();
+  notifyStatusHistoryUpdated();
+  notifyLiveWindowUpdated();
 
   return {win, body: win.querySelector('.win-body'), id};
 }
 
-function focusWin(win) {
+function focusWin(win, options = {}) {
+  const {deferLiveUpdate = false} = options;
   document.querySelectorAll('.win').forEach(w => w.classList.remove('focused'));
   win.classList.add('focused');
   win.style.zIndex = ++zTop;
@@ -1806,15 +2647,23 @@ function focusWin(win) {
   const tb = document.getElementById('tb-' + win.id);
   if (tb) tb.classList.add('active');
   persistWindowLayout();
+  if (deferLiveUpdate) {
+    setTimeout(() => notifyLiveWindowUpdated(), 0);
+  } else {
+    notifyLiveWindowUpdated();
+  }
 }
 
 function closeWindow(win, id) {
   removeArrowsFor(id);
+  liveWindowRenderers.delete(id);
   windowState.delete(id);
   win.remove();
   const tb = document.getElementById('tb-' + id);
   if (tb) tb.remove();
   persistWindowLayout();
+  notifyStatusHistoryUpdated();
+  notifyLiveWindowUpdated();
 }
 
 function toggleMinimise(win, id) {
@@ -1834,6 +2683,7 @@ function toggleMinimise(win, id) {
   }
   redrawArrows();
   persistWindowLayout();
+  notifyLiveWindowUpdated();
 }
 
 function makeDraggable(win) {
@@ -2157,10 +3007,7 @@ async function init() {
     return;
   }
   try {
-    const d = await api('/version');
-    if (d.success) {
-      document.getElementById('taskbar-version').textContent = 'GemStone ' + d.stone;
-    }
+    await loadRuntimeVersionInfo();
   } catch (_) {}
 }
 
@@ -2249,10 +3096,15 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     'gem-ver': 'Gem Version Report',
     control: 'Control Panel',
   };
+  const sessionChannel = `object:${id}`;
+  const objectApi = (url, opts = {}) => api(url, {...opts, sessionChannel});
+  const objectApiEvaluate = (oop, payload = {}) => apiEvaluate(oop, payload, {sessionChannel});
+  const objectApiTransaction = url => apiTransaction(url, {sessionChannel});
 
   function syncObjectBrowserWindowState() {
     upsertWindowState(id, {
       kind: 'object',
+      sessionChannel,
       object: currentObjData,
       objectOop: currentObjData?.oop ?? currentOop ?? initialOop ?? null,
       objectLabel: history[history.length - 1]?.label || currentObjData?.inspection || initialLabel || '',
@@ -2494,7 +3346,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
   function openCurrentCodeInClassBrowser(selector = mbCurrentSelector) {
     const target = currentCodeBrowserTarget(selector);
     if (!target) return false;
-    openClassBrowser(target);
+    openClassBrowser({...target, sourceWindowId: id});
     return true;
   }
 
@@ -2592,7 +3444,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       resEl.textContent = label + '…';
     }
     try {
-      const d = await apiTransaction(route);
+      const d = await objectApiTransaction(route);
       if (resEl) {
         resEl.textContent = d.success ? (label + ' ok') : 'Error: ' + (d.exception||'');
         if (!d.success) resEl.classList.add('error');
@@ -2704,7 +3556,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     if (evalRes) evalRes.textContent = '';
     updateTitlebar(null);
     try {
-      const d = await api(buildObjectIndexUrl(oop));
+      const d = await objectApi(buildObjectIndexUrl(oop));
       if (!d.success) throw new Error(d.exception);
       currentObjData = d.result;
       syncObjectBrowserWindowState();
@@ -2763,7 +3615,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     if (tabName === 'hierarchy') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await fetchInspectorTabData(oop, 'hierarchy', {}, () => api(`/object/hierarchy/${oop}`));
+        const d = await fetchInspectorTabData(oop, 'hierarchy', {}, () => objectApi(`/object/hierarchy/${oop}`));
         if (!isActiveInspectorRender(renderToken, tabName, oop)) return;
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
@@ -2782,7 +3634,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
           btn.className = 'tree-link';
           btn.textContent = clsName;
           btn.title = dictionary ? `Open ${clsName} from ${dictionary} in Class Browser` : `Open ${clsName} in Class Browser`;
-          btn.addEventListener('click', () => openClassBrowser(dictionary ? {dictionary, className: clsName} : {className: clsName}));
+          btn.addEventListener('click', () => openClassBrowser(dictionary ? {dictionary, className: clsName, sourceWindowId: id} : {className: clsName, sourceWindowId: id}));
           li.appendChild(btn);
           if (dictionary) {
             const meta = document.createElement('span');
@@ -2810,7 +3662,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     if (tabName === 'stone-ver') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await fetchInspectorTabData(oop, 'stone-ver', {}, () => api('/object/stone-version-report'));
+        const d = await fetchInspectorTabData(oop, 'stone-ver', {}, () => objectApi('/object/stone-version-report'));
         if (!isActiveInspectorRender(renderToken, tabName, oop)) return;
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
@@ -2822,7 +3674,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     if (tabName === 'gem-ver') {
       ibody.innerHTML = '<span class="spinner"></span>';
       try {
-        const d = await fetchInspectorTabData(oop, 'gem-ver', {}, () => api('/object/gem-version-report'));
+        const d = await fetchInspectorTabData(oop, 'gem-ver', {}, () => objectApi('/object/gem-version-report'));
         if (!isActiveInspectorRender(renderToken, tabName, oop)) return;
         ibody.innerHTML = '';
         if (!d.success) throw new Error(d.exception);
@@ -2873,7 +3725,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
         oop,
         'instances',
         {limit: PAGE, offset},
-        () => api(`/object/instances/${oop}?limit=${PAGE}&offset=${offset}`)
+        () => objectApi(`/object/instances/${oop}?limit=${PAGE}&offset=${offset}`)
       );
       if (!isActiveInspectorRender(renderToken, 'instances', oop)) return;
       ibody.innerHTML = '';
@@ -2952,7 +3804,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
         oop,
         'constants',
         {limit: PAGE, offset},
-        () => api(`/object/constants/${oop}?limit=${PAGE}&offset=${offset}`)
+        () => objectApi(`/object/constants/${oop}?limit=${PAGE}&offset=${offset}`)
       );
       if (!isActiveInspectorRender(renderToken, 'constants', oop)) return;
       ibody.innerHTML = '';
@@ -3029,7 +3881,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
         oop,
         'modules',
         {limit: PAGE, offset},
-        () => api(`/object/included-modules/${oop}?limit=${PAGE}&offset=${offset}`)
+        () => objectApi(`/object/included-modules/${oop}?limit=${PAGE}&offset=${offset}`)
       );
       if (!isActiveInspectorRender(renderToken, 'modules', oop)) return;
       ibody.innerHTML = '';
@@ -3114,7 +3966,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
 
     async function syncPersistentMode() {
       try {
-        const d = await api('/transaction/persistent-mode');
+        const d = await objectApi('/transaction/persistent-mode');
         if (d.success) setPersistentButtonState(!!d.persistent);
       } catch (_) {}
     }
@@ -3125,7 +3977,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
       resDiv.className = 'cp-result visible loading'; resDiv.textContent = 'Working…';
       try {
         const opts = method === 'POST' ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body_data||{})} : undefined;
-        const d = await api(url, opts);
+        const d = await objectApi(url, opts);
         resDiv.className = 'cp-result visible' + (d.success ? '' : ' error');
         resDiv.textContent = d.success ? (d.result || 'ok') : 'Error: ' + (d.exception||'');
         if (d.success) {
@@ -3447,7 +4299,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     updateMethodBrowserActions();
     try {
       mbData = await fetchMethodBrowserCached('selectors', {classOop}, async () => {
-        const d = await api(`/code/selectors/${classOop}`);
+        const d = await objectApi(`/code/selectors/${classOop}`);
         if (!d.success) throw new Error(d.exception);
         return d.result || {};
       });
@@ -3467,7 +4319,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
         updateMethodBrowserActions();
         try {
           const source = await fetchMethodBrowserCached('source', {classOop, selector: selectorName}, async () => {
-            const sd = await api(`/code/code/${classOop}?selector=${encodeURIComponent(selectorName)}`);
+            const sd = await objectApi(`/code/code/${classOop}?selector=${encodeURIComponent(selectorName)}`);
             if (!sd.success) throw new Error(sd.exception);
             return sd.result || '';
           });
@@ -3528,7 +4380,7 @@ function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {
     evalRes.textContent = ''; evalRes.className = 'eval-result';
     const sp = document.createElement('span'); sp.className='spinner'; evalRes.appendChild(sp);
     try {
-      const d = await apiEvaluate(evalOop, {code, language: 'smalltalk', depth: 2});
+      const d = await objectApiEvaluate(evalOop, {code, language: 'smalltalk', depth: 2});
       evalRes.innerHTML = '';
       if (!d.success) { evalRes.className='eval-result error'; evalRes.textContent='Error: '+d.exception; return; }
       const [isExc, rv] = d.result;
@@ -3574,8 +4426,11 @@ function openWorkspace(options = {}) {
     y: options.y,
     taskbarLabel:'Workspace'
   });
+  const sessionChannel = `workspace:${id}`;
+  const workspaceApiEvaluate = (oop, payload = {}) => apiEvaluate(oop, payload, {sessionChannel});
+  const workspaceApiTransaction = url => apiTransaction(url, {sessionChannel});
   function syncWorkspaceWindowState() {
-    upsertWindowState(id, {kind: 'workspace', draft: wsc?.value || ''});
+    upsertWindowState(id, {kind: 'workspace', draft: wsc?.value || '', sessionChannel});
   }
   // The outer div must be display:flex;flex-direction:column so ws-history can flex:1
   // and ws-input-row / txbar stay at the bottom.
@@ -3606,13 +4461,13 @@ function openWorkspace(options = {}) {
   wsc.addEventListener('keydown', e => { if (e.ctrlKey && e.key==='Enter') wsDoIt(); });
   wsc.addEventListener('input', syncWorkspaceWindowState);
   body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
-    try { const d=await apiTransaction('/transaction/abort'); setStatus(d.success, d.success?'aborted':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await workspaceApiTransaction('/transaction/abort'); setStatus(d.success, d.success?'aborted':d.exception); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
-    try { const d=await apiTransaction('/transaction/commit'); setStatus(d.success, d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await workspaceApiTransaction('/transaction/commit'); setStatus(d.success, d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-continue`).addEventListener('click', async () => {
-    try { const d=await apiTransaction('/transaction/continue'); setStatus(d.success, d.success?'continued':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await workspaceApiTransaction('/transaction/continue'); setStatus(d.success, d.success?'continued':d.exception); } catch(e){setStatus(false,e.message);}
   });
 
   async function wsDoIt() {
@@ -3626,7 +4481,7 @@ function openWorkspace(options = {}) {
     const globOop = roots['Globals'] || roots['UserGlobals'];
     if (!globOop) { resEl.className='ws-result error'; textSpan.textContent='Not connected'; return; }
     try {
-      const d = await apiEvaluate(globOop, {code, language: 'smalltalk', depth: 1});
+      const d = await workspaceApiEvaluate(globOop, {code, language: 'smalltalk', depth: 1});
       if (!d.success) { resEl.className='ws-result error'; textSpan.textContent='Error: '+d.exception; return; }
       const [isExc, rv] = d.result;
       if (isExc) {
@@ -3696,6 +4551,970 @@ function openWebBrowser(initialUrl, options = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ABOUT WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openAboutWindow(options = {}) {
+  const {win, body, id} = createWindow({
+    title:'About',
+    width: options.width || 420,
+    height: options.height || 320,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'About'
+  });
+  body.style.cssText = 'display:flex;flex-direction:column;gap:10px;padding:14px;overflow:auto;min-height:0';
+  body.innerHTML = `
+    <div class="about-title">GemStone Database Explorer</div>
+    <div class="about-subtitle">
+      Windowed GemStone browser/debugger with object inspectors, Class Browser, Symbol List Browser,
+      debugger windows, persisted layouts, and isolated session-channel families.
+    </div>
+    <div class="about-grid" id="${id}-grid"></div>
+    <div class="about-actions">
+      <button class="btn-ghost" id="${id}-window-links">Window Links</button>
+      <button class="btn-ghost" id="${id}-window-groups">Window Groups</button>
+      <button class="btn-ghost" id="${id}-status-log">Status Log</button>
+      <button class="btn-ghost" id="${id}-status-errors">Errors Only</button>
+      <button class="btn-ghost" id="${id}-copy-bundle">Copy Bundle</button>
+      <button class="btn-ghost" id="${id}-bundle">Download Bundle</button>
+      <button class="btn-ghost" id="${id}-refresh">Refresh</button>
+      <button class="btn-ghost" id="${id}-copy">Copy JSON</button>
+      <button class="btn-ghost" id="${id}-download">Download JSON</button>
+    </div>
+  `;
+  const grid = body.querySelector(`#${id}-grid`);
+  const windowLinksBtn = body.querySelector(`#${id}-window-links`);
+  const windowGroupsBtn = body.querySelector(`#${id}-window-groups`);
+  const statusLogBtn = body.querySelector(`#${id}-status-log`);
+  const statusErrorsBtn = body.querySelector(`#${id}-status-errors`);
+  const copyBundleBtn = body.querySelector(`#${id}-copy-bundle`);
+  const bundleBtn = body.querySelector(`#${id}-bundle`);
+  const refreshBtn = body.querySelector(`#${id}-refresh`);
+  const copyBtn = body.querySelector(`#${id}-copy`);
+  const downloadBtn = body.querySelector(`#${id}-download`);
+  let latestDiagnostics = null;
+  let latestServerData = runtimeVersionInfo || {};
+  let latestDiagnosticsError = '';
+
+  function syncAboutWindowState() {
+    upsertWindowState(id, {kind: 'about'});
+  }
+
+  function buildBrowserDiagnostics() {
+    return {
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+      language: navigator.language || '',
+    };
+  }
+
+  function buildDiagnosticsSnapshot(serverData = {}, errorText = '') {
+    const browser = buildBrowserDiagnostics();
+    return {
+      generatedAt: new Date().toISOString(),
+      server: serverData || {},
+      browser,
+      statusHistory: getStatusHistory(),
+      error: errorText || '',
+    };
+  }
+
+  function buildSupportBundle(serverData = {}, errorText = '') {
+    const taskbarVersionLabel = document.getElementById('taskbar-version')?.textContent || '';
+    return {
+      generatedAt: new Date().toISOString(),
+      diagnostics: latestDiagnostics || buildDiagnosticsSnapshot(serverData, errorText),
+      currentStatus: {
+        ok: !document.getElementById('status-dot').classList.contains('error'),
+        text: document.getElementById('status-txt').textContent || '',
+      },
+      taskbarVersion: taskbarVersionLabel,
+      statusSummary: getStatusHistorySummary(),
+      windowLayout: buildWindowLayoutSnapshot(),
+      openWindows: collectOpenWindowSummaries(),
+      windowLinks: collectWindowLinkSummaries(),
+      windowGroups: collectWindowGroupSummaries(),
+    };
+  }
+
+  function renderAboutInfo(data = {}, errorText = '') {
+    latestServerData = data || {};
+    latestDiagnosticsError = errorText || '';
+    latestDiagnostics = buildDiagnosticsSnapshot(data, errorText);
+    const browser = latestDiagnostics.browser || {};
+    const broker = data.sessionBroker || {};
+    const statusSummary = getStatusHistorySummary();
+    const windowGroups = collectWindowGroupSummaries();
+    const largestGroupSize = windowGroups.reduce((max, each) => Math.max(max, Number(each.size || 0)), 0);
+    const latestErrorLabel = statusSummary.latestError
+      ? [
+          statusSummary.latestError.message,
+          statusSummary.latestError.sourceTitle || statusSummary.latestError.sourceKind || '',
+        ].filter(Boolean).join(' · ')
+      : '—';
+    const channelNames = Array.isArray(broker.channels) ? broker.channels.map(each => each.name).join(', ') : '';
+    const rows = [
+      ['Explorer', data.app || runtimeVersionInfo?.app || ''],
+      ['Stone', data.stone || runtimeVersionInfo?.stone || ''],
+      ['Gem', data.gem || runtimeVersionInfo?.gem || ''],
+      ['Health', data.status || (errorText ? 'error' : 'unknown')],
+      ['Python', data.runtime?.python || ''],
+      ['Platform', data.runtime?.platform || ''],
+      ['Broker Sessions', String(broker.managedSessionCount ?? 0)],
+      ['Channels', channelNames || '—'],
+      ['Auto Begin Default', broker.defaultAutoBegin === null || broker.defaultAutoBegin === undefined ? 'unset' : String(!!broker.defaultAutoBegin)],
+      ['Browser', browserSummary(browser)],
+      ['Open Windows', String(collectOpenWindowSummaries().length)],
+      ['Window Links', String(collectWindowLinkSummaries().length)],
+      ['Window Groups', String(windowGroups.length)],
+      ['Largest Group', `${largestGroupSize} window${largestGroupSize === 1 ? '' : 's'}`],
+      ['Status Entries', String(getStatusHistory().length)],
+      ['Status OK', String(statusSummary.ok)],
+      ['Status Errors', String(statusSummary.error)],
+      ['Closed Sources', String(statusSummary.closedSources)],
+      ['Latest Error', latestErrorLabel],
+      ['Layout', 'Persisted per browser via localStorage'],
+      ['Sessions', 'Window-scoped channel families over the shared GemStone broker'],
+      ['Refreshed', new Date().toLocaleString()],
+    ];
+    if (errorText) rows.push(['Error', errorText]);
+    grid.innerHTML = rows.map(([key, value]) => `
+      <div class="about-key">${escHtml(key)}</div>
+      <div class="about-value">${escHtml(value || '—')}</div>
+    `).join('');
+  }
+
+  function browserSummary(browser) {
+    const viewport = browser?.viewport;
+    const size = viewport ? `${viewport.width}×${viewport.height}` : '';
+    const language = browser?.language || '';
+    return [language, size].filter(Boolean).join(' · ');
+  }
+
+  async function copyDiagnostics() {
+    try {
+      await copyTextToClipboard(JSON.stringify(latestDiagnostics || buildDiagnosticsSnapshot(runtimeVersionInfo || {}, ''), null, 2));
+      setStatus(true, 'copied diagnostics');
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  }
+
+  function downloadDiagnostics() {
+    const data = latestDiagnostics || buildDiagnosticsSnapshot(runtimeVersionInfo || {}, '');
+    const stamp = new Date().toISOString().replace(/[:]/g, '-');
+    downloadDataFile(`diagnostics-${stamp}.json`, JSON.stringify(data, null, 2), 'application/json;charset=utf-8');
+    setStatus(true, 'downloaded diagnostics');
+  }
+
+  function downloadSupportBundle() {
+    const data = buildSupportBundle(runtimeVersionInfo || {}, '');
+    const stamp = new Date().toISOString().replace(/[:]/g, '-');
+    downloadDataFile(`support-bundle-${stamp}.json`, JSON.stringify(data, null, 2), 'application/json;charset=utf-8');
+    setStatus(true, 'downloaded support bundle');
+  }
+
+  async function copySupportBundle() {
+    try {
+      await copyTextToClipboard(JSON.stringify(buildSupportBundle(runtimeVersionInfo || {}, ''), null, 2));
+      setStatus(true, 'copied support bundle');
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  }
+
+  function openAboutStatusLog(nextOptions = {}) {
+    const nextWin = openStatusLogWindow({
+      x: win.offsetLeft + 24,
+      y: win.offsetTop + 24,
+      filterText: nextOptions.filterText || '',
+      level: nextOptions.level || 'all',
+      sourceWindowId: id,
+    });
+    if (nextWin) revealWindow(nextWin);
+  }
+
+  function openAboutWindowGroups() {
+    const nextWin = openWindowGroupsWindow({
+      x: win.offsetLeft + 32,
+      y: win.offsetTop + 32,
+      sourceWindowId: id,
+    });
+    if (nextWin) revealWindow(nextWin);
+  }
+
+  function openAboutWindowLinks() {
+    const nextWin = openWindowLinksWindow({
+      x: win.offsetLeft + 28,
+      y: win.offsetTop + 28,
+      viewMode: 'related',
+      sourceWindowId: id,
+    });
+    if (nextWin) revealWindow(nextWin);
+  }
+
+  async function refreshAboutInfo() {
+    windowLinksBtn.disabled = true;
+    windowGroupsBtn.disabled = true;
+    copyBundleBtn.disabled = true;
+    bundleBtn.disabled = true;
+    statusLogBtn.disabled = true;
+    statusErrorsBtn.disabled = true;
+    refreshBtn.disabled = true;
+    copyBtn.disabled = true;
+    downloadBtn.disabled = true;
+    renderAboutInfo(runtimeVersionInfo || {}, '');
+    try {
+      const data = await api('/diagnostics');
+      if (data?.success) {
+        runtimeVersionInfo = {...(runtimeVersionInfo || {}), ...data};
+        renderTaskbarVersion(runtimeVersionInfo);
+        renderAboutInfo(data, '');
+      }
+    } catch (e) {
+      renderAboutInfo(runtimeVersionInfo || {}, e.message);
+      setStatus(false, e.message);
+    } finally {
+      windowLinksBtn.disabled = false;
+      windowGroupsBtn.disabled = false;
+      copyBundleBtn.disabled = false;
+      bundleBtn.disabled = false;
+      statusLogBtn.disabled = false;
+      statusErrorsBtn.disabled = false;
+      refreshBtn.disabled = false;
+      copyBtn.disabled = false;
+      downloadBtn.disabled = false;
+      syncAboutWindowState();
+    }
+  }
+
+  windowLinksBtn.addEventListener('click', openAboutWindowLinks);
+  windowGroupsBtn.addEventListener('click', openAboutWindowGroups);
+  statusLogBtn.addEventListener('click', () => openAboutStatusLog({level: 'all'}));
+  statusErrorsBtn.addEventListener('click', () => openAboutStatusLog({level: 'error'}));
+  copyBundleBtn.addEventListener('click', copySupportBundle);
+  bundleBtn.addEventListener('click', downloadSupportBundle);
+  refreshBtn.addEventListener('click', refreshAboutInfo);
+  copyBtn.addEventListener('click', copyDiagnostics);
+  downloadBtn.addEventListener('click', downloadDiagnostics);
+  liveWindowRenderers.set(id, () => renderAboutInfo(latestServerData, latestDiagnosticsError));
+  syncAboutWindowState();
+  renderAboutInfo(runtimeVersionInfo || {}, '');
+  refreshAboutInfo();
+  return win;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WINDOW LINKS WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openWindowLinksWindow(options = {}) {
+  const {win, body, id} = createWindow({
+    title:'Window Links',
+    width: options.width || 620,
+    height: options.height || 360,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Window Links'
+  });
+  body.style.cssText = 'display:flex;flex-direction:column;padding:12px;overflow:hidden;min-height:0';
+  body.innerHTML = `
+    <div class="status-log-toolbar">
+      <div class="status-log-controls">
+        <input class="status-log-filter" id="${id}-filter" type="text" placeholder="Filter links">
+        <div class="status-log-scope" id="${id}-scope">
+          <button class="btn-ghost" data-link-type="all">All</button>
+          <button class="btn-ghost" data-link-type="source">Source</button>
+          <button class="btn-ghost" data-link-type="arrow">Arrow</button>
+        </div>
+        <div class="status-log-scope" id="${id}-view-mode">
+          <button class="btn-ghost" data-view-mode="all">All Windows</button>
+          <button class="btn-ghost" data-view-mode="related">Related Only</button>
+        </div>
+      </div>
+      <div class="status-log-controls">
+        <button class="btn-ghost" id="${id}-raise-selected">Raise Selected Group</button>
+        <button class="btn-ghost" id="${id}-close-selected">Close Selected Group</button>
+        <button class="btn-ghost" id="${id}-copy">Copy JSON</button>
+        <button class="btn-ghost" id="${id}-download">Download JSON</button>
+        <button class="btn-ghost" id="${id}-refresh">Refresh</button>
+      </div>
+    </div>
+    <div class="status-log-meta" id="${id}-meta"></div>
+    <div class="window-links-list" id="${id}-list"></div>
+  `;
+  const filterInput = body.querySelector(`#${id}-filter`);
+  const scope = body.querySelector(`#${id}-scope`);
+  const viewScope = body.querySelector(`#${id}-view-mode`);
+  const meta = body.querySelector(`#${id}-meta`);
+  const list = body.querySelector(`#${id}-list`);
+  const raiseSelectedBtn = body.querySelector(`#${id}-raise-selected`);
+  const closeSelectedBtn = body.querySelector(`#${id}-close-selected`);
+  const copyBtn = body.querySelector(`#${id}-copy`);
+  const downloadBtn = body.querySelector(`#${id}-download`);
+  const refreshBtn = body.querySelector(`#${id}-refresh`);
+  let sourceWindowId = options.sourceWindowId || null;
+  let filterText = String(options.filterText || '');
+  let linkType = ['all', 'source', 'arrow'].includes(options.linkType) ? options.linkType : 'all';
+  let viewMode = options.viewMode === 'related' ? 'related' : 'all';
+  let selectedIndex = Number.isFinite(Number(options.selectedIndex)) ? Math.max(0, Number(options.selectedIndex)) : 0;
+
+  function syncWindowLinksState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (!sourceWindowId && existingSourceWindowId) sourceWindowId = existingSourceWindowId;
+    upsertWindowState(id, {
+      kind: 'window-links',
+      filterText,
+      linkType,
+      viewMode,
+      selectedIndex,
+      sourceWindowId: sourceWindowId || null,
+    });
+  }
+
+  function currentLinks() {
+    const links = collectWindowLinkSummaries();
+    if (viewMode !== 'related') return links;
+    const relatedIds = new Set(getRelatedWindowIds(sourceWindowId));
+    if (sourceWindowId) relatedIds.add(sourceWindowId);
+    if (!relatedIds.size) return [];
+    return links.filter(link => relatedIds.has(link.fromId) || relatedIds.has(link.toId));
+  }
+
+  function filteredLinks() {
+    const text = filterText.trim().toLowerCase();
+    return currentLinks().filter(link => {
+      if (linkType !== 'all' && link.type !== linkType) return false;
+      if (!text) return true;
+      const haystacks = [
+        link.type || '',
+        link.fromTitle || '',
+        link.fromKind || '',
+        link.toTitle || '',
+        link.toKind || '',
+      ];
+      return haystacks.some(value => String(value).toLowerCase().includes(text));
+    });
+  }
+
+  function isFilteredWindowLinksView() {
+    return !!filterText.trim() || linkType !== 'all' || viewMode !== 'all';
+  }
+
+  function windowLinksForExport() {
+    return isFilteredWindowLinksView() ? filteredLinks() : collectWindowLinkSummaries();
+  }
+
+  function buildWindowLinksExport() {
+    const allLinks = collectWindowLinkSummaries();
+    const sourceTitle = windowState.get(sourceWindowId || '')?.title || '';
+    return {
+      exportScope: isFilteredWindowLinksView() ? 'current-view' : 'full',
+      linkType,
+      viewMode,
+      filterText,
+      sourceWindowId: sourceWindowId || null,
+      sourceTitle,
+      totalLinks: allLinks.length,
+      links: windowLinksForExport(),
+    };
+  }
+
+  function syncScopeButtons() {
+    scope.querySelectorAll('[data-link-type]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.linkType === linkType);
+    });
+  }
+
+  function syncViewModeButtons() {
+    viewScope.querySelectorAll('[data-view-mode]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.viewMode === viewMode);
+      if (btn.dataset.viewMode === 'related') {
+        btn.disabled = !sourceWindowId;
+      }
+    });
+  }
+
+  function currentSelectedLink(links = filteredLinks()) {
+    if (!Array.isArray(links) || !links.length) return null;
+    selectedIndex = sanitizeSelectionIndex(selectedIndex, links);
+    return links[selectedIndex] || null;
+  }
+
+  function selectedLinkMemberIds(link) {
+    if (!link) return [];
+    const related = new Set();
+    [link.fromId, link.toId].forEach(linkedId => {
+      getRelatedWindowIds(linkedId).forEach(each => {
+        if (each && each !== id) related.add(each);
+      });
+    });
+    return Array.from(related);
+  }
+
+  function selectWindowLink(index, links = filteredLinks()) {
+    const nextIndex = sanitizeSelectionIndex(index, links);
+    if (selectedIndex === nextIndex && list.querySelector('.window-link-entry.active')) return;
+    selectedIndex = nextIndex;
+    syncWindowLinksState();
+    renderWindowLinks();
+  }
+
+  function renderWindowLinks() {
+    const allLinks = collectWindowLinkSummaries();
+    const scopedLinks = currentLinks();
+    const links = filteredLinks();
+    const selectedLink = currentSelectedLink(links);
+    const selectedMembers = selectedLinkMemberIds(selectedLink);
+    const sourceTitle = windowState.get(sourceWindowId || '')?.title || sourceWindowId || 'source window';
+    const scopeLabel = viewMode === 'related' ? `related to ${sourceTitle}` : 'across all windows';
+    const exportLabel = isFilteredWindowLinksView() ? 'export targets current view' : 'export targets full set';
+    meta.textContent = `${links.length} of ${scopedLinks.length} link${scopedLinks.length === 1 ? '' : 's'} shown · ${linkType === 'all' ? 'all link types' : `${linkType} links only`} · ${scopeLabel} · ${exportLabel}`;
+    filterInput.value = filterText;
+    syncScopeButtons();
+    syncViewModeButtons();
+    raiseSelectedBtn.disabled = !selectedLink || !selectedMembers.length;
+    closeSelectedBtn.disabled = !selectedLink || !selectedMembers.length;
+    copyBtn.textContent = isFilteredWindowLinksView() ? 'Copy Visible JSON' : 'Copy JSON';
+    downloadBtn.textContent = isFilteredWindowLinksView() ? 'Download Visible JSON' : 'Download JSON';
+    if (!scopedLinks.length) {
+      list.innerHTML = `<div class="status-log-empty">${viewMode === 'related' ? 'No window links are currently related to the source window.' : (allLinks.length ? 'No window links match the current view.' : 'No window links are currently open.')}</div>`;
+      return;
+    }
+    if (!links.length) {
+      list.innerHTML = `<div class="status-log-empty">No window links match the current filter.</div>`;
+      return;
+    }
+    list.innerHTML = links.map((link, index) => {
+      const fromWin = document.getElementById(link.fromId);
+      const toWin = document.getElementById(link.toId);
+      const fromHtml = fromWin
+        ? `<button type="button" class="window-link-endpoint window-link-button" data-link-endpoint="from" data-link-index="${index}"><span>${escHtml(link.fromTitle || link.fromId)}</span><span class="window-link-kind">${escHtml(link.fromKind || 'window')}</span></button>`
+        : `<span class="window-link-endpoint missing"><span>${escHtml(link.fromTitle || link.fromId)}</span><span class="window-link-kind">${escHtml(link.fromKind || 'window')}</span></span>`;
+      const toHtml = toWin
+        ? `<button type="button" class="window-link-endpoint window-link-button" data-link-endpoint="to" data-link-index="${index}"><span>${escHtml(link.toTitle || link.toId)}</span><span class="window-link-kind">${escHtml(link.toKind || 'window')}</span></button>`
+        : `<span class="window-link-endpoint missing"><span>${escHtml(link.toTitle || link.toId)}</span><span class="window-link-kind">${escHtml(link.toKind || 'window')}</span></span>`;
+      return `
+        <div class="window-link-entry ${selectedIndex === index ? 'active' : ''}" data-link-row-index="${index}" tabindex="0">
+          <div class="window-link-route">
+            ${fromHtml}
+            <span class="window-link-type">${escHtml(link.type || 'link')}</span>
+            ${toHtml}
+          </div>
+          <div class="window-link-subtitle">
+            <span>${escHtml(link.fromTitle || link.fromId || 'Window')}</span>
+            <span>→</span>
+            <span>${escHtml(link.toTitle || link.toId || 'Window')}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    list.querySelectorAll('[data-link-row-index]').forEach(row => {
+      row.addEventListener('click', () => selectWindowLink(Number(row.dataset.linkRowIndex), links));
+    });
+    list.querySelectorAll('[data-link-index]').forEach(button => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        selectWindowLink(Number(button.dataset.linkIndex), links);
+        const link = links[Number(button.dataset.linkIndex)];
+        const targetId = button.dataset.linkEndpoint === 'from' ? link?.fromId : link?.toId;
+        const targetWin = targetId ? document.getElementById(targetId) : null;
+        if (!targetWin) {
+          renderWindowLinks();
+          return;
+        }
+        revealWindow(targetWin);
+      });
+    });
+  }
+
+  async function copyWindowLinks() {
+    try {
+      await copyTextToClipboard(JSON.stringify(buildWindowLinksExport(), null, 2));
+      setStatus(true, isFilteredWindowLinksView() ? 'copied visible window links' : 'copied window links');
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  }
+
+  function downloadWindowLinks() {
+    const stamp = new Date().toISOString().replace(/[:]/g, '-');
+    downloadDataFile(`window-links-${stamp}.json`, JSON.stringify(buildWindowLinksExport(), null, 2), 'application/json;charset=utf-8');
+    setStatus(true, isFilteredWindowLinksView() ? 'downloaded visible window links' : 'downloaded window links');
+  }
+
+  filterInput.addEventListener('input', () => {
+    filterText = filterInput.value;
+    syncWindowLinksState();
+    renderWindowLinks();
+  });
+  scope.querySelectorAll('[data-link-type]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const nextType = ['source', 'arrow'].includes(btn.dataset.linkType) ? btn.dataset.linkType : 'all';
+      if (linkType === nextType) return;
+      linkType = nextType;
+      syncWindowLinksState();
+      renderWindowLinks();
+    });
+  });
+  viewScope.querySelectorAll('[data-view-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const nextMode = btn.dataset.viewMode === 'related' ? 'related' : 'all';
+      if (viewMode === nextMode) return;
+      viewMode = nextMode;
+      syncWindowLinksState();
+      renderWindowLinks();
+    });
+  });
+  raiseSelectedBtn.addEventListener('click', () => {
+    const link = currentSelectedLink();
+    const memberIds = selectedLinkMemberIds(link);
+    if (!link || !memberIds.length) return;
+    const seedId = memberIds.includes(link.toId) ? link.toId : (memberIds.includes(link.fromId) ? link.fromId : memberIds[0]);
+    if (raiseWindowGroupByIds(memberIds, seedId)) {
+      setStatus(true, 'raised selected window link group');
+    }
+  });
+  closeSelectedBtn.addEventListener('click', () => {
+    const link = currentSelectedLink();
+    const memberIds = selectedLinkMemberIds(link);
+    if (!link || !memberIds.length) return;
+    if (closeWindowGroupByIds(memberIds, {excludeIds: [id]})) {
+      setStatus(true, 'closed selected window link group');
+      renderWindowLinks();
+    }
+  });
+  copyBtn.addEventListener('click', copyWindowLinks);
+  downloadBtn.addEventListener('click', downloadWindowLinks);
+  refreshBtn.addEventListener('click', renderWindowLinks);
+  liveWindowRenderers.set(id, renderWindowLinks);
+  syncWindowLinksState();
+  renderWindowLinks();
+  notifyLiveWindowUpdated();
+  return win;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WINDOW GROUPS WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openWindowGroupsWindow(options = {}) {
+  const {win, body, id} = createWindow({
+    title:'Window Groups',
+    width: options.width || 560,
+    height: options.height || 360,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Window Groups'
+  });
+  body.style.cssText = 'display:flex;flex-direction:column;padding:12px;overflow:hidden;min-height:0';
+  body.innerHTML = `
+    <div class="status-log-toolbar">
+      <div class="status-log-controls">
+        <input class="status-log-filter" id="${id}-filter" type="text" placeholder="Filter groups">
+        <div class="status-log-scope" id="${id}-scope">
+          <button class="btn-ghost" data-view-mode="all">All Windows</button>
+          <button class="btn-ghost" data-view-mode="linked">Linked Only</button>
+        </div>
+        <button class="btn-ghost" id="${id}-raise-largest">Raise Largest Group</button>
+        <button class="btn-ghost" id="${id}-close-largest">Close Largest Group</button>
+      </div>
+      <div class="status-log-controls">
+        <button class="btn-ghost" id="${id}-copy">Copy JSON</button>
+        <button class="btn-ghost" id="${id}-download">Download JSON</button>
+        <button class="btn-ghost" id="${id}-refresh">Refresh</button>
+      </div>
+    </div>
+    <div class="status-log-meta" id="${id}-meta"></div>
+    <div class="window-groups-list" id="${id}-list"></div>
+  `;
+  const filterInput = body.querySelector(`#${id}-filter`);
+  const scope = body.querySelector(`#${id}-scope`);
+  const meta = body.querySelector(`#${id}-meta`);
+  const list = body.querySelector(`#${id}-list`);
+  const raiseLargestBtn = body.querySelector(`#${id}-raise-largest`);
+  const closeLargestBtn = body.querySelector(`#${id}-close-largest`);
+  const copyBtn = body.querySelector(`#${id}-copy`);
+  const downloadBtn = body.querySelector(`#${id}-download`);
+  const refreshBtn = body.querySelector(`#${id}-refresh`);
+  let sourceWindowId = options.sourceWindowId || null;
+  let filterText = String(options.filterText || '');
+  let viewMode = options.viewMode === 'linked' ? 'linked' : 'all';
+
+  function syncWindowGroupsState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (!sourceWindowId && existingSourceWindowId) sourceWindowId = existingSourceWindowId;
+    upsertWindowState(id, {
+      kind: 'window-groups',
+      filterText,
+      viewMode,
+      sourceWindowId: sourceWindowId || null,
+    });
+  }
+
+  function currentGroups() {
+    const groups = collectWindowGroupSummaries();
+    if (viewMode === 'linked') {
+      return groups.filter(group => Number(group.size || 0) > 1);
+    }
+    return groups;
+  }
+
+  function filteredGroups() {
+    const text = filterText.trim().toLowerCase();
+    const groups = currentGroups();
+    if (!text) return groups;
+    return groups.filter(group => {
+      const haystacks = [
+        group.primaryTitle || '',
+        ...(Array.isArray(group.titles) ? group.titles : []),
+        ...(Array.isArray(group.kinds) ? group.kinds : []),
+      ];
+      return haystacks.some(value => String(value).toLowerCase().includes(text));
+    });
+  }
+
+  function isFilteredWindowGroupsView() {
+    return !!filterText.trim() || viewMode !== 'all';
+  }
+
+  function windowGroupsForExport() {
+    return isFilteredWindowGroupsView() ? filteredGroups() : collectWindowGroupSummaries();
+  }
+
+  function buildWindowGroupsExport() {
+    const allGroups = collectWindowGroupSummaries();
+    const groups = windowGroupsForExport();
+    return {
+      exportScope: isFilteredWindowGroupsView() ? 'current-view' : 'full',
+      viewMode,
+      filterText,
+      totalGroups: allGroups.length,
+      totalWindows: collectOpenWindowSummaries().length,
+      groups,
+    };
+  }
+
+  function syncViewModeButtons() {
+    scope.querySelectorAll('[data-view-mode]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.viewMode === viewMode);
+    });
+  }
+
+  function renderWindowGroups() {
+    const groups = currentGroups();
+    const visibleGroups = filteredGroups();
+    const totalWindows = collectOpenWindowSummaries().length;
+    const visibleWindows = visibleGroups.reduce((sum, each) => sum + Number(each.size || 0), 0);
+    const largestGroupSize = groups.reduce((max, each) => Math.max(max, Number(each.size || 0)), 0);
+    filterInput.value = filterText;
+    syncViewModeButtons();
+    const scopeLabel = viewMode === 'linked' ? 'linked groups only' : 'including singletons';
+    const exportLabel = isFilteredWindowGroupsView() ? 'export targets current view' : 'export targets full set';
+    meta.textContent = `${visibleGroups.length} of ${groups.length} group${groups.length === 1 ? '' : 's'} shown · ${visibleWindows} of ${totalWindows} window${totalWindows === 1 ? '' : 's'} visible · ${scopeLabel} · ${exportLabel} · largest group ${largestGroupSize} window${largestGroupSize === 1 ? '' : 's'}`;
+    raiseLargestBtn.disabled = !visibleGroups.length;
+    closeLargestBtn.disabled = !visibleGroups.length;
+    copyBtn.textContent = isFilteredWindowGroupsView() ? 'Copy Visible JSON' : 'Copy JSON';
+    downloadBtn.textContent = isFilteredWindowGroupsView() ? 'Download Visible JSON' : 'Download JSON';
+    if (!groups.length) {
+      list.innerHTML = `<div class="window-group-empty">${viewMode === 'linked' ? 'No linked window groups are currently open.' : 'No grouped windows are currently open.'}</div>`;
+      return;
+    }
+    if (!visibleGroups.length) {
+      list.innerHTML = `<div class="window-group-empty">No window groups match the current filter.</div>`;
+      return;
+    }
+    list.innerHTML = visibleGroups.map((group, index) => {
+      const subtitle = [
+        `${group.size} windows`,
+        group.focused ? 'focused' : '',
+        group.minimisedCount ? `${group.minimisedCount} minimised` : '',
+        (group.kinds || []).join(', '),
+      ].filter(Boolean).join(' · ');
+      const leadTitle = group.primaryTitle || group.titles?.[0] || `Group ${index + 1}`;
+      return `
+        <div class="window-group-card ${group.focused ? 'focused-group' : ''}">
+          <div class="window-group-header">
+            <div>
+              <div class="window-group-title">${escHtml(leadTitle)}</div>
+              <div class="window-group-subtitle">${escHtml(subtitle || 'window group')}</div>
+            </div>
+            <div class="status-log-controls">
+              <button class="btn-ghost" data-group-seed-id="${escHtml(group.primaryId || group.members?.[0]?.id || '')}">Raise Group</button>
+              <button class="btn-ghost" data-close-group-seed-id="${escHtml(group.primaryId || group.members?.[0]?.id || '')}">Close Group</button>
+            </div>
+          </div>
+          <div class="window-group-members">
+            ${(group.members || []).map(member => `
+              <button type="button" class="window-group-member" data-window-id="${escHtml(member.id)}">
+                <span>${escHtml(member.title || member.id)}</span>
+                <span class="window-group-member-kind">${escHtml(member.kind || 'window')}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('[data-window-id]').forEach(button => {
+      button.addEventListener('click', () => {
+        const targetId = String(button.dataset.windowId || '');
+        const targetWin = targetId ? document.getElementById(targetId) : null;
+        if (!targetWin) {
+          renderWindowGroups();
+          return;
+        }
+        revealWindow(targetWin);
+      });
+    });
+    list.querySelectorAll('[data-group-seed-id]').forEach(button => {
+      button.addEventListener('click', () => {
+        const seedId = String(button.dataset.groupSeedId || '').trim() || null;
+        raiseWindowGroupByIds(getRelatedWindowIds(seedId), seedId);
+      });
+    });
+    list.querySelectorAll('[data-close-group-seed-id]').forEach(button => {
+      button.addEventListener('click', () => {
+        const seedId = String(button.dataset.closeGroupSeedId || '').trim() || null;
+        if (!seedId) return;
+        closeWindowGroupByIds(getRelatedWindowIds(seedId), {excludeIds: [id]});
+        renderWindowGroups();
+      });
+    });
+  }
+
+  filterInput.addEventListener('input', () => {
+    filterText = filterInput.value;
+    syncWindowGroupsState();
+    renderWindowGroups();
+  });
+  scope.querySelectorAll('[data-view-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const nextMode = btn.dataset.viewMode === 'linked' ? 'linked' : 'all';
+      if (viewMode === nextMode) return;
+      viewMode = nextMode;
+      syncWindowGroupsState();
+      renderWindowGroups();
+    });
+  });
+  async function copyWindowGroups() {
+    try {
+      await copyTextToClipboard(JSON.stringify(buildWindowGroupsExport(), null, 2));
+      setStatus(true, isFilteredWindowGroupsView() ? 'copied visible window groups' : 'copied window groups');
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  }
+  function downloadWindowGroups() {
+    const stamp = new Date().toISOString().replace(/[:]/g, '-');
+    downloadDataFile(`window-groups-${stamp}.json`, JSON.stringify(buildWindowGroupsExport(), null, 2), 'application/json;charset=utf-8');
+    setStatus(true, isFilteredWindowGroupsView() ? 'downloaded visible window groups' : 'downloaded window groups');
+  }
+  raiseLargestBtn.addEventListener('click', () => {
+    const largest = filteredGroups()[0];
+    if (!largest) return;
+    const seedId = largest.primaryId || largest.members?.[0]?.id || null;
+    raiseWindowGroupByIds(getRelatedWindowIds(seedId), seedId);
+  });
+  closeLargestBtn.addEventListener('click', () => {
+    const largest = filteredGroups()[0];
+    if (!largest) return;
+    const seedId = largest.primaryId || largest.members?.[0]?.id || null;
+    closeWindowGroupByIds(getRelatedWindowIds(seedId), {excludeIds: [id]});
+    renderWindowGroups();
+  });
+  copyBtn.addEventListener('click', copyWindowGroups);
+  downloadBtn.addEventListener('click', downloadWindowGroups);
+  refreshBtn.addEventListener('click', renderWindowGroups);
+  liveWindowRenderers.set(id, renderWindowGroups);
+  syncWindowGroupsState();
+  renderWindowGroups();
+  notifyLiveWindowUpdated();
+  return win;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATUS LOG WINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
+function openStatusLogWindow(options = {}) {
+  const {win, body, id} = createWindow({
+    title:'Status Log',
+    width: options.width || 560,
+    height: options.height || 340,
+    x: options.x,
+    y: options.y,
+    taskbarLabel:'Status Log'
+  });
+  body.style.cssText = 'display:flex;flex-direction:column;padding:12px;overflow:hidden;min-height:0';
+  body.innerHTML = `
+    <div class="status-log-toolbar">
+      <div class="status-log-controls">
+        <input class="status-log-filter" id="${id}-filter" type="text" placeholder="Filter status messages">
+        <div class="status-log-scope" id="${id}-scope">
+          <button class="btn-ghost" data-level="all">All</button>
+          <button class="btn-ghost" data-level="ok">OK</button>
+          <button class="btn-ghost" data-level="error">Errors</button>
+        </div>
+      </div>
+      <div class="status-log-controls">
+        <button class="btn-ghost" id="${id}-clear">Clear</button>
+        <button class="btn-ghost" id="${id}-copy">Copy JSON</button>
+        <button class="btn-ghost" id="${id}-download">Download JSON</button>
+      </div>
+    </div>
+    <div class="status-log-meta" id="${id}-meta"></div>
+    <div class="status-log-list" id="${id}-list"></div>
+  `;
+  const filterInput = body.querySelector(`#${id}-filter`);
+  const scope = body.querySelector(`#${id}-scope`);
+  const meta = body.querySelector(`#${id}-meta`);
+  const list = body.querySelector(`#${id}-list`);
+  const clearBtn = body.querySelector(`#${id}-clear`);
+  const copyBtn = body.querySelector(`#${id}-copy`);
+  const downloadBtn = body.querySelector(`#${id}-download`);
+  let filterText = String(options.filterText || '');
+  let level = ['all', 'ok', 'error'].includes(options.level) ? options.level : 'all';
+  let sourceWindowId = options.sourceWindowId || null;
+
+  function syncStatusLogWindowState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (!sourceWindowId && existingSourceWindowId) sourceWindowId = existingSourceWindowId;
+    upsertWindowState(id, {
+      kind: 'status-log',
+      filterText,
+      level,
+      sourceWindowId: sourceWindowId || null,
+    });
+  }
+
+  function formatStatusTimestamp(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value || '');
+    return date.toLocaleString();
+  }
+
+  function filteredStatusEntries() {
+    const text = filterText.trim().toLowerCase();
+    return getStatusHistory().filter(entry => {
+      if (level === 'ok' && !entry.ok) return false;
+      if (level === 'error' && entry.ok) return false;
+      if (!text) return true;
+      const haystacks = [
+        entry.message || '',
+        entry.sourceTitle || '',
+        entry.sourceKind || '',
+      ];
+      return haystacks.some(value => String(value).toLowerCase().includes(text));
+    });
+  }
+
+  function isFilteredStatusView() {
+    return !!filterText.trim() || level !== 'all';
+  }
+
+  function statusEntriesForExport() {
+    return isFilteredStatusView() ? filteredStatusEntries() : getStatusHistory();
+  }
+
+  function syncScopeButtons() {
+    scope.querySelectorAll('[data-level]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.level === level);
+    });
+  }
+
+  function renderStatusLog() {
+    const filtered = filteredStatusEntries();
+    const total = getStatusHistory().length;
+    const entries = filtered.slice().reverse();
+    const exportLabel = isFilteredStatusView() ? 'export targets current view' : 'export targets full history';
+    meta.textContent = `${filtered.length} of ${total} entr${total === 1 ? 'y' : 'ies'} shown · ${exportLabel}`;
+    filterInput.value = filterText;
+    syncScopeButtons();
+    copyBtn.textContent = isFilteredStatusView() ? 'Copy Visible JSON' : 'Copy JSON';
+    downloadBtn.textContent = isFilteredStatusView() ? 'Download Visible JSON' : 'Download JSON';
+    if (!entries.length) {
+      list.innerHTML = `<div class="status-log-empty">${total ? 'No status entries match the current filter.' : 'No status entries yet.'}</div>`;
+      return;
+    }
+    list.innerHTML = entries.map((entry, index) => {
+      const sourceLabel = entry.sourceTitle || entry.sourceKind || 'Window';
+      const sourceWindow = resolveStatusEntrySourceWindow(entry);
+      const sourceHtml = (entry.sourceTitle || entry.sourceKind) ? `
+            <div class="status-log-source">
+              <span>Source</span>
+              ${sourceWindow
+                ? `<button type="button" class="status-log-source-badge status-log-source-button" data-source-entry-index="${index}">${escHtml(sourceLabel)}</button>`
+                : `<span class="status-log-source-badge missing">${escHtml(sourceLabel)}</span><span class="status-log-source-note">Closed</span>`}
+            </div>
+          ` : '';
+      return `
+      <div class="status-log-entry ${entry.ok ? 'ok' : 'error'}">
+        <div class="status-log-time">${escHtml(formatStatusTimestamp(entry.timestamp))}</div>
+        <div class="status-log-message">
+          ${sourceHtml}
+          ${escHtml(entry.message)}${entry.count > 1 ? `<span class="status-log-count">×${entry.count}</span>` : ''}
+        </div>
+      </div>
+    `;
+    }).join('');
+    list.querySelectorAll('[data-source-entry-index]').forEach(button => {
+      button.addEventListener('click', e => {
+        e.stopPropagation();
+        const entryIndex = Number(button.dataset.sourceEntryIndex);
+        const entry = entries[entryIndex];
+        const sourceWindow = resolveStatusEntrySourceWindow(entry);
+        if (!sourceWindow) {
+          renderStatusLog();
+          return;
+        }
+        revealWindow(sourceWindow);
+      });
+    });
+  }
+
+  async function copyStatusHistory() {
+    try {
+      await copyTextToClipboard(JSON.stringify(statusEntriesForExport(), null, 2));
+      setStatus(true, isFilteredStatusView() ? 'copied visible status history' : 'copied status history');
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  }
+
+  function downloadStatusHistory() {
+    const stamp = new Date().toISOString().replace(/[:]/g, '-');
+    downloadDataFile(`status-history-${stamp}.json`, JSON.stringify(statusEntriesForExport(), null, 2), 'application/json;charset=utf-8');
+    setStatus(true, isFilteredStatusView() ? 'downloaded visible status history' : 'downloaded status history');
+  }
+
+  filterInput.addEventListener('input', () => {
+    filterText = filterInput.value;
+    syncStatusLogWindowState();
+    renderStatusLog();
+  });
+  scope.querySelectorAll('[data-level]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      level = btn.dataset.level || 'all';
+      syncStatusLogWindowState();
+      renderStatusLog();
+    });
+  });
+  clearBtn.addEventListener('click', () => {
+    clearStatusHistory();
+    syncStatusLogWindowState();
+    renderStatusLog();
+  });
+  copyBtn.addEventListener('click', copyStatusHistory);
+  downloadBtn.addEventListener('click', downloadStatusHistory);
+  liveWindowRenderers.set(id, renderStatusLog);
+  syncStatusLogWindowState();
+  renderStatusLog();
+  return win;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // DEBUGGER WINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function openDebugger(threadOrOop, threadName, options = {}) {
@@ -3712,6 +5531,9 @@ function openDebugger(threadOrOop, threadName, options = {}) {
     y: options.y,
     taskbarLabel: 'Debugger'
   });
+  const sessionChannel = `debugger:${id}`;
+  const debuggerApi = (url, opts = {}) => api(url, {...opts, sessionChannel});
+  const debuggerApiPost = (url, body = {}) => apiPost(url, body, {sessionChannel});
   let currentTab = options.currentTab === 'tls' ? 'tls' : 'stack';
   let currentFrameIdx = Number.isFinite(Number(options.frameIndex)) ? Math.max(0, Number(options.frameIndex)) : 0;
   let sourceWindowId = options.sourceWindowId || null;
@@ -3721,6 +5543,7 @@ function openDebugger(threadOrOop, threadName, options = {}) {
     if (!sourceWindowId && existingSourceWindowId) sourceWindowId = existingSourceWindowId;
     upsertWindowState(id, {
       kind: 'debugger',
+      sessionChannel,
       threadOop,
       threadLabel,
       currentTab,
@@ -3801,7 +5624,7 @@ function openDebugger(threadOrOop, threadName, options = {}) {
 
   body.querySelector(`#${id}-proceed`).addEventListener('click', async () => {
     try {
-      await apiPost(`/debug/proceed/${threadOop}`, {});
+      await debuggerApiPost(`/debug/proceed/${threadOop}`, {});
       refreshHaltedThreadsBar();
       setStatus(true,'resumed');
       closeWindow(win, id);
@@ -3811,15 +5634,15 @@ function openDebugger(threadOrOop, threadName, options = {}) {
     try {
       currentFrameIdx = 0;
       syncDebuggerWindowState();
-      await apiPost(`/debug/step-into/${threadOop}`, {});
+      await debuggerApiPost(`/debug/step-into/${threadOop}`, {});
       loadFrames();
     } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-stepover`).addEventListener('click', async () => {
-    try { await apiPost(`/debug/step-over/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
+    try { await debuggerApiPost(`/debug/step-over/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-trim`).addEventListener('click', async () => {
-    try { await apiPost(`/debug/trim/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
+    try { await debuggerApiPost(`/debug/trim/${threadOop}`, {index:currentFrameIdx}); loadFrames(); } catch(e){setStatus(false,e.message);}
   });
 
   function renderDebuggerValue(container, ref, fallbackText='') {
@@ -3850,7 +5673,7 @@ function openDebugger(threadOrOop, threadName, options = {}) {
     const framesEl = body.querySelector(`#${id}-frames`);
     framesEl.innerHTML = '<span class="spinner" style="margin:8px"></span>';
     try {
-      const d = await api(`/debug/frames/${threadOop}`);
+      const d = await debuggerApi(`/debug/frames/${threadOop}`);
       if (!d.success) throw new Error(d.exception);
       frames = d.frames;
       framesEl.innerHTML = '';
@@ -3983,7 +5806,7 @@ function openDebugger(threadOrOop, threadName, options = {}) {
     renderDebuggerValue(varvalEl, null, '');
     renderDebuggerValue(selfEl, null, '');
     try {
-      const d = await api(`/debug/frame/${threadOop}?index=${idx}`);
+      const d = await debuggerApi(`/debug/frame/${threadOop}?index=${idx}`);
       if (!d.success) throw new Error(d.exception);
       renderDebuggerSource(d, idx);
       renderDebuggerValue(selfEl, d.selfObject, d.selfPrintString || '');
@@ -4006,7 +5829,7 @@ function openDebugger(threadOrOop, threadName, options = {}) {
     const lst  = body.querySelector(`#${id}-tls-list`);
     spin.style.display='inline-block'; lst.innerHTML = '';
     try {
-      const d = await api(`/debug/thread-local/${threadOop}`);
+      const d = await debuggerApi(`/debug/thread-local/${threadOop}`);
       spin.style.display='none';
       if (!d.success) throw new Error(d.exception);
       if (!d.entries.length) { lst.innerHTML='<li style="color:#6c7086">(empty)</li>'; return; }
@@ -4042,12 +5865,17 @@ function openSymbolList(px, py, pw, ph) {
     x: options.x,
     y: options.y,
   });
+  const sessionChannel = `symbol-list:${id}`;
+  const symbolListApi = (url, opts = {}) => api(url, {...opts, sessionChannel});
+  const symbolListApiPost = (url, body = {}) => apiPost(url, body, {sessionChannel});
+  const symbolListApiTransaction = url => apiTransaction(url, {sessionChannel});
 
   let slUser=null, slDict=null, slKey=null, slKeyOop=null;
 
   function syncSymbolListWindowState() {
     upsertWindowState(id, {
       kind: 'symbol-list',
+      sessionChannel,
       user: slUser || '',
       dictionary: slDict || '',
       key: slKey || '',
@@ -4107,16 +5935,16 @@ function openSymbolList(px, py, pw, ph) {
     openLinkedObjectWindow({oop: slKeyOop, text: slKey||'object', sourceWinId: id});
   });
   body.querySelector(`#${id}-abort`).addEventListener('click', async () => {
-    try { const d=await apiTransaction('/transaction/abort'); setStatus(d.success,d.success?'aborted':d.exception); if (d.success&&slUser) loadDicts(slUser); } catch(e){setStatus(false,e.message);}
+    try { const d=await symbolListApiTransaction('/transaction/abort'); setStatus(d.success,d.success?'aborted':d.exception); if (d.success&&slUser) loadDicts(slUser); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-commit`).addEventListener('click', async () => {
-    try { const d=await apiTransaction('/transaction/commit'); setStatus(d.success,d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
+    try { const d=await symbolListApiTransaction('/transaction/commit'); setStatus(d.success,d.success?'committed':d.exception); } catch(e){setStatus(false,e.message);}
   });
   body.querySelector(`#${id}-add-dict`).addEventListener('click', () => {
     if (!slUser){setStatus(false,'Select a user first');return;}
     openModal('Add Dictionary',[{label:'Name',id:'m-dn',type:'input',placeholder:'MyDictionary'}], async f => {
       const name=f['m-dn'].trim(); if(!name)return;
-      const r=await apiPost('/symbol-list/add-dictionary',{user:slUser,name}); if(!r.success)throw new Error(r.exception);
+      const r=await symbolListApiPost('/symbol-list/add-dictionary',{user:slUser,name}); if(!r.success)throw new Error(r.exception);
       await loadDicts(slUser, name);
     });
   });
@@ -4127,7 +5955,7 @@ function openSymbolList(px, py, pw, ph) {
       {label:'Value (Smalltalk)',id:'m-ev',type:'textarea',placeholder:'nil'},
     ], async f => {
       const key=f['m-ek'].trim(); const val=f['m-ev'].trim()||'nil'; if(!key)return;
-      const r=await apiPost('/symbol-list/add-entry',{user:slUser,dictionary:slDict,key,value:val}); if(!r.success)throw new Error(r.exception);
+      const r=await symbolListApiPost('/symbol-list/add-entry',{user:slUser,dictionary:slDict,key,value:val}); if(!r.success)throw new Error(r.exception);
       await loadEntries(slUser,slDict,key);
     });
   });
@@ -4142,7 +5970,7 @@ function openSymbolList(px, py, pw, ph) {
     const sel=body.querySelector(`#${id}-user`);
     sel.innerHTML='<option>— loading —</option>';
     try {
-      const d=await api('/symbol-list/users'); if(!d.success)throw new Error(d.exception);
+      const d=await symbolListApi('/symbol-list/users'); if(!d.success)throw new Error(d.exception);
       sel.innerHTML='';
       for(const u of d.users){const o=document.createElement('option');o.value=o.textContent=u;sel.appendChild(o);}
       if(d.users.length){
@@ -4160,7 +5988,7 @@ function openSymbolList(px, py, pw, ph) {
     const ul=body.querySelector(`#${id}-dicts`);
     ul.innerHTML='<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
     try {
-      const d=await api(`/symbol-list/dictionaries/${encodeURIComponent(user)}`); if(!d.success)throw new Error(d.exception);
+      const d=await symbolListApi(`/symbol-list/dictionaries/${encodeURIComponent(user)}`); if(!d.success)throw new Error(d.exception);
       ul.innerHTML=''; let first=null;
       let preferred=null;
       for(const name of d.dictionaries){
@@ -4182,7 +6010,7 @@ function openSymbolList(px, py, pw, ph) {
       e.stopPropagation();
       const confirmed = await requestConfirmModal('Remove Dictionary', `Remove "${name}"?`, {okLabel:'Remove'});
       if(!confirmed)return;
-      try{const r=await apiPost('/symbol-list/remove-dictionary',{user:slUser,name});if(!r.success)throw new Error(r.exception);li.remove();if(slDict===name){slDict=null;body.querySelector(`#${id}-entries`).innerHTML='';clearKV();syncSymbolListWindowState();}}
+      try{const r=await symbolListApiPost('/symbol-list/remove-dictionary',{user:slUser,name});if(!r.success)throw new Error(r.exception);li.remove();if(slDict===name){slDict=null;body.querySelector(`#${id}-entries`).innerHTML='';clearKV();syncSymbolListWindowState();}}
       catch(err){setStatus(false,'Error: '+err.message);}
     });
     li.append(sp,del);
@@ -4202,7 +6030,7 @@ function openSymbolList(px, py, pw, ph) {
     const ul=body.querySelector(`#${id}-entries`);
     ul.innerHTML='<li style="color:#6c7086;cursor:default"><span class="spinner"></span></li>';
     try {
-      const d=await api(`/symbol-list/entries/${encodeURIComponent(user)}/${encodeURIComponent(dict)}`); if(!d.success)throw new Error(d.exception);
+      const d=await symbolListApi(`/symbol-list/entries/${encodeURIComponent(user)}/${encodeURIComponent(dict)}`); if(!d.success)throw new Error(d.exception);
       ul.innerHTML='';
       const sorted=d.entries.slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
       let preferred=null;
@@ -4223,7 +6051,7 @@ function openSymbolList(px, py, pw, ph) {
       e.stopPropagation();
       const confirmed = await requestConfirmModal('Remove Entry', `Remove "${key}"?`, {okLabel:'Remove'});
       if(!confirmed)return;
-      try{const r=await apiPost('/symbol-list/remove-entry',{user:slUser,dictionary:slDict,key});if(!r.success)throw new Error(r.exception);li.remove();if(slKey===key){slKey=slKeyOop=null;clearKV();syncSymbolListWindowState();}}
+      try{const r=await symbolListApiPost('/symbol-list/remove-entry',{user:slUser,dictionary:slDict,key});if(!r.success)throw new Error(r.exception);li.remove();if(slKey===key){slKey=slKeyOop=null;clearKV();syncSymbolListWindowState();}}
       catch(err){setStatus(false,'Error: '+err.message);}
     });
     li.append(sp,del);
@@ -4242,7 +6070,7 @@ function openSymbolList(px, py, pw, ph) {
     const kv=body.querySelector(`#${id}-kv`);
     kv.innerHTML='<tr><td colspan="2" style="color:#6c7086"><span class="spinner"></span> Loading…</td></tr>';
     try {
-      const d=await api(`/symbol-list/preview/${encodeURIComponent(slUser)}/${encodeURIComponent(slDict)}/${encodeURIComponent(key)}`);
+      const d=await symbolListApi(`/symbol-list/preview/${encodeURIComponent(slUser)}/${encodeURIComponent(slDict)}/${encodeURIComponent(key)}`);
       if(!d.success)throw new Error(d.exception);
       slKeyOop=d.oop||null;
       syncSymbolListWindowState();
@@ -4325,8 +6153,60 @@ function openTextWindow(title, text, taskbarLabel='Report', px, py, pw=560, ph=3
   body.querySelector('textarea').value = text || '';
 }
 
-function setupQueryWindowList({listEl, filterInput, items, labelForItem, onSelectItem, onOpenItem, defaultIndex = 0}) {
+function buildUnifiedLineDiff(leftText, rightText, {leftLabel = 'Selected', rightLabel = 'Current'} = {}) {
+  const leftLines = String(leftText || '').split('\n');
+  const rightLines = String(rightText || '').split('\n');
+  const leftSize = leftLines.length;
+  const rightSize = rightLines.length;
+  const lcs = Array.from({length: leftSize + 1}, () => Array(rightSize + 1).fill(0));
+
+  for (let li = leftSize - 1; li >= 0; li -= 1) {
+    for (let ri = rightSize - 1; ri >= 0; ri -= 1) {
+      lcs[li][ri] = leftLines[li] === rightLines[ri]
+        ? lcs[li + 1][ri + 1] + 1
+        : Math.max(lcs[li + 1][ri], lcs[li][ri + 1]);
+    }
+  }
+
+  const rows = [];
+  let li = 0;
+  let ri = 0;
+  while (li < leftSize && ri < rightSize) {
+    if (leftLines[li] === rightLines[ri]) {
+      rows.push(`  ${leftLines[li]}`);
+      li += 1;
+      ri += 1;
+      continue;
+    }
+    if (lcs[li + 1][ri] >= lcs[li][ri + 1]) {
+      rows.push(`- ${leftLines[li]}`);
+      li += 1;
+      continue;
+    }
+    rows.push(`+ ${rightLines[ri]}`);
+    ri += 1;
+  }
+  while (li < leftSize) {
+    rows.push(`- ${leftLines[li]}`);
+    li += 1;
+  }
+  while (ri < rightSize) {
+    rows.push(`+ ${rightLines[ri]}`);
+    ri += 1;
+  }
+
+  const changed = rows.some(row => row.startsWith('- ') || row.startsWith('+ '));
+  return [
+    `--- ${leftLabel}`,
+    `+++ ${rightLabel}`,
+    changed ? null : '(no differences)',
+    ...rows,
+  ].filter(line => line !== null).join('\n');
+}
+
+function setupQueryWindowList({listEl, filterInput, items, labelForItem, onSelectItem, onOpenItem, onActivateItem, defaultIndex = 0}) {
   let currentItem = items[defaultIndex] || items[0] || null;
+  const activateItem = typeof onActivateItem === 'function' ? onActivateItem : onOpenItem;
 
   function visibleItems() {
     const filterText = String(filterInput?.value || '').trim().toLowerCase();
@@ -4432,7 +6312,7 @@ function setupQueryWindowList({listEl, filterInput, items, labelForItem, onSelec
     }
     if (event.key === 'Enter' && currentItem) {
       event.preventDefault();
-      onOpenItem?.(currentItem);
+      activateItem?.(currentItem);
     }
   });
 
@@ -4460,7 +6340,7 @@ function setupQueryWindowList({listEl, filterInput, items, labelForItem, onSelec
     }
     if (event.key === 'Enter' && currentItem) {
       event.preventDefault();
-      onOpenItem?.(currentItem);
+      activateItem?.(currentItem);
     }
   });
 
@@ -4473,6 +6353,11 @@ function setupQueryWindowList({listEl, filterInput, items, labelForItem, onSelec
 
 function openMethodQueryWindow(title, results, options = {}) {
   let sourceWindowId = options.sourceWindowId || null;
+  function helperSessionChannel() {
+    return options.sessionChannel || windowState.get(sourceWindowId || '')?.sessionChannel || '';
+  }
+  const queryApiWithParams = (url, params = {}) => apiWithParams(url, params, {sessionChannel: helperSessionChannel()});
+  const queryApiPost = (url, body = {}) => apiPost(url, body, {sessionChannel: helperSessionChannel()});
   const canLoadResult = typeof options.onLoadResult === 'function' || !!sourceWindowId;
   const {body, id} = createWindow({
     title,
@@ -4493,6 +6378,7 @@ function openMethodQueryWindow(title, results, options = {}) {
           <span class="qv-title">Select a result</span>
           ${canLoadResult ? `<button class="btn-ghost" id="qv-load" disabled>${escHtml(options.loadLabel || 'Load Into Browser')}</button>` : ''}
           <button class="btn-ghost" id="qv-open" disabled>Open In Browser</button>
+          <button class="btn-ghost" id="qv-inspect" disabled>Inspect Method</button>
         </div>
         <textarea class="qv-preview" readonly></textarea>
       </div>
@@ -4505,8 +6391,16 @@ function openMethodQueryWindow(title, results, options = {}) {
   const previewEl = body.querySelector('.qv-preview');
   const loadBtn = body.querySelector('#qv-load');
   const openBtn = body.querySelector('#qv-open');
+  const inspectBtn = body.querySelector('#qv-inspect');
   filterInput.value = options.filterText || '';
   let currentRef = null;
+
+  function trackOpenedBrowser(nextBrowser) {
+    if (!nextBrowser?.id) return nextBrowser;
+    sourceWindowId = nextBrowser.id;
+    syncMethodQueryWindowState();
+    return nextBrowser;
+  }
 
   function syncMethodQueryWindowState() {
     const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
@@ -4519,6 +6413,7 @@ function openMethodQueryWindow(title, results, options = {}) {
       selectedIndex: Math.max(0, results.indexOf(currentRef)),
       loadLabel: options.loadLabel || 'Load Into Browser',
       sourceWindowId: sourceWindowId || null,
+      sessionChannel: helperSessionChannel(),
     });
   }
 
@@ -4531,6 +6426,7 @@ function openMethodQueryWindow(title, results, options = {}) {
       previewEl.value = '';
       if (loadBtn) loadBtn.disabled = true;
       openBtn.disabled = true;
+      inspectBtn.disabled = true;
       syncMethodQueryWindowState();
       return;
     }
@@ -4540,11 +6436,13 @@ function openMethodQueryWindow(title, results, options = {}) {
       previewEl.value = ref;
       if (loadBtn) loadBtn.disabled = true;
       openBtn.disabled = true;
+      inspectBtn.disabled = true;
       syncMethodQueryWindowState();
       return;
     }
     if (loadBtn) loadBtn.disabled = false;
     openBtn.disabled = false;
+    inspectBtn.disabled = false;
     titleEl.textContent = parsed.meta ? `${parsed.className} class >> ${parsed.selector}` : `${parsed.className} >> ${parsed.selector}`;
     previewEl.value = 'Loading…';
     try {
@@ -4554,7 +6452,7 @@ function openMethodQueryWindow(title, results, options = {}) {
         meta: parsed.meta ? 1 : 0,
       };
       if (parsed.dictionary) params.dictionary = parsed.dictionary;
-      const d = await apiWithParams('/class-browser/source', params);
+      const d = await queryApiWithParams('/class-browser/source', params);
       if (!d.success) throw new Error(d.exception);
       previewEl.value = d.source || '';
     } catch (e) {
@@ -4564,6 +6462,24 @@ function openMethodQueryWindow(title, results, options = {}) {
     }
   }
 
+  async function inspectCurrentRef(ref = currentRef) {
+    const parsed = parseMethodReference(ref);
+    if (!parsed) return;
+    const d = await queryApiPost('/class-browser/inspect-target', {
+      mode: 'method',
+      dictionary: parsed.dictionary || '',
+      className: parsed.className,
+      selector: parsed.selector,
+      meta: parsed.meta,
+    });
+    if (!d.success) throw new Error(d.exception || 'Inspection failed');
+    openLinkedObjectWindow({
+      oop: d.oop,
+      text: d.label || parsed.label || ref,
+      sourceWinId: id,
+    });
+  }
+
   loadBtn?.addEventListener('click', async () => {
     const parsed = parseMethodReference(currentRef);
     if (!parsed) return;
@@ -4571,11 +6487,18 @@ function openMethodQueryWindow(title, results, options = {}) {
     openBtn.disabled = true;
     try {
       sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
-      const loadResult = typeof options.onLoadResult === 'function'
-        ? options.onLoadResult
-        : (getClassBrowserRuntime(sourceWindowId)?.loadMethodReference || null);
-      if (typeof loadResult !== 'function') throw new Error('Source browser is no longer available');
-      await loadResult(parsed, currentRef);
+      const target = await resolveClassBrowserRuntime(sourceWindowId, {
+        dictionary: parsed.dictionary || null,
+        className: parsed.className,
+        method: parsed.selector,
+        meta: parsed.meta,
+      });
+      sourceWindowId = target.sourceWindowId || sourceWindowId;
+      syncMethodQueryWindowState();
+      if (typeof target.runtime?.loadMethodReference !== 'function') {
+        throw new Error('Source browser is no longer available');
+      }
+      await target.runtime.loadMethodReference(parsed, currentRef);
     } catch (e) {
       setStatus(false, e.message);
     } finally {
@@ -4583,6 +6506,7 @@ function openMethodQueryWindow(title, results, options = {}) {
       if (stillParsed) {
         loadBtn.disabled = false;
         openBtn.disabled = false;
+        inspectBtn.disabled = false;
       }
     }
   });
@@ -4590,12 +6514,26 @@ function openMethodQueryWindow(title, results, options = {}) {
   openBtn.addEventListener('click', () => {
     const parsed = parseMethodReference(currentRef);
     if (!parsed) return;
-    openClassBrowser({
+    trackOpenedBrowser(openClassBrowser({
       dictionary: parsed.dictionary || null,
       className: parsed.className,
       method: parsed.selector,
       meta: parsed.meta,
-    });
+      }));
+  });
+
+  inspectBtn.addEventListener('click', async () => {
+    if (!currentRef) return;
+    inspectBtn.disabled = true;
+    try {
+      await inspectCurrentRef(currentRef);
+    } catch (e) {
+      setStatus(false, e.message);
+    } finally {
+      if (parseMethodReference(currentRef)) {
+        inspectBtn.disabled = false;
+      }
+    }
   });
 
   setupQueryWindowList({
@@ -4610,12 +6548,28 @@ function openMethodQueryWindow(title, results, options = {}) {
     onOpenItem(item) {
       const parsed = parseMethodReference(item);
       if (!parsed) return;
-      openClassBrowser({
+      trackOpenedBrowser(openClassBrowser({
         dictionary: parsed.dictionary || null,
         className: parsed.className,
         method: parsed.selector,
         meta: parsed.meta,
-      });
+        sourceWindowId: id,
+      }));
+    },
+    onActivateItem(item) {
+      if (loadBtn && !loadBtn.disabled) {
+        loadBtn.click();
+        return;
+      }
+      const parsed = parseMethodReference(item);
+      if (!parsed) return;
+      trackOpenedBrowser(openClassBrowser({
+        dictionary: parsed.dictionary || null,
+        className: parsed.className,
+        method: parsed.selector,
+        meta: parsed.meta,
+        sourceWindowId: id,
+      }));
     },
     defaultIndex: sanitizeSelectionIndex(options.selectedIndex, results),
   });
@@ -4625,6 +6579,11 @@ function openMethodQueryWindow(title, results, options = {}) {
 
 function openHierarchyWindow(title, classes, options = {}) {
   let sourceWindowId = options.sourceWindowId || null;
+  function helperSessionChannel() {
+    return options.sessionChannel || windowState.get(sourceWindowId || '')?.sessionChannel || '';
+  }
+  const hierarchyApiWithParams = (url, params = {}) => apiWithParams(url, params, {sessionChannel: helperSessionChannel()});
+  const hierarchyApiPost = (url, body = {}) => apiPost(url, body, {sessionChannel: helperSessionChannel()});
   const canLoadClass = typeof options.onLoadClass === 'function' || !!sourceWindowId;
   const {body, id} = createWindow({
     title,
@@ -4645,6 +6604,7 @@ function openHierarchyWindow(title, classes, options = {}) {
           <span class="qv-title">Select a class</span>
           ${canLoadClass ? `<button class="btn-ghost" id="qv-load-class" disabled>${escHtml(options.loadLabel || 'Load Into Browser')}</button>` : ''}
           <button class="btn-ghost" id="qv-open-class" disabled>Open In Browser</button>
+          <button class="btn-ghost" id="qv-inspect-class" disabled>Inspect Class</button>
         </div>
         <textarea class="qv-preview" readonly></textarea>
       </div>
@@ -4657,8 +6617,16 @@ function openHierarchyWindow(title, classes, options = {}) {
   const previewEl = body.querySelector('.qv-preview');
   const loadBtn = body.querySelector('#qv-load-class');
   const openBtn = body.querySelector('#qv-open-class');
+  const inspectBtn = body.querySelector('#qv-inspect-class');
   filterInput.value = options.filterText || '';
   let currentEntry = null;
+
+  function trackOpenedBrowser(nextBrowser) {
+    if (!nextBrowser?.id) return nextBrowser;
+    sourceWindowId = nextBrowser.id;
+    syncHierarchyWindowState();
+    return nextBrowser;
+  }
 
   function syncHierarchyWindowState() {
     const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
@@ -4675,6 +6643,7 @@ function openHierarchyWindow(title, classes, options = {}) {
       meta: !!options.meta,
       loadLabel: options.loadLabel || 'Load Into Browser',
       sourceWindowId: sourceWindowId || null,
+      sessionChannel: helperSessionChannel(),
     });
   }
 
@@ -4686,6 +6655,7 @@ function openHierarchyWindow(title, classes, options = {}) {
     titleEl.textContent = currentEntry?.className || 'Select a class';
     if (loadBtn) loadBtn.disabled = !currentEntry;
     openBtn.disabled = !currentEntry;
+    inspectBtn.disabled = !currentEntry;
     if (!currentEntry) {
       previewEl.value = '';
       syncHierarchyWindowState();
@@ -4695,7 +6665,7 @@ function openHierarchyWindow(title, classes, options = {}) {
     try {
       const params = {class: currentEntry.className};
       if (currentEntry.dictionary) params.dictionary = currentEntry.dictionary;
-      const d = await apiWithParams('/class-browser/source', params);
+      const d = await hierarchyApiWithParams('/class-browser/source', params);
       if (!d.success) throw new Error(d.exception);
       previewEl.value = d.source || '';
     } catch (e) {
@@ -4705,36 +6675,72 @@ function openHierarchyWindow(title, classes, options = {}) {
     }
   }
 
+  async function inspectCurrentClass(entry = currentEntry) {
+    if (!entry) return;
+    const d = await hierarchyApiPost('/class-browser/inspect-target', {
+      mode: 'class',
+      dictionary: entry.dictionary || '',
+      className: entry.className,
+      meta: !!options.meta,
+    });
+    if (!d.success) throw new Error(d.exception || 'Inspection failed');
+    openLinkedObjectWindow({
+      oop: d.oop,
+      text: d.label || entry.className,
+      sourceWinId: id,
+    });
+  }
+
   loadBtn?.addEventListener('click', async () => {
     if (!currentEntry) return;
     loadBtn.disabled = true;
     openBtn.disabled = true;
     try {
       sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
-      const loadClass = typeof options.onLoadClass === 'function'
-        ? options.onLoadClass
-        : (getClassBrowserRuntime(sourceWindowId)?.loadHierarchyEntry
-            ? (entry => getClassBrowserRuntime(sourceWindowId)?.loadHierarchyEntry(entry, !!options.meta))
-            : null);
-      if (typeof loadClass !== 'function') throw new Error('Source browser is no longer available');
-      await loadClass(currentEntry);
+      const target = await resolveClassBrowserRuntime(sourceWindowId, {
+        dictionary: currentEntry.dictionary || null,
+        className: currentEntry.className,
+        meta: !!options.meta,
+      });
+      sourceWindowId = target.sourceWindowId || sourceWindowId;
+      syncHierarchyWindowState();
+      if (typeof target.runtime?.loadHierarchyEntry !== 'function') {
+        throw new Error('Source browser is no longer available');
+      }
+      await target.runtime.loadHierarchyEntry(currentEntry, !!options.meta);
     } catch (e) {
       setStatus(false, e.message);
     } finally {
       if (currentEntry) {
         loadBtn.disabled = false;
         openBtn.disabled = false;
+        inspectBtn.disabled = false;
       }
     }
   });
 
   openBtn.addEventListener('click', () => {
     if (!currentEntry) return;
-    openClassBrowser({
+    trackOpenedBrowser(openClassBrowser({
       dictionary: currentEntry.dictionary || null,
       className: currentEntry.className,
       meta: !!options.meta,
-    });
+      sourceWindowId: id,
+    }));
+  });
+
+  inspectBtn.addEventListener('click', async () => {
+    if (!currentEntry) return;
+    inspectBtn.disabled = true;
+    try {
+      await inspectCurrentClass(currentEntry);
+    } catch (e) {
+      setStatus(false, e.message);
+    } finally {
+      if (currentEntry) {
+        inspectBtn.disabled = false;
+      }
+    }
   });
 
   setupQueryWindowList({
@@ -4751,11 +6757,26 @@ function openHierarchyWindow(title, classes, options = {}) {
     onOpenItem(item) {
       const parsed = parseHierarchyEntry(item);
       if (!parsed.className) return;
-      openClassBrowser({
+      trackOpenedBrowser(openClassBrowser({
         dictionary: parsed.dictionary || null,
         className: parsed.className,
         meta: !!options.meta,
-      });
+        sourceWindowId: id,
+      }));
+    },
+    onActivateItem(item) {
+      if (loadBtn && !loadBtn.disabled) {
+        loadBtn.click();
+        return;
+      }
+      const parsed = parseHierarchyEntry(item);
+      if (!parsed.className) return;
+      trackOpenedBrowser(openClassBrowser({
+        dictionary: parsed.dictionary || null,
+        className: parsed.className,
+        meta: !!options.meta,
+        sourceWindowId: id,
+      }));
     },
   });
   filterInput.addEventListener('input', syncHierarchyWindowState);
@@ -4765,6 +6786,8 @@ function openHierarchyWindow(title, classes, options = {}) {
 function openVersionsWindow(title, versions, options = {}) {
   let sourceWindowId = options.sourceWindowId || null;
   const canLoadVersion = typeof options.onLoadVersion === 'function' || !!sourceWindowId;
+  const canOpenVersionBrowser = !!String(options.versionContext?.className || '').trim();
+  const canCompareVersion = canOpenVersionBrowser;
   const {body, id} = createWindow({
     title,
     width: options.width || 760,
@@ -4783,6 +6806,9 @@ function openVersionsWindow(title, versions, options = {}) {
         <div class="qv-toolbar">
           <span class="qv-title">Select a version</span>
           ${canLoadVersion ? `<button class="btn-ghost" id="qv-load-version" disabled>${escHtml(options.loadLabel || 'Load Into Browser')}</button>` : ''}
+          ${canOpenVersionBrowser ? `<button class="btn-ghost" id="qv-open-version" disabled>Open In Browser</button>` : ''}
+          ${canCompareVersion ? `<button class="btn-ghost" id="qv-compare-version" disabled>Compare With Current</button>` : ''}
+          <button class="btn-ghost" id="qv-inspect-version" disabled>Inspect Version</button>
         </div>
         <textarea class="qv-preview" readonly></textarea>
       </div>
@@ -4794,8 +6820,18 @@ function openVersionsWindow(title, versions, options = {}) {
   const titleEl = body.querySelector('.qv-title');
   const previewEl = body.querySelector('.qv-preview');
   const loadBtn = body.querySelector('#qv-load-version');
+  const openBtn = body.querySelector('#qv-open-version');
+  const compareBtn = body.querySelector('#qv-compare-version');
+  const inspectBtn = body.querySelector('#qv-inspect-version');
   filterInput.value = options.filterText || '';
   let currentVersion = null;
+
+  function trackOpenedBrowser(nextBrowser) {
+    if (!nextBrowser?.id) return nextBrowser;
+    sourceWindowId = nextBrowser.id;
+    syncVersionsWindowState();
+    return nextBrowser;
+  }
 
   function syncVersionsWindowState() {
     const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
@@ -4809,6 +6845,7 @@ function openVersionsWindow(title, versions, options = {}) {
       loadLabel: options.loadLabel || 'Load Into Browser',
       versionContext: options.versionContext || null,
       sourceWindowId: sourceWindowId || null,
+      sessionChannel: options.sessionChannel || windowState.get(sourceWindowId || '')?.sessionChannel || '',
     });
   }
 
@@ -4819,22 +6856,94 @@ function openVersionsWindow(title, versions, options = {}) {
     titleEl.textContent = version?.label || 'Select a version';
     previewEl.value = version?.source || '';
     if (loadBtn) loadBtn.disabled = !currentVersion;
+    if (openBtn) openBtn.disabled = !currentVersion;
+    if (compareBtn) compareBtn.disabled = !currentVersion;
+    if (inspectBtn) inspectBtn.disabled = !Number.isFinite(Number(currentVersion?.methodOop));
     syncVersionsWindowState();
   }
 
-  loadBtn?.addEventListener('click', () => {
-    if (!currentVersion) return;
-    sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
-    const loadVersion = typeof options.onLoadVersion === 'function'
-      ? options.onLoadVersion
-      : (getClassBrowserRuntime(sourceWindowId)?.loadVersion
-          ? (version => getClassBrowserRuntime(sourceWindowId)?.loadVersion(version, options.versionContext || {}))
-          : null);
-    if (typeof loadVersion !== 'function') {
-      setStatus(false, 'Source browser is no longer available');
-      return;
+  async function openCurrentVersionInBrowser(version = currentVersion) {
+    if (!version || !canOpenVersionBrowser) return;
+    const nextBrowser = trackOpenedBrowser(openClassBrowser({
+      dictionary: options.versionContext?.dictionary || null,
+      className: options.versionContext?.className || null,
+      method: options.versionContext?.method || null,
+      meta: !!options.versionContext?.meta,
+      sourceWindowId: id,
+    }));
+    const runtime = getClassBrowserRuntime(nextBrowser?.id || null);
+    if (runtime) {
+      await Promise.resolve(runtime.ready);
+      runtime.loadVersion(version, options.versionContext || {});
     }
-    loadVersion(currentVersion);
+  }
+
+  async function compareCurrentVersion(version = currentVersion) {
+    if (!version || !canCompareVersion) return;
+    sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
+    const target = await resolveClassBrowserRuntime(sourceWindowId, {
+      dictionary: options.versionContext?.dictionary || null,
+      className: options.versionContext?.className || null,
+      method: options.versionContext?.method || null,
+      meta: !!options.versionContext?.meta,
+      sourceWindowId: id,
+    });
+    sourceWindowId = target.sourceWindowId || sourceWindowId;
+    syncVersionsWindowState();
+    const snapshot = typeof target.runtime?.snapshot === 'function' ? target.runtime.snapshot() : null;
+    if (!snapshot) throw new Error('Source browser is no longer available');
+    const leftLabel = version.label || 'Selected version';
+    const rightLabel = snapshot.sourceNote || 'Current browser';
+    titleEl.textContent = `${leftLabel} vs current`;
+    previewEl.value = buildUnifiedLineDiff(version.source || '', snapshot.source || '', {leftLabel, rightLabel});
+  }
+
+  loadBtn?.addEventListener('click', async () => {
+    if (!currentVersion) return;
+    try {
+      sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
+      const target = await resolveClassBrowserRuntime(sourceWindowId, {
+        dictionary: options.versionContext?.dictionary || null,
+        className: options.versionContext?.className || null,
+        method: options.versionContext?.method || null,
+        meta: !!options.versionContext?.meta,
+      });
+      sourceWindowId = target.sourceWindowId || sourceWindowId;
+      syncVersionsWindowState();
+      if (typeof target.runtime?.loadVersion !== 'function') {
+        throw new Error('Source browser is no longer available');
+      }
+      target.runtime.loadVersion(currentVersion, options.versionContext || {});
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  });
+
+  openBtn?.addEventListener('click', async () => {
+    try {
+      await openCurrentVersionInBrowser(currentVersion);
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  });
+
+  compareBtn?.addEventListener('click', async () => {
+    try {
+      await compareCurrentVersion(currentVersion);
+    } catch (e) {
+      setStatus(false, e.message);
+    }
+  });
+
+  inspectBtn?.addEventListener('click', () => {
+    const versionOop = Number(currentVersion?.methodOop);
+    if (!Number.isFinite(versionOop) || versionOop <= 0) return;
+    openLinkedObjectWindow({
+      oop: versionOop,
+      text: currentVersion?.label || options.versionContext?.method || 'CompiledMethod',
+      sourceWinId: id,
+      arrowLabel: 'inspect',
+    });
   });
 
   setupQueryWindowList({
@@ -4845,15 +6954,17 @@ function openVersionsWindow(title, versions, options = {}) {
       return item?.label || '';
     },
     onSelectItem: selectVersion,
-    onOpenItem(item) {
+    async onOpenItem(item) {
       if (!item) return;
-      sourceWindowId = windowState.get(id)?.sourceWindowId || sourceWindowId;
-      const loadVersion = typeof options.onLoadVersion === 'function'
-        ? options.onLoadVersion
-        : (getClassBrowserRuntime(sourceWindowId)?.loadVersion
-            ? (version => getClassBrowserRuntime(sourceWindowId)?.loadVersion(version, options.versionContext || {}))
-            : null);
-      loadVersion?.(item);
+      await openCurrentVersionInBrowser(item);
+    },
+    onActivateItem(item) {
+      if (loadBtn && !loadBtn.disabled) {
+        loadBtn.click();
+        return;
+      }
+      if (!item) return;
+      openCurrentVersionInBrowser(item).catch(e => setStatus(false, e.message));
     },
     defaultIndex: sanitizeSelectionIndex(options.selectedIndex, versions),
   });
@@ -4873,7 +6984,17 @@ function openClassBrowser(options = {}) {
     y: options.y,
     taskbarLabel:'Class Browser'
   });
-  upsertWindowState(id, {kind: 'class-browser'});
+  const sessionChannel = `class-browser:${id}`;
+  const browserApi = (url, opts = {}) => api(url, {...opts, sessionChannel});
+  const browserApiPost = (url, body = {}) => apiPost(url, body, {sessionChannel});
+  const browserApiWithParams = (url, params = {}) => apiWithParams(url, params, {sessionChannel});
+  const browserApiTransaction = url => apiTransaction(url, {sessionChannel});
+  let sourceWindowId = options.sourceWindowId || null;
+  upsertWindowState(id, {
+    kind: 'class-browser',
+    sourceWindowId: sourceWindowId || null,
+    sessionChannel,
+  });
 
   let currentDict = options.dictionary || null;
   let currentClass = options.className || null;
@@ -4888,8 +7009,30 @@ function openClassBrowser(options = {}) {
   const defaultPaneWidths = [160, 220, 180, 220];
   let paneWidths = [...defaultPaneWidths];
   let autoCommitEnabled = false;
+  let markBrowserReady = () => {};
+  const browserReady = new Promise(resolve => {
+    markBrowserReady = resolve;
+  });
+  const browserRuntime = {
+    ready: browserReady,
+    loadMethodReference: (...args) => loadMethodReferenceIntoBrowser(...args),
+    loadHierarchyEntry: (...args) => loadHierarchyEntryIntoBrowser(...args),
+    loadVersion: (...args) => loadVersionIntoBrowser(...args),
+    snapshot: () => ({
+      dictionary: currentDict || '',
+      className: currentClass || '',
+      protocol: currentProtocol || '',
+      method: currentMethod || '',
+      meta: currentMeta,
+      sourceMode: currentSourceMode,
+      source: String(els?.source?.value || ''),
+      sourceNote: String(els?.sourceNote?.textContent || ''),
+    }),
+  };
 
   function syncClassBrowserWindowState() {
+    const existingSourceWindowId = windowState.get(id)?.sourceWindowId || null;
+    if (!sourceWindowId && existingSourceWindowId) sourceWindowId = existingSourceWindowId;
     upsertWindowState(id, {
       kind: 'class-browser',
       dictionary: currentDict || '',
@@ -4897,6 +7040,8 @@ function openClassBrowser(options = {}) {
       protocol: currentProtocol || '-- all --',
       method: currentMethod || '',
       meta: currentMeta,
+      sourceWindowId: sourceWindowId || null,
+      sessionChannel,
     });
   }
 
@@ -5395,7 +7540,7 @@ function openClassBrowser(options = {}) {
       return true;
     }
     try {
-      const d = await apiTransaction('/transaction/commit');
+      const d = await browserApiTransaction('/transaction/commit');
       if (!d.success) throw new Error(d.exception || 'Transaction commit failed');
       clearBrowserCache();
       setBrowserStatus(`${successMessage}; transaction committed`, 'ok');
@@ -5411,7 +7556,7 @@ function openClassBrowser(options = {}) {
   async function runBrowserTransaction(path, busyMessage, successMessage) {
     setBrowserStatus(busyMessage);
     try {
-      const d = await apiTransaction(path);
+      const d = await browserApiTransaction(path);
       if (!d.success) throw new Error(d.exception || successMessage);
       clearBrowserCache();
       if (currentDict || currentClass) {
@@ -5535,7 +7680,7 @@ function openClassBrowser(options = {}) {
           meta: currentMeta ? 1 : 0,
         };
         if (currentDict) params.dictionary = currentDict;
-        return apiWithParams('/class-browser/source', params);
+        return browserApiWithParams('/class-browser/source', params);
       });
       if (!d.success) throw new Error(d.exception);
       els.source.value = d.source || '';
@@ -5595,7 +7740,7 @@ function openClassBrowser(options = {}) {
           meta: currentMeta ? 1 : 0,
         };
         if (currentDict) params.dictionary = currentDict;
-        return apiWithParams('/class-browser/methods', params);
+        return browserApiWithParams('/class-browser/methods', params);
       });
   }
 
@@ -5623,6 +7768,7 @@ function openClassBrowser(options = {}) {
       openMethodQueryWindow(`Category ${currentProtocol} in ${ownerLabel} (${results.length})`, results, {
         sourceWindowId: id,
         loadLabel: 'Load Into Browser',
+        sessionChannel,
         onLoadResult: loadMethodReferenceIntoBrowser,
       });
       setBrowserStatus(`${results.length} methods in ${currentProtocol}`, 'ok');
@@ -5642,6 +7788,7 @@ function openClassBrowser(options = {}) {
       className: currentClass,
       method: currentMethod,
       meta: currentMeta,
+      sourceWindowId: id,
     });
     setBrowserStatus(`Opened ${currentMeta ? `${currentClass} class >> ${currentMethod}` : `${currentClass} >> ${currentMethod}`}`, 'ok');
   }
@@ -5666,7 +7813,7 @@ function openClassBrowser(options = {}) {
           meta: currentMeta ? 1 : 0,
         };
         if (currentDict) params.dictionary = currentDict;
-        return apiWithParams('/class-browser/categories', params);
+        return browserApiWithParams('/class-browser/categories', params);
       });
       if (!d.success) throw new Error(d.exception);
       const protocols = d.categories || ['-- all --'];
@@ -5703,7 +7850,7 @@ function openClassBrowser(options = {}) {
     try {
       const d = await fetchBrowserCached('classes', {
         dictionary: currentDict,
-      }, () => apiWithParams('/class-browser/classes', {dictionary: currentDict}));
+      }, () => browserApiWithParams('/class-browser/classes', {dictionary: currentDict}));
       if (!d.success) throw new Error(d.exception);
       const classes = d.classes || [];
       if (!classes.includes(currentClass)) currentClass = classes[0] || null;
@@ -5731,7 +7878,7 @@ function openClassBrowser(options = {}) {
   async function loadDictionaries() {
     showLoading(els.dicts);
     try {
-      const d = await fetchBrowserCached('dictionaries', {}, () => api('/class-browser/dictionaries'));
+      const d = await fetchBrowserCached('dictionaries', {}, () => browserApi('/class-browser/dictionaries'));
       if (!d.success) throw new Error(d.exception);
       const dictionaries = d.dictionaries || [];
       if (!dictionaries.includes(currentDict)) currentDict = currentDict || dictionaries[0] || null;
@@ -5779,7 +7926,7 @@ function openClassBrowser(options = {}) {
     const nextMeta = !!meta;
     let nextDict = dictionary || '';
     if (!nextDict) {
-      const d = await fetchBrowserCached('class-location', {class: className}, () => apiWithParams('/class-browser/class-location', {class: className}));
+      const d = await fetchBrowserCached('class-location', {class: className}, () => browserApiWithParams('/class-browser/class-location', {class: className}));
       if (!d.success) throw new Error(d.exception);
       const matches = Array.isArray(d.matches) ? d.matches : (d.dictionary ? [{className, dictionary: d.dictionary}] : []);
       if (!matches.length) throw new Error(`Class not found: ${className}`);
@@ -5829,13 +7976,7 @@ function openClassBrowser(options = {}) {
     focusWin(win);
   }
 
-  upsertWindowState(id, {
-    browserRuntime: {
-      loadMethodReference: loadMethodReferenceIntoBrowser,
-      loadHierarchyEntry: loadHierarchyEntryIntoBrowser,
-      loadVersion: loadVersionIntoBrowser,
-    },
-  });
+  upsertWindowState(id, {browserRuntime});
 
   async function refreshBrowser() {
     const saved = {
@@ -5877,7 +8018,7 @@ function openClassBrowser(options = {}) {
     if (!query) return;
     setBrowserStatus('Searching…');
     try {
-      const d = await apiWithParams('/class-browser/query', {
+      const d = await browserApiWithParams('/class-browser/query', {
         selector,
         mode: query.mode,
         rootClassName: currentClass || '',
@@ -5894,6 +8035,7 @@ function openClassBrowser(options = {}) {
       openMethodQueryWindow(`${titlePrefix} (${d.results.length})`, d.results, {
         sourceWindowId: id,
         loadLabel: 'Load Into Browser',
+        sessionChannel,
         onLoadResult: loadMethodReferenceIntoBrowser,
       });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
@@ -5910,7 +8052,7 @@ function openClassBrowser(options = {}) {
     if (!selector) return;
     setBrowserStatus('Searching…');
     try {
-      const d = await apiWithParams('/class-browser/query', {
+      const d = await browserApiWithParams('/class-browser/query', {
         selector,
         mode: 'references',
         rootClassName: currentClass || '',
@@ -5925,6 +8067,7 @@ function openClassBrowser(options = {}) {
       openMethodQueryWindow(`References to ${selector} (${d.results.length})`, d.results, {
         sourceWindowId: id,
         loadLabel: 'Load Into Browser',
+        sessionChannel,
         onLoadResult: loadMethodReferenceIntoBrowser,
       });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
@@ -5939,7 +8082,7 @@ function openClassBrowser(options = {}) {
     if (!selector) return;
     setBrowserStatus('Searching…');
     try {
-      const d = await apiWithParams('/class-browser/query', {
+      const d = await browserApiWithParams('/class-browser/query', {
         selector,
         mode: 'methodText',
         rootClassName: currentClass || '',
@@ -5954,6 +8097,7 @@ function openClassBrowser(options = {}) {
       openMethodQueryWindow(`Methods with "${selector}" (${d.results.length})`, d.results, {
         sourceWindowId: id,
         loadLabel: 'Load Into Browser',
+        sessionChannel,
         onLoadResult: loadMethodReferenceIntoBrowser,
       });
       setBrowserStatus(`${d.results.length} matches`, 'ok');
@@ -5975,12 +8119,13 @@ function openClassBrowser(options = {}) {
       }, () => {
         const params = {class: currentClass};
         if (currentDict) params.dictionary = currentDict;
-        return apiWithParams('/class-browser/hierarchy', params);
+        return browserApiWithParams('/class-browser/hierarchy', params);
       });
       if (!d.success) throw new Error(d.exception);
       openHierarchyWindow(`${currentClass} Hierarchy`, d.hierarchy || [], {
         sourceWindowId: id,
         loadLabel: 'Load Into Browser',
+        sessionChannel,
         meta: currentMeta,
         onLoadClass: entry => loadHierarchyEntryIntoBrowser(entry, currentMeta),
       });
@@ -6009,7 +8154,7 @@ function openClassBrowser(options = {}) {
           meta: currentMeta ? 1 : 0,
         };
         if (currentDict) params.dictionary = currentDict;
-        return apiWithParams('/class-browser/versions', params);
+        return browserApiWithParams('/class-browser/versions', params);
       });
       if (!d.success) throw new Error(d.exception);
       if (!d.versions.length) {
@@ -6019,6 +8164,7 @@ function openClassBrowser(options = {}) {
       openVersionsWindow(`${currentClass} >> ${currentMethod} Versions`, d.versions, {
         sourceWindowId: id,
         loadLabel: 'Load Into Browser',
+        sessionChannel,
         versionContext: {
           className: currentClass,
           method: currentMethod,
@@ -6042,6 +8188,10 @@ function openClassBrowser(options = {}) {
   }
 
   function downloadTextFile(filename, text) {
+    window.__lastDownloadedFile = {
+      filename: String(filename || ''),
+      text: String(text || ''),
+    };
     const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -6083,7 +8233,7 @@ function openClassBrowser(options = {}) {
 
     setBrowserStatus('Exporting…');
     try {
-      const d = await apiWithParams('/class-browser/file-out', params);
+      const d = await browserApiWithParams('/class-browser/file-out', params);
       if (!d.success) throw new Error(d.exception);
       downloadTextFile(d.filename || 'export.st', d.source || '');
       setBrowserStatus(`Exported ${d.filename || 'export.st'}`, 'ok');
@@ -6098,7 +8248,7 @@ function openClassBrowser(options = {}) {
     if (!name) return;
     setBrowserStatus('Adding dictionary…');
     try {
-      const d = await apiPost('/class-browser/add-dictionary', {name});
+      const d = await browserApiPost('/class-browser/add-dictionary', {name});
       if (!d.success) throw new Error(d.exception || 'Dictionary creation failed');
       clearBrowserCache();
       currentDict = d.dictionary || name;
@@ -6125,7 +8275,7 @@ function openClassBrowser(options = {}) {
     if (!nextName || nextName === oldName) return;
     setBrowserStatus('Renaming dictionary…');
     try {
-      const d = await apiPost('/class-browser/rename-dictionary', {
+      const d = await browserApiPost('/class-browser/rename-dictionary', {
         dictionary: oldName,
         targetDictionary: nextName,
       });
@@ -6152,7 +8302,7 @@ function openClassBrowser(options = {}) {
     if (!confirmed) return;
     setBrowserStatus('Removing dictionary…');
     try {
-      const d = await apiPost('/class-browser/remove-dictionary', {dictionary});
+      const d = await browserApiPost('/class-browser/remove-dictionary', {dictionary});
       if (!d.success) throw new Error(d.exception || 'Dictionary removal failed');
       clearBrowserCache();
       currentDict = null;
@@ -6173,7 +8323,7 @@ function openClassBrowser(options = {}) {
     const name = String(rawName || '').trim();
     if (!name) return;
     try {
-      const d = await fetchBrowserCached('dictionaries', {}, () => api('/class-browser/dictionaries'));
+      const d = await fetchBrowserCached('dictionaries', {}, () => browserApi('/class-browser/dictionaries'));
       if (!d.success) throw new Error(d.exception);
       const dictionaries = Array.isArray(d.dictionaries) ? d.dictionaries : [];
       const exact = dictionaries.find(item => String(item).toLowerCase() === name.toLowerCase());
@@ -6198,7 +8348,7 @@ function openClassBrowser(options = {}) {
 
   async function inspectTarget(mode) {
     try {
-      const d = await apiPost('/class-browser/inspect-target', {
+      const d = await browserApiPost('/class-browser/inspect-target', {
         mode,
         dictionary: currentDict || '',
         className: currentClass || '',
@@ -6234,7 +8384,7 @@ function openClassBrowser(options = {}) {
     if (!className) return;
     setBrowserStatus('Creating class…');
     try {
-      const d = await apiPost('/class-browser/add-class', {
+      const d = await browserApiPost('/class-browser/add-class', {
         className,
         dictionary: targetDict,
         superclassName,
@@ -6274,7 +8424,7 @@ function openClassBrowser(options = {}) {
     if (!targetClassName || targetClassName === oldClassName) return;
     setBrowserStatus('Renaming class…');
     try {
-      const d = await apiPost('/class-browser/rename-class', {
+      const d = await browserApiPost('/class-browser/rename-class', {
         className: oldClassName,
         dictionary: currentDict,
         targetClassName,
@@ -6307,7 +8457,7 @@ function openClassBrowser(options = {}) {
     if (!category) return;
     setBrowserStatus('Adding category…');
     try {
-      const d = await apiPost('/class-browser/add-category', {
+      const d = await browserApiPost('/class-browser/add-category', {
         className: currentClass,
         dictionary: currentDict || '',
         category,
@@ -6342,7 +8492,7 @@ function openClassBrowser(options = {}) {
     if (!targetCategory || targetCategory === oldCategory) return;
     setBrowserStatus('Renaming category…');
     try {
-      const d = await apiPost('/class-browser/rename-category', {
+      const d = await browserApiPost('/class-browser/rename-category', {
         className: currentClass,
         dictionary: currentDict || '',
         category: oldCategory,
@@ -6371,7 +8521,7 @@ function openClassBrowser(options = {}) {
     if (!variableName) return;
     setBrowserStatus(`${title}…`);
     try {
-      const d = await apiPost(route, {
+      const d = await browserApiPost(route, {
         className: currentClass,
         dictionary: currentDict || '',
         variableName,
@@ -6402,7 +8552,7 @@ function openClassBrowser(options = {}) {
     if (!currentClass) return [];
     const params = {class: currentClass, meta: 0};
     if (currentDict) params.dictionary = currentDict;
-    const d = await apiWithParams('/class-browser/source', params);
+    const d = await browserApiWithParams('/class-browser/source', params);
     if (!d.success) throw new Error(d.exception || 'Unable to load class definition');
     const source = d.source || '';
     return [
@@ -6465,7 +8615,7 @@ function openClassBrowser(options = {}) {
       })[selected.kind];
       if (!route) throw new Error('unsupported variable type');
       setBrowserStatus('Renaming variable…');
-      const d = await apiPost(route, {
+      const d = await browserApiPost(route, {
         className: currentClass,
         dictionary: currentDict || '',
         variableName: selected.name,
@@ -6521,7 +8671,7 @@ function openClassBrowser(options = {}) {
       })[selected.kind];
       if (!route) throw new Error('unsupported variable type');
       setBrowserStatus('Removing variable…');
-      const d = await apiPost(route, {
+      const d = await browserApiPost(route, {
         className: currentClass,
         dictionary: currentDict || '',
         variableName: selected.name,
@@ -6548,7 +8698,7 @@ function openClassBrowser(options = {}) {
       return;
     }
     try {
-      const dictionariesResponse = await fetchBrowserCached('dictionaries', {}, () => api('/class-browser/dictionaries'));
+      const dictionariesResponse = await fetchBrowserCached('dictionaries', {}, () => browserApi('/class-browser/dictionaries'));
       if (!dictionariesResponse.success) throw new Error(dictionariesResponse.exception);
       const options = (dictionariesResponse.dictionaries || [])
         .filter(name => name !== currentDict)
@@ -6568,7 +8718,7 @@ function openClassBrowser(options = {}) {
       );
       if (!selected || selected === fromDict) return;
       setBrowserStatus('Moving class…');
-      const d = await apiPost('/class-browser/move-class', {
+      const d = await browserApiPost('/class-browser/move-class', {
         className,
         dictionary: fromDict,
         targetDictionary: selected,
@@ -6601,7 +8751,7 @@ function openClassBrowser(options = {}) {
     if (!confirmed) return;
     setBrowserStatus('Removing class…');
     try {
-      const d = await apiPost('/class-browser/remove-class', {
+      const d = await browserApiPost('/class-browser/remove-class', {
         className,
         dictionary,
       });
@@ -6638,7 +8788,7 @@ function openClassBrowser(options = {}) {
     if (!targetCategory || targetCategory === currentCategory) return;
     setBrowserStatus('Moving method…');
     try {
-      const d = await apiPost('/class-browser/move-method', {
+      const d = await browserApiPost('/class-browser/move-method', {
         className,
         dictionary: currentDict || '',
         selector,
@@ -6674,7 +8824,7 @@ function openClassBrowser(options = {}) {
     if (!confirmed) return;
     setBrowserStatus('Removing method…');
     try {
-      const d = await apiPost('/class-browser/remove-method', {
+      const d = await browserApiPost('/class-browser/remove-method', {
         className,
         dictionary: currentDict || '',
         selector,
@@ -6707,7 +8857,7 @@ function openClassBrowser(options = {}) {
     if (!confirmed) return;
     setBrowserStatus('Removing category…');
     try {
-      const d = await apiPost('/class-browser/remove-category', {
+      const d = await browserApiPost('/class-browser/remove-category', {
         className,
         dictionary: currentDict || '',
         category,
@@ -6752,7 +8902,7 @@ function openClassBrowser(options = {}) {
     if (!variableName) return;
     setBrowserStatus('Creating accessors…');
     try {
-      const d = await apiPost('/class-browser/create-accessors', {
+      const d = await browserApiPost('/class-browser/create-accessors', {
         className: currentClass,
         dictionary: currentDict || '',
         variableName,
@@ -6794,7 +8944,7 @@ function openClassBrowser(options = {}) {
     }
     setBrowserStatus('Compiling…');
     try {
-      const d = await apiPost('/class-browser/compile', {
+      const d = await browserApiPost('/class-browser/compile', {
         className: currentClass,
         dictionary: currentDict || '',
         category: currentProtocol === '-- all --' ? 'as yet unclassified' : currentProtocol,
@@ -6940,6 +9090,8 @@ function openClassBrowser(options = {}) {
     } catch (e) {
       setBrowserStatus(e.message, 'error');
       setStatus(false, e.message);
+    } finally {
+      markBrowserReady();
     }
   })();
 

@@ -1,19 +1,25 @@
 # GemStone Database Explorer
 
-A Python/Flask web application for browsing and inspecting objects in a [GemStone/S](https://gemtalksystems.com/products/gs64/) object database. Port of [maglev-database-explorer-gem](https://github.com/matthias-springer/maglev-database-explorer-gem) using [gemstone-py](https://github.com/unicompute/gemstone-py) as the backend.
+A Python/Flask web application for browsing and inspecting objects in a [GemStone/S](https://gemtalksystems.com/products/gs64/) object database. It started as a port of [maglev-database-explorer-gem](https://github.com/matthias-springer/maglev-database-explorer-gem), but the current app now includes a fuller browser/debugger toolset on top of [gemstone-py](https://github.com/unicompute/gemstone-py).
 
 ![GemStone Database Explorer](docs/web.png)
 
 ## Features
 
-- **Object Browser** — navigate the object graph from well-known roots (UserGlobals, Globals, System); inspect instance variables, dictionary entries, and collection elements; evaluate Smalltalk expressions in the context of any object
-- **Symbol List Browser** — browse GemStone symbol lists by user and dictionary; view key/value pairs and printStrings; add and remove dictionaries and entries
-- **Transaction control** — Commit and Abort buttons on both tabs
-- Batched GCI evaluation for fast object inspection (single `eval()` per view)
+- Object inspectors with draggable object chips, linking arrows, eval, transaction controls, and backend-driven tabs
+- Workspace windows that can evaluate code, open linked inspectors, and auto-open the debugger on halts
+- Full Class Browser with dictionary/class/protocol/method panes, compile, file-out, structure editing, helper windows, and inspect actions
+- Helper windows for method queries, hierarchy, and versions, including load/open/inspect flows
+- Debugger windows with halted-thread summaries, stack frames, locals, thread-local storage, step/proceed/trim, and execution-point highlighting
+- Symbol List Browser for users, dictionaries, entries, and value inspection
+- MagLev-style custom object tabs such as `Attributes` for record-like objects
+- Layout persistence, taskbar/task grouping, related-window actions, splitters, filters, and keyboard navigation
+- About and Status Log windows plus `/healthz`, `/diagnostics`, and support-bundle export for build/runtime visibility and diagnostics capture
+- Mock and live Playwright UI suites in addition to Python route/object/session tests
 
 ## Requirements
 
-- GemStone/S 64 3.x with GCI libraries accessible on `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH`
+- GemStone/S 64 3.x with accessible GCI libraries
 - Python 3.11+
 - [gemstone-py](https://github.com/unicompute/gemstone-py)
 
@@ -28,37 +34,50 @@ python3 -m venv .venv
 
 ## Configuration
 
-Set the following environment variables before starting:
+Set the GemStone connection environment before starting the app:
 
 | Variable | Description | Example |
 |---|---|---|
-| `GEMSTONE` | Path to GemStone installation | `/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin` |
+| `GEMSTONE` | Path to the GemStone installation | `/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin` |
 | `GS_USERNAME` | GemStone login username | `DataCurator` |
 | `GS_PASSWORD` | GemStone login password | `swordfish` |
 | `GEMSTONE_NRS` | Network Resource String for the Stone | `!tcp@localhost#server!gemstone` |
 
-See [docs/configuration.md](docs/configuration.md) for full details.
+Depending on your platform/install, you may also need the native library path exported, for example:
+
+```bash
+export GS_LIB=/opt/gemstone/product/lib
+```
+
+See [docs/configuration.md](docs/configuration.md) for the complete environment details.
 
 ## Usage
 
 ```bash
 .venv/bin/python-gemstone-database-explorer
-# → GemStone Database Explorer running at http://127.0.0.1:9292/
 ```
 
 Options:
 
-```
+```text
 --host HOST    Bind host (default: 127.0.0.1)
 --port PORT    Port (default: 9292)
 --debug        Enable Flask debug mode
 ```
 
-Open `http://127.0.0.1:9292/` in a browser.
+Then open `http://127.0.0.1:9292/` in a browser.
 
-## UI Smoke Tests
+## Testing
 
-Install the Playwright dev dependency once:
+### Python
+
+```bash
+.venv/bin/python -m pytest -q
+```
+
+### UI
+
+Install the Playwright dependency once:
 
 ```bash
 npm install
@@ -70,9 +89,9 @@ Run the browser suite:
 npm run test:ui
 ```
 
-That always runs the deterministic mock-backed suite first. If `GEMSTONE`, `GS_USERNAME`, and `GS_PASSWORD` are present, it automatically chains the live GemStone suite after the mock run; otherwise it prints a skip message and stops after the mock suite.
+That always runs the deterministic mock-backed suite first. If `GEMSTONE`, `GS_USERNAME`, and `GS_PASSWORD` are present, it then runs the live GemStone suite automatically; otherwise it prints a skip message after the mock suite.
 
-Run only the live GemStone browser suite against a real session:
+Run only the live UI suite:
 
 ```bash
 export GEMSTONE=/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin
@@ -82,13 +101,14 @@ export GS_PASSWORD=swordfish
 npm run test:ui:live
 ```
 
-The live suite starts the real Flask app on `127.0.0.1:4192` and now covers read-only browsing, a real debugger flow, and a transactional class-browser write flow in `UserGlobals` that aborts its changes before the test ends.
+The live suite starts the real Flask app on `127.0.0.1:4192` and covers startup browsing, debugger flow, and a transactional Class Browser write flow that aborts its changes before the test ends.
 
 ## Documentation
 
 - [Configuration](docs/configuration.md)
 - [Architecture](docs/architecture.md)
 - [API Reference](docs/api.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 

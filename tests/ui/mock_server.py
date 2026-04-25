@@ -206,6 +206,25 @@ BASE_OBJECTS = {
         "defaultTab": "instvars",
         "customTabs": [],
     },
+    941: {
+        "oop": 941,
+        "inspection": "aCompiledMethod(Object>>printString version 1)",
+        "basetype": "object",
+        "loaded": True,
+        "exception": False,
+        "classObject": _ref(330, "CompiledMethod", "class"),
+        "superclassObject": _ref(None, "", "object"),
+        "instVarsSize": 3,
+        "instVars": {
+            1: [_ref(None, "@selector", "symbol"), _ref(None, "#printString", "symbol")],
+            2: [_ref(None, "@methodClass", "symbol"), _ref(300, "Object", "class")],
+            3: [_ref(None, "@versionLabel", "symbol"), _ref(None, "version 1", "string")],
+        },
+        "classBrowserTarget": _browser_target(300, "Object", "Globals", "printString"),
+        "availableTabs": ["instvars"],
+        "defaultTab": "instvars",
+        "customTabs": [],
+    },
 }
 
 
@@ -588,7 +607,37 @@ def ids():
 
 @app.get("/version")
 def version():
-    return jsonify(success=True, stone="3.7.5", gem="3.7.5")
+    return jsonify(success=True, app="1.0.0", stone="3.7.5", gem="3.7.5")
+
+
+@app.get("/healthz")
+def healthz():
+    return jsonify(success=True, status="ok", app="1.0.0", stone="3.7.5", gem="3.7.5")
+
+
+@app.get("/diagnostics")
+def diagnostics():
+    return jsonify(
+        success=True,
+        status="ok",
+        app="1.0.0",
+        stone="3.7.5",
+        gem="3.7.5",
+        runtime={
+            "python": "3.12.2",
+            "implementation": "CPython",
+            "platform": "Darwin-24.0.0-arm64",
+        },
+        sessionBroker={
+            "defaultAutoBegin": None,
+            "managedSessionCount": 3,
+            "channels": [
+                {"name": "object:win-1-r", "hasSession": True, "loggedIn": True},
+                {"name": "class-browser:win-2-r", "hasSession": True, "loggedIn": True},
+                {"name": "workspace:win-3-w", "hasSession": True, "loggedIn": True},
+            ],
+        },
+    )
 
 
 @app.get("/symbol-list/users")
@@ -1125,7 +1174,11 @@ def class_browser_hierarchy():
 def class_browser_versions():
     _count_request("class-browser.versions")
     selector = request.args.get("selector", "").strip()
-    return jsonify(success=True, versions=[{"label": "version 1", "source": f"{selector}\n^ 'version 1'"}] if selector else [])
+    return jsonify(success=True, versions=[{
+        "label": "version 1",
+        "source": f"{selector}\n^ 'version 1'",
+        "methodOop": 941,
+    }] if selector else [])
 
 
 @app.get("/class-browser/query")

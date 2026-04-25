@@ -69,10 +69,29 @@ class _SessionBroker:
             self._apply_defaults(session)
         return managed, session
 
-    def _resolve_channel(self, *, read_only: bool, channel: str) -> str:
-        explicit = str(channel or "main").strip() or "main"
-        if explicit != "main":
+    def _normalize_explicit_channel(self, channel: str, *, read_only: bool) -> str:
+        explicit = str(channel or "").strip()
+        if not explicit or explicit == "main":
+            return ""
+        if explicit.endswith("-r") or explicit.endswith("-w"):
             return explicit
+        return f"{explicit}-{'r' if read_only else 'w'}"
+
+    def _request_channel_override(self, *, read_only: bool) -> str:
+        if not has_request_context():
+            return ""
+        override = str(request.headers.get("X-GS-Channel", "")).strip()
+        if not override:
+            override = str(request.args.get("sessionChannel", "")).strip()
+        return self._normalize_explicit_channel(override, read_only=read_only)
+
+    def _resolve_channel(self, *, read_only: bool, channel: str) -> str:
+        explicit = self._normalize_explicit_channel(channel, read_only=read_only)
+        if explicit:
+            return explicit
+        override = self._request_channel_override(read_only=read_only)
+        if override:
+            return override
         if not has_request_context():
             return f"main-{'r' if read_only else 'w'}"
         path = str(request.path or "")
@@ -95,6 +114,23 @@ class _SessionBroker:
         else:
             base = "main"
         return f"{base}-{'r' if read_only else 'w'}"
+
+    def snapshot(self) -> dict:
+        with _gci_lock:
+            channels = []
+            for channel_name in sorted(self._managed.keys()):
+                managed = self._managed[channel_name]
+                session = managed.session
+                channels.append({
+                    "name": channel_name,
+                    "hasSession": session is not None,
+                    "loggedIn": bool(getattr(session, "_logged_in", False)) if session is not None else False,
+                })
+            return {
+                "defaultAutoBegin": self._default_auto_begin,
+                "managedSessionCount": len(channels),
+                "channels": channels,
+            }
 
     @contextmanager
     def request_session(self, *, read_only: bool = True, channel: str = "main") -> Iterator[GemStoneSession]:
@@ -149,6 +185,11 @@ def request_session(*, read_only: bool = True, channel: str = "main") -> Iterato
     The debugger depends on halted processes surviving across HTTP requests, so
     requests are still serialized through the global GCI lock, but the session
     lifecycle is brokered explicitly so broken sessions can be dropped and
-    future route groups can move to separate channels without changing callers.
+    major UI windows can opt into isolated channel families via `channel=` or
+    the `X-GS-Channel` request header without changing the route handlers.
     """
     return _BROKER.request_session(read_only=read_only, channel=channel)
+
+
+def broker_snapshot() -> dict:
+    return _BROKER.snapshot()
