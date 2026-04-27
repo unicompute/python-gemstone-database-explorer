@@ -14,7 +14,7 @@ A Python/Flask web application for browsing and inspecting objects in a [GemSton
 - Symbol List Browser for users, dictionaries, entries, and value inspection
 - MagLev-style custom object tabs such as `Attributes` for record-like objects
 - Layout persistence, taskbar/task grouping, related-window actions, splitters, filters, and keyboard navigation
-- About and Status Log windows plus `/healthz`, `/diagnostics`, and support-bundle export for build/runtime visibility and diagnostics capture
+- About, Status Log, and Connection windows plus `/healthz`, `/diagnostics`, `/connection/preflight`, and support-bundle export for build/runtime visibility and diagnostics capture
 - Mock and live Playwright UI suites in addition to Python route/object/session tests
 
 ## Requirements
@@ -41,13 +41,17 @@ Set the GemStone connection environment before starting the app:
 | `GEMSTONE` | Path to the GemStone installation | `/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin` |
 | `GS_USERNAME` | GemStone login username | `DataCurator` |
 | `GS_PASSWORD` | GemStone login password | `swordfish` |
-| `GEMSTONE_NRS` | Network Resource String for the Stone | `!tcp@localhost#server!gemstone` |
+| `GS_STONE` | Stone name | `seaside` |
+| `GS_HOST` | Host running the Stone/NetLDI | `localhost` |
+| `GS_NETLDI` | NetLDI service name or port | `50377` |
 
 Depending on your platform/install, you may also need the native library path exported, for example:
 
 ```bash
 export GS_LIB=/opt/gemstone/product/lib
 ```
+
+If your Stone is named `seaside`, set `GS_STONE=seaside` before starting the app. The app also accepts `GS_STONE_NAME=seaside` as a compatibility alias, but the underlying client library reads `GS_STONE`.
 
 See [docs/configuration.md](docs/configuration.md) for the complete environment details.
 
@@ -66,6 +70,8 @@ Options:
 ```
 
 Then open `http://127.0.0.1:9292/` in a browser.
+
+If startup fails because the wrong Stone name or local monitor target is configured, use the taskbar `Connection` window. It shows the effective target, the local `gslist -lcv` probe when available, and a copyable shell fix such as `export GS_STONE=seaside`.
 
 ## Testing
 

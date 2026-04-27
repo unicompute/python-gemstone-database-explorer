@@ -1,5 +1,8 @@
+import os
 import unittest
 from unittest.mock import MagicMock, patch
+
+from gemstone_py import GemStoneConfig as RealGemStoneConfig
 
 from gemstone_p import session as gs_session
 
@@ -8,7 +11,8 @@ class TestSessionChannelIsolation(unittest.TestCase):
     def setUp(self):
         config_patcher = patch("gemstone_p.session.GemStoneConfig")
         mock_config_cls = config_patcher.start()
-        mock_config_cls.from_env.return_value = MagicMock()
+        self.mock_config_cls = mock_config_cls
+        mock_config_cls.from_env.return_value = MagicMock(stone="defaultStone")
         self.addCleanup(config_patcher.stop)
 
         self.app = MagicMock()
@@ -96,6 +100,74 @@ class TestSessionChannelIsolation(unittest.TestCase):
         self.assertTrue(snapshot["channels"][0]["loggedIn"])
         self.assertEqual(snapshot["channels"][1]["name"], "workspace:win-3-w")
         self.assertFalse(snapshot["channels"][1]["hasSession"])
+
+    def test_init_app_accepts_gs_stone_name_alias(self):
+        with patch.dict(os.environ, {"GS_STONE_NAME": "seaside"}, clear=False):
+            gs_session.init_app(self.flask_app)
+        self.assertEqual(gs_session._BROKER._config.stone, "seaside")
+
+    def test_init_app_prefers_gs_stone_over_alias(self):
+        self.mock_config_cls.from_env.return_value = MagicMock(stone="explicit")
+        with patch.dict(os.environ, {"GS_STONE": "explicit", "GS_STONE_NAME": "seaside"}, clear=False):
+            gs_session.init_app(self.flask_app)
+        self.assertEqual(gs_session._BROKER._config.stone, "explicit")
+
+    def test_request_session_applies_connection_override_headers(self):
+        real_config = RealGemStoneConfig(
+            stone="gs64stone",
+            netldi="50377",
+            host="localhost",
+            username="tariq",
+            password="secret",
+        )
+        self.mock_config_cls.from_env.return_value = real_config
+        gs_session.init_app(self.flask_app)
+        session = MagicMock(_logged_in=False)
+        with patch("gemstone_p.session.GemStoneSession", return_value=session) as mock_session_cls:
+            with self.flask_app.test_request_context("/ids", headers={"X-GS-Stone": "seaside"}):
+                _, returned = gs_session._BROKER._ensure_session("roots-r")
+        self.assertIs(returned, session)
+        self.assertEqual(mock_session_cls.call_args.kwargs["config"].stone, "seaside")
+        self.assertEqual(mock_session_cls.call_args.kwargs["config"].netldi, "50377")
+
+    def test_request_session_drops_managed_session_when_connection_override_changes(self):
+        real_config = RealGemStoneConfig(
+            stone="gs64stone",
+            netldi="50377",
+            host="localhost",
+            username="tariq",
+            password="secret",
+        )
+        self.mock_config_cls.from_env.return_value = real_config
+        gs_session.init_app(self.flask_app)
+        session_one = MagicMock(_logged_in=False)
+        session_two = MagicMock(_logged_in=False)
+        with patch("gemstone_p.session.GemStoneSession", side_effect=[session_one, session_two]) as mock_session_cls:
+            with self.flask_app.test_request_context("/ids", headers={"X-GS-Stone": "seaside"}):
+                managed_one, _ = gs_session._BROKER._ensure_session("roots-r")
+            with self.flask_app.test_request_context("/ids", headers={"X-GS-Stone": "coral"}):
+                managed_two, _ = gs_session._BROKER._ensure_session("roots-r")
+        self.assertIs(managed_one, managed_two)
+        session_one.logout.assert_called_once()
+        self.assertEqual(mock_session_cls.call_args_list[0].kwargs["config"].stone, "seaside")
+        self.assertEqual(mock_session_cls.call_args_list[1].kwargs["config"].stone, "coral")
+
+    def test_connection_snapshot_reports_request_override(self):
+        real_config = RealGemStoneConfig(
+            stone="gs64stone",
+            netldi="50377",
+            host="localhost",
+            username="tariq",
+            password="secret",
+        )
+        self.mock_config_cls.from_env.return_value = real_config
+        gs_session.init_app(self.flask_app)
+        with self.flask_app.test_request_context("/connection/preflight", headers={"X-GS-Stone": "seaside"}):
+            snapshot = gs_session.connection_snapshot()
+        self.assertEqual(snapshot["stone"], "seaside")
+        self.assertEqual(snapshot["stoneSource"], "request-override")
+        self.assertTrue(snapshot["overrideActive"])
+        self.assertEqual(snapshot["override"]["stone"], "seaside")
 
 
 if __name__ == "__main__":

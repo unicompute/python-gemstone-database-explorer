@@ -32,7 +32,7 @@ The frontend is intentionally self-contained. It provides:
 - Class Browser
 - helper windows for queries, hierarchy, and versions
 - debugger windows
-- status-log and About/support windows, including client-side support-bundle export
+- status-log, Connection, and About/support windows, including client-side support-bundle export
 - layout persistence and window-manager actions
 - taskbar/window grouping and relationship arrows
 
@@ -50,6 +50,7 @@ Important implementation traits:
 `create_app()` defines the full JSON API surface. The main route groups are:
 
 - roots, version, health, and diagnostics metadata
+- connection preflight metadata and local connection probing
 - object inspector, eval, code pane, and inspector helper tabs
 - Class Browser read/write actions
 - Symbol List Browser

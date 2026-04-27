@@ -28,6 +28,8 @@ Returns well-known startup OOPs.
 }
 ```
 
+If startup OOP resolution fails, this route returns HTTP `500` and includes a `preflight` object matching `GET /connection/preflight`, so the SPA can open the Connection window with the attempted target and suggested fixes.
+
 ### `GET /version`
 
 Returns the explorer app version together with the current Stone and Gem version strings.
@@ -59,9 +61,39 @@ Healthy response:
 
 If the GemStone session cannot be opened, this route returns HTTP `503` with `"status": "error"` and an `"exception"` message.
 
+### `GET /connection/preflight`
+
+Returns connection-oriented diagnostics for the current process configuration. This combines the effective GemStone target from `session.py`, a lightweight runtime version check, and a best-effort local `gslist -lcv` probe plus suggestions such as `export GS_STONE=seaside`.
+
+Healthy response shape:
+
+```json
+{
+  "success": true,
+  "status": "ok",
+  "app": "1.0.0",
+  "stone": "3.7.5",
+  "gem": "3.7.5",
+  "connection": {
+    "configured": {
+      "stone": "seaside",
+      "host": "localhost",
+      "mode": "local-stone-name",
+      "effectiveTarget": "seaside"
+    },
+    "probe": {
+      "availableStones": ["seaside"]
+    },
+    "suggestions": []
+  }
+}
+```
+
+When the runtime session cannot be opened, this route still returns `200` with `"status": "error"` so the UI can surface the attempted target and suggested fixes.
+
 ### `GET /diagnostics`
 
-Extended runtime diagnostics for support/debugging. This includes version data, Python/platform metadata, and a safe session-broker snapshot. The About window also uses this response as the server half of its downloadable support bundle.
+Extended runtime diagnostics for support/debugging. This includes version data, Python/platform metadata, a safe session-broker snapshot, and connection-preflight context. The About window also uses this response as the server half of its downloadable support bundle.
 
 ```json
 {
@@ -85,6 +117,18 @@ Extended runtime diagnostics for support/debugging. This includes version data, 
         "loggedIn": true
       }
     ]
+  },
+  "connection": {
+    "configured": {
+      "stone": "seaside",
+      "host": "localhost",
+      "mode": "local-stone-name",
+      "effectiveTarget": "seaside"
+    },
+    "probe": {
+      "availableStones": ["seaside"]
+    },
+    "suggestions": []
   },
   "statusHistory": [
     {

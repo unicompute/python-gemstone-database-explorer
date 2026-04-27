@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from gemstone_p import __version__
 import gemstone_p.session  # Ensure patch("gemstone_p.session...") resolves normally.
+from gemstone_py import GemStoneConfig as RealGemStoneConfig
 
 
 def _mock_session():
@@ -50,6 +51,121 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         data = json.loads(r.data)
         self.assertIn("persistentRootId", data)
+        self.assertIn("defaultWorkspaceId", data)
+
+    @patch("gemstone_p.app.subprocess.run")
+    @patch("gemstone_p.app.gs_session.connection_snapshot")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_connection_preflight_suggests_local_stone_fix(self, mock_rs, mock_snapshot, mock_run):
+        session = _mock_session()
+        session.eval.side_effect = ["3.7.5", "3.7.5"]
+        mock_rs.return_value = _mock_request_session(session)
+        mock_snapshot.return_value = {
+            "configured": True,
+            "stone": "gs64stone",
+            "host": "localhost",
+            "netldi": "50377",
+            "gemService": "gemnetobject",
+            "libPath": "/opt/gemstone/product/lib",
+            "username": "tariq",
+            "passwordSet": True,
+            "hostUsernameSet": False,
+            "hostPasswordSet": False,
+            "stoneSource": "default",
+            "mode": "local-stone-name",
+            "effectiveTarget": "gs64stone",
+        }
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                "Status        Version    Owner       Pid   Port   Started     Type       Name\n"
+                "-------      --------- --------- -------- ----- ------------ ------      ----\n"
+                "OK           3.7.5     tariq        49597 50377 Apr 25 20:38 Netldi      gs64ldi\n"
+                "OK           3.7.5     tariq        49692 52185 Apr 25 20:39 Stone       seaside\n"
+            ),
+            stderr="",
+        )
+
+        r = self.client.get("/connection/preflight")
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertIn(data["status"], {"ok", "error"})
+        self.assertEqual(data["connection"]["probe"]["availableStones"], ["seaside"])
+        self.assertEqual(data["connection"]["probe"]["availableNetldis"][0]["port"], "50377")
+        self.assertEqual(data["connection"]["suggestions"][0]["shell"], "export GS_STONE=seaside")
+
+    @patch("gemstone_p.app.subprocess.run")
+    @patch("gemstone_p.app.gs_session.connection_snapshot")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_ids_failure_includes_preflight_payload(self, mock_rs, mock_snapshot, mock_run):
+        mock_rs.side_effect = RuntimeError("login failed")
+        mock_snapshot.return_value = {
+            "configured": True,
+            "stone": "gs64stone",
+            "host": "localhost",
+            "netldi": "50377",
+            "gemService": "gemnetobject",
+            "libPath": "/opt/gemstone/product/lib",
+            "username": "tariq",
+            "passwordSet": True,
+            "hostUsernameSet": False,
+            "hostPasswordSet": False,
+            "stoneSource": "default",
+            "mode": "local-stone-name",
+            "effectiveTarget": "gs64stone",
+        }
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                "Status        Version    Owner       Pid   Port   Started     Type       Name\n"
+                "-------      --------- --------- -------- ----- ------------ ------      ----\n"
+                "OK           3.7.5     tariq        49597 50377 Apr 25 20:38 Netldi      gs64ldi\n"
+                "OK           3.7.5     tariq        49692 52185 Apr 25 20:39 Stone       seaside\n"
+            ),
+            stderr="",
+        )
+
+        r = self.client.get("/ids")
+        self.assertEqual(r.status_code, 500)
+        data = json.loads(r.data)
+        self.assertFalse(data["success"])
+        self.assertEqual(data["error"], "login failed")
+        self.assertEqual(data["preflight"]["status"], "error")
+        self.assertEqual(data["preflight"]["connection"]["probe"]["availableStones"], ["seaside"])
+        self.assertEqual(data["preflight"]["connection"]["suggestions"][0]["env"]["GS_STONE"], "seaside")
+
+    @patch("gemstone_p.app.subprocess.run")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_connection_preflight_honors_request_override_headers(self, mock_rs, mock_run):
+        gemstone_p.session._BROKER._config = RealGemStoneConfig(
+            stone="gs64stone",
+            netldi="50377",
+            host="localhost",
+            username="tariq",
+            password="secret",
+        )
+        session = _mock_session()
+        session.eval.side_effect = ["3.7.5", "3.7.5"]
+        mock_rs.return_value = _mock_request_session(session)
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                "Status        Version    Owner       Pid   Port   Started     Type       Name\n"
+                "-------      --------- --------- -------- ----- ------------ ------      ----\n"
+                "OK           3.7.5     tariq        49597 50377 Apr 25 20:38 Netldi      gs64ldi\n"
+                "OK           3.7.5     tariq        49692 52185 Apr 25 20:39 Stone       seaside\n"
+            ),
+            stderr="",
+        )
+
+        r = self.client.get("/connection/preflight", headers={"X-GS-Stone": "seaside"})
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertEqual(data["connection"]["configured"]["stone"], "seaside")
+        self.assertEqual(data["connection"]["configured"]["stoneSource"], "request-override")
+        self.assertTrue(data["connection"]["configured"]["overrideActive"])
+        self.assertEqual(data["connection"]["configured"]["override"]["stone"], "seaside")
+        self.assertFalse(any(item.get("kind") == "stone-name" for item in data["connection"]["suggestions"]))
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_version_includes_app_and_runtime_versions(self, mock_rs):
@@ -63,6 +179,28 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["app"], __version__)
         self.assertEqual(data["stone"], "3.7.5")
         self.assertEqual(data["gem"], "3.7.5")
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_maglev_loaded_features_report(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "Loaded Features Report\n\n1. app/models/user.rb\n2. config/environment.rb\n"
+        mock_rs.return_value = _mock_request_session(session)
+        r = self.client.get("/maglev/report/loaded-features")
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["available"])
+        self.assertEqual(data["reportKey"], "loaded-features")
+        self.assertEqual(data["title"], "Loaded Features Report")
+        self.assertIn("app/models/user.rb", data["text"])
+
+    def test_maglev_report_unknown_key_returns_404(self):
+        r = self.client.get("/maglev/report/unknown")
+        self.assertEqual(r.status_code, 404)
+        data = json.loads(r.data)
+        self.assertFalse(data["success"])
+        self.assertFalse(data["available"])
+        self.assertEqual(data["reportKey"], "unknown")
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_healthz_includes_ok_status_and_runtime_versions(self, mock_rs):
@@ -101,6 +239,32 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["sessionBroker"]["channels"][0]["name"], "object:win-1-r")
         self.assertIn("python", data["runtime"])
         self.assertIn("platform", data["runtime"])
+
+    @patch("gemstone_p.app.gs_session.broker_snapshot")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_diagnostics_honors_request_override_headers(self, mock_rs, mock_snapshot):
+        gemstone_p.session._BROKER._config = RealGemStoneConfig(
+            stone="gs64stone",
+            netldi="50377",
+            host="localhost",
+            username="tariq",
+            password="secret",
+        )
+        session = _mock_session()
+        session.eval.side_effect = ["3.7.5", "3.7.5"]
+        mock_rs.return_value = _mock_request_session(session)
+        mock_snapshot.return_value = {
+            "defaultAutoBegin": None,
+            "managedSessionCount": 1,
+            "channels": [{"name": "roots-r", "hasSession": True, "loggedIn": True}],
+        }
+        r = self.client.get("/diagnostics", headers={"X-GS-Stone": "seaside"})
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertEqual(data["connection"]["configured"]["stone"], "seaside")
+        self.assertEqual(data["connection"]["configured"]["stoneSource"], "request-override")
+        self.assertTrue(data["connection"]["configured"]["overrideActive"])
+        self.assertEqual(data["connection"]["configured"]["override"]["stone"], "seaside")
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_object_index(self, mock_rs):
@@ -1309,12 +1473,58 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["stepPoint"], 2)
         self.assertEqual(data["lineNumber"], 1)
         script = session.eval.call_args[0][0]
-        self.assertIn("ctx receiver", script)
-        self.assertIn("ctx tempNames do:", script)
-        self.assertIn("ctx respondsTo: #quickStepPoint", script)
-        self.assertIn("ctx respondsTo: #sourceOffsets", script)
+        self.assertIn("receiver := [[detail at: 2]", script)
+        self.assertIn("tempNames := [[detail at: 7]", script)
+        self.assertIn("stepValue := [detail at: 5]", script)
+        self.assertIn("offsets := [[detail at: 6]", script)
         mock_object_view.assert_any_call(session, 310, depth=0)
         mock_object_view.assert_any_call(session, 77, depth=0)
+
+    @patch("gemstone_p.app.object_view")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_frame_uses_debugger_report_source_fallbacks(self, mock_rs, mock_object_view):
+        session = _mock_session()
+        session.eval.return_value = "Behavior>>helper|17|Behavior|310|helper ^ #done|8|2|result\t77"
+        mock_rs.return_value = _mock_request_session(session)
+        mock_object_view.side_effect = [
+            {"oop": 310, "inspection": "Behavior", "basetype": "class", "loaded": False},
+            {"oop": 77, "inspection": "#done", "basetype": "symbol", "loaded": False},
+        ]
+
+        r = self.client.get("/debug/frame/700?index=1")
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["source"], "helper ^ #done")
+        script = session.eval.call_args[0][0]
+        self.assertIn("proc _gsiStackReportFromLevel: frameLevel toLevel: frameLevel", script)
+        self.assertIn("detail := [proc _gsiDebuggerDetailedReportAt: frameLevel]", script)
+        self.assertIn("source := [[detail at: 9]", script)
+        self.assertIn("tempNames := [[detail at: 7]", script)
+        self.assertIn("ctx := [proc suspendedContext]", script)
+        self.assertIn("ctx sourceCode", script)
+        self.assertIn("ctx sourceString", script)
+        self.assertIn("ctx receiver", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_frames_uses_context_chain_labels(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "0|Object>>haltedMethod\n1|Behavior>>helper"
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.get("/debug/frames/700")
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(len(data["frames"]), 2)
+        self.assertEqual(data["frames"][0]["name"], "Object>>haltedMethod")
+        self.assertEqual(data["frames"][1]["name"], "Behavior>>helper")
+        script = session.eval.call_args[0][0]
+        self.assertIn("ctx := [proc suspendedContext]", script)
+        self.assertIn("ownerName := [[receiver class name asString]", script)
+        self.assertIn("selectorName := [[[ctx method] selector asString]", script)
+        self.assertIn("ctx := [ctx sender]", script)
 
     @patch("gemstone_p.app.object_view")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -1333,6 +1543,124 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["source"], "1/0")
         self.assertEqual(data["selfObject"]["inspection"], "Behavior")
         self.assertEqual(data["lineNumber"], 1)
+
+    @patch("gemstone_p.app.object_view")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_frame_uses_detailed_report_offsets(self, mock_rs, mock_object_view):
+        session = _mock_session()
+        session.eval.return_value = "doIt|17|Behavior|310|1/0|4|1|"
+        mock_rs.return_value = _mock_request_session(session)
+        mock_object_view.return_value = {"oop": 310, "inspection": "Behavior", "basetype": "class", "loaded": False}
+
+        self.client.get("/debug/frame/700?index=0")
+
+        script = session.eval.call_args[0][0]
+        self.assertIn("proc _gsiStackReportFromLevel: frameLevel toLevel: frameLevel", script)
+        self.assertIn("offsets := [[detail at: 6]", script)
+        self.assertIn("stepValue := [detail at: 5]", script)
+        self.assertIn("rawOffset := [offsets at: stepInt ifAbsent: [nil]]", script)
+
+    @patch("gemstone_p.app.object_view")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_frame_uses_reported_line_number_when_offset_is_missing(self, mock_rs, mock_object_view):
+        session = _mock_session()
+        session.eval.return_value = "ZeroDivide (AbstractException) >> _signalToDebugger @12 line 9|17|Behavior|310|line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9|0|12|"
+        mock_rs.return_value = _mock_request_session(session)
+        mock_object_view.return_value = {"oop": 310, "inspection": "Behavior", "basetype": "class", "loaded": False}
+
+        r = self.client.get("/debug/frame/700?index=0")
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["lineNumber"], 9)
+        self.assertTrue(data["canStep"])
+        self.assertTrue(data["hasFrame"])
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_uses_process_step_selectors(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "anExecBlock"
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/step/700", json={})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("stepLevel := 1", script)
+        self.assertIn("respondsTo: #step:", script)
+        self.assertIn("perform: #step: with: stepLevel", script)
+        self.assertIn("respondsTo: #stepIntoFromLevel:", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_into_uses_process_step_into_selectors(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "anExecBlock"
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/step-into/700", json={})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("stepLevel := 1", script)
+        self.assertIn("respondsTo: #stepIntoFromLevel:", script)
+        self.assertIn("perform: #stepIntoFromLevel: with: stepLevel", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_over_uses_selected_frame_level(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "anExecBlock"
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/step-over/700", json={"index": 2})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("stepLevel := 3", script)
+        self.assertIn("respondsTo: #stepOverFromLevel:", script)
+        self.assertIn("perform: #stepOverFromLevel: with: stepLevel", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_restart_trims_selected_context_then_restarts(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/restart/700", json={"index": 2})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("ctx := [proc suspendedContext]", script)
+        self.assertIn("respondsTo: #trimTo:", script)
+        self.assertIn("result := [proc trimTo: ctx]", script)
+        self.assertIn("respondsTo: #_trimStackToLevel:", script)
+        self.assertIn("_trimStackToLevel: restartLevel", script)
+        self.assertIn("restartLevel := 3", script)
+        self.assertIn("restarted := [proc restart]", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_trim_uses_selected_context_and_checks_result(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/trim/700", json={"index": 2})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("ctx := proc suspendedContext", script)
+        self.assertIn("ctx := ctx sender. idx := idx + 1", script)
+        self.assertIn("[proc trimTo: ctx] on: Error do: [:e | false]", script)
 
     @patch("gemstone_p.app.object_view")
     @patch("gemstone_p.app.gs_session.request_session")

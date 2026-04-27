@@ -227,6 +227,25 @@ BASE_OBJECTS = {
     },
 }
 
+MOCK_MAGLEV_REPORTS = {
+    "load-path": {
+        "title": "$LOAD_PATH Report",
+        "text": "$LOAD_PATH Report\n\n1. lib\n2. app/models\n3. app/services\n",
+    },
+    "loaded-features": {
+        "title": "Loaded Features Report",
+        "text": "Loaded Features Report\n\n1. app/models/user.rb\n2. config/environment.rb\n",
+    },
+    "persistent-features": {
+        "title": "Persistent Features Report",
+        "text": "Persistent Features Report\n\n1. persisted.rb\n2. bootstrap/runtime.rb\n",
+    },
+    "finalizer-registry": {
+        "title": "MagLev Finalizer Registry Report",
+        "text": "MagLev Finalizer Registry Report\n\nprintString: aFinalizerRegistry(2)\n\nsize: 2\n\n1. oop=9201\n2. oop=9202\n",
+    },
+}
+
 
 def _record_object(args) -> dict:
     start = int(args.get("range_attributes_from", "1") or "1")
@@ -356,11 +375,13 @@ INITIAL_DEBUG_THREADS = {
         "printString": "a HaltedDemoProcess",
         "exceptionText": "a ZeroDivide occurred (error 2026), reason:numErrIntDivisionByZero, attempt to divide 1 by zero",
         "sourcePreview": "1/0",
+        "sessionChannel": "debug-w",
         "frames": [
             {
                 "name": "Object>>haltedMethod",
                 "source": "",
                 "sourceOffset": 0,
+                "lineNumber": 1,
                 "stepPoint": 1,
                 "selfPrintString": "an Object",
                 "selfObject": _ref(410, "a HaltedReceiver", "object"),
@@ -373,6 +394,7 @@ INITIAL_DEBUG_THREADS = {
                 "name": "Behavior>>helper",
                 "source": "helper\n  ^ #done",
                 "sourceOffset": 10,
+                "lineNumber": 2,
                 "stepPoint": 2,
                 "selfPrintString": "Behavior",
                 "selfObject": _ref(310, "Behavior", "class"),
@@ -384,6 +406,7 @@ INITIAL_DEBUG_THREADS = {
                 "name": "RubyCaller(Ruby)",
                 "source": "puts 'ruby frame'",
                 "sourceOffset": 1,
+                "lineNumber": 1,
                 "stepPoint": 1,
                 "selfPrintString": "main",
                 "selfObject": _ref(None, "main", "string"),
@@ -421,10 +444,20 @@ SYMBOL_LISTS = copy.deepcopy(INITIAL_SYMBOL_LISTS)
 DEBUG_THREADS = copy.deepcopy(INITIAL_DEBUG_THREADS)
 REQUEST_COUNTS: dict[str, int] = {}
 PERSISTENT_MODE = False
+FORCE_IDS_FAILURE = False
+FORCE_CONNECTION_PREFLIGHT_SUCCESS = False
+DEFAULT_CONNECTION_HOST = "localhost"
+DEFAULT_CONNECTION_NETLDI = "50377"
+DEFAULT_CONNECTION_AVAILABLE_STONES = ["seaside"]
+DEFAULT_CONNECTION_AVAILABLE_NETLDIS = [{"name": "gs64ldi", "port": "50377"}]
+MOCK_CONNECTION_HOST = DEFAULT_CONNECTION_HOST
+MOCK_CONNECTION_NETLDI = DEFAULT_CONNECTION_NETLDI
+MOCK_CONNECTION_AVAILABLE_STONES = copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_STONES)
+MOCK_CONNECTION_AVAILABLE_NETLDIS = copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_NETLDIS)
 
 
 def _reset_mock_state() -> None:
-    global CLASS_DICTIONARIES, CLASS_SUPERCLASSES, CLASS_INSTANCE_VARS, CLASS_VARS, CLASS_INST_VARS, CLASS_PROTOCOLS, METHOD_SOURCES, SYMBOL_LISTS, DEBUG_THREADS, REQUEST_COUNTS, PERSISTENT_MODE
+    global CLASS_DICTIONARIES, CLASS_SUPERCLASSES, CLASS_INSTANCE_VARS, CLASS_VARS, CLASS_INST_VARS, CLASS_PROTOCOLS, METHOD_SOURCES, SYMBOL_LISTS, DEBUG_THREADS, REQUEST_COUNTS, PERSISTENT_MODE, FORCE_IDS_FAILURE, FORCE_CONNECTION_PREFLIGHT_SUCCESS, MOCK_CONNECTION_HOST, MOCK_CONNECTION_NETLDI, MOCK_CONNECTION_AVAILABLE_STONES, MOCK_CONNECTION_AVAILABLE_NETLDIS
     CLASS_DICTIONARIES = copy.deepcopy(INITIAL_CLASS_DICTIONARIES)
     CLASS_SUPERCLASSES = copy.deepcopy(INITIAL_CLASS_SUPERCLASSES)
     CLASS_INSTANCE_VARS = copy.deepcopy(INITIAL_CLASS_INSTANCE_VARS)
@@ -436,10 +469,42 @@ def _reset_mock_state() -> None:
     DEBUG_THREADS = copy.deepcopy(INITIAL_DEBUG_THREADS)
     REQUEST_COUNTS = {}
     PERSISTENT_MODE = False
+    FORCE_IDS_FAILURE = False
+    FORCE_CONNECTION_PREFLIGHT_SUCCESS = False
+    MOCK_CONNECTION_HOST = DEFAULT_CONNECTION_HOST
+    MOCK_CONNECTION_NETLDI = DEFAULT_CONNECTION_NETLDI
+    MOCK_CONNECTION_AVAILABLE_STONES = copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_STONES)
+    MOCK_CONNECTION_AVAILABLE_NETLDIS = copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_NETLDIS)
 
 
 def _count_request(name: str) -> None:
     REQUEST_COUNTS[name] = REQUEST_COUNTS.get(name, 0) + 1
+
+
+def _request_session_channel() -> str:
+    return str(request.headers.get("X-GS-Channel", "")).strip()
+
+
+def _normalize_write_session_channel(value: str) -> str:
+    channel = str(value or "").strip()
+    if not channel:
+        return "debug-w"
+    if channel.endswith("-w"):
+        return channel
+    if channel.endswith("-r"):
+        return f"{channel[:-2]}-w"
+    return f"{channel}-w"
+
+
+def _debug_thread_for_request(oop: int):
+    thread = DEBUG_THREADS.get(oop)
+    if thread is None:
+        return None
+    owner_channel = str(thread.get("sessionChannel", "")).strip()
+    request_channel = _normalize_write_session_channel(_request_session_channel())
+    if owner_channel and request_channel and owner_channel != request_channel:
+        return None
+    return thread
 
 
 def _categories_for(class_name: str, meta: bool) -> list[str]:
@@ -597,12 +662,187 @@ def _parse_symbol_value(value_expr: str) -> dict:
 @app.get("/")
 def index():
     _reset_mock_state()
+    global FORCE_IDS_FAILURE, FORCE_CONNECTION_PREFLIGHT_SUCCESS
+    FORCE_IDS_FAILURE = str(request.args.get("boot", "")).strip() == "ids-fail"
+    FORCE_CONNECTION_PREFLIGHT_SUCCESS = str(request.args.get("preflight", "")).strip() == "success"
     return render_template("index.html")
 
 
 @app.get("/ids")
 def ids():
-    return jsonify(persistentRootId=100, gemStoneSystemId=76033, globalsId=110)
+    override_stone = str(request.headers.get("X-GS-Stone", "")).strip()
+    effective_stone = override_stone or "gs64stone"
+    if FORCE_IDS_FAILURE and effective_stone != "seaside":
+        return jsonify(
+            success=False,
+            error="mock startup login failed",
+            preflight=_mock_connection_preflight(),
+        ), 500
+    return jsonify(
+        persistentRootId=100,
+        gemStoneSystemId=76033,
+        globalsId=110,
+        defaultWorkspaceId=1200,
+    )
+
+
+def _mock_connection_preflight():
+    override = {
+        "stone": str(request.headers.get("X-GS-Stone", "")).strip(),
+        "host": str(request.headers.get("X-GS-Host", "")).strip(),
+        "netldi": str(request.headers.get("X-GS-NetLDI", "")).strip(),
+        "gemService": str(request.headers.get("X-GS-Gem-Service", "")).strip(),
+    }
+    override_active = any(override.values())
+    effective_stone = override["stone"] or ("seaside" if FORCE_CONNECTION_PREFLIGHT_SUCCESS else "gs64stone")
+    effective_host = override["host"] or MOCK_CONNECTION_HOST
+    effective_netldi = override["netldi"] or MOCK_CONNECTION_NETLDI
+    effective_gem_service = override["gemService"] or "gemnetobject"
+
+    if FORCE_CONNECTION_PREFLIGHT_SUCCESS or effective_stone == "seaside":
+        return {
+            "success": True,
+            "status": "ok",
+            "app": "1.0.0",
+            "stone": "3.7.5",
+            "gem": "3.7.5",
+            "connection": {
+                "configured": {
+                    "configured": True,
+                    "stone": effective_stone,
+                    "host": effective_host,
+                    "netldi": effective_netldi,
+                    "gemService": effective_gem_service,
+                    "libPath": "/opt/gemstone/product/lib",
+                    "username": "tariq",
+                    "passwordSet": True,
+                    "hostUsernameSet": False,
+                    "hostPasswordSet": False,
+                    "stoneSource": "request-override" if override_active else "GS_STONE",
+                    "mode": "local-stone-name",
+                    "effectiveTarget": effective_stone,
+                    "overrideActive": override_active,
+                    "override": {
+                        "stone": override["stone"],
+                        "host": override["host"],
+                        "netldi": override["netldi"],
+                        "gemService": override["gemService"],
+                    },
+                },
+                "probe": {
+                    "command": ["gslist", "-lcv"],
+                    "available": True,
+                    "returnCode": 0,
+                    "entries": [
+                        {
+                            "status": "OK",
+                            "version": "3.7.5",
+                            "owner": "tariq",
+                            "pid": "49597",
+                            "port": "50377",
+                            "started": "Apr 25 20:38",
+                            "type": "Netldi",
+                            "name": "gs64ldi",
+                        },
+                        {
+                            "status": "OK",
+                            "version": "3.7.5",
+                            "owner": "tariq",
+                            "pid": "49692",
+                            "port": "52185",
+                            "started": "Apr 25 20:39",
+                            "type": "Stone",
+                            "name": "seaside",
+                        },
+                    ],
+                    "availableStones": copy.deepcopy(MOCK_CONNECTION_AVAILABLE_STONES),
+                    "availableNetldis": copy.deepcopy(MOCK_CONNECTION_AVAILABLE_NETLDIS),
+                    "error": "",
+                    "stderr": "",
+                },
+                "suggestions": [],
+            },
+        }
+    return {
+        "success": False,
+        "status": "error",
+        "app": "1.0.0",
+        "exception": (
+            "The given Stone Repository monitor cannot be reached, could not find server "
+            "'gs64stone' on host 'localhost' because service not found"
+        ),
+        "connection": {
+            "configured": {
+                "configured": True,
+                "stone": effective_stone,
+                "host": effective_host,
+                "netldi": effective_netldi,
+                "gemService": effective_gem_service,
+                "libPath": "/opt/gemstone/product/lib",
+                "username": "tariq",
+                "passwordSet": True,
+                "hostUsernameSet": False,
+                "hostPasswordSet": False,
+                "stoneSource": "request-override" if override_active else "default",
+                "mode": "local-stone-name",
+                "effectiveTarget": effective_stone,
+                "overrideActive": override_active,
+                "override": {
+                    "stone": override["stone"],
+                    "host": override["host"],
+                    "netldi": override["netldi"],
+                    "gemService": override["gemService"],
+                },
+            },
+            "probe": {
+                "command": ["gslist", "-lcv"],
+                "available": True,
+                "returnCode": 0,
+                "entries": [
+                    {
+                        "status": "OK",
+                        "version": "3.7.5",
+                        "owner": "tariq",
+                        "pid": "49597",
+                        "port": "50377",
+                        "started": "Apr 25 20:38",
+                        "type": "Netldi",
+                        "name": "gs64ldi",
+                    },
+                    {
+                        "status": "OK",
+                        "version": "3.7.5",
+                        "owner": "tariq",
+                        "pid": "49692",
+                        "port": "52185",
+                        "started": "Apr 25 20:39",
+                        "type": "Stone",
+                        "name": "seaside",
+                    },
+                ],
+                    "availableStones": copy.deepcopy(MOCK_CONNECTION_AVAILABLE_STONES),
+                    "availableNetldis": copy.deepcopy(MOCK_CONNECTION_AVAILABLE_NETLDIS),
+                    "error": "",
+                    "stderr": "",
+                },
+                "suggestions": [
+                {
+                    "kind": "stone-name",
+                    "title": 'Configured stone "gs64stone" was not found. Local available stone is "seaside".',
+                    "detail": "This client is currently using local stone-name lookup because GS_HOST is local.",
+                    "env": {"GS_STONE": "seaside"},
+                    "shell": "export GS_STONE=seaside",
+                },
+                {
+                    "kind": "mode-note",
+                    "title": "GS_NETLDI is ignored for local stone-name lookup.",
+                    "detail": "Set GS_STONE to the local stone name, or use a non-local GS_HOST to force TCP NetLDI login.",
+                    "env": {},
+                    "shell": "",
+                },
+            ],
+        },
+    }
 
 
 @app.get("/version")
@@ -613,6 +853,12 @@ def version():
 @app.get("/healthz")
 def healthz():
     return jsonify(success=True, status="ok", app="1.0.0", stone="3.7.5", gem="3.7.5")
+
+
+@app.get("/connection/preflight")
+def connection_preflight():
+    _count_request("connection.preflight")
+    return jsonify(_mock_connection_preflight())
 
 
 @app.get("/diagnostics")
@@ -637,6 +883,27 @@ def diagnostics():
                 {"name": "workspace:win-3-w", "hasSession": True, "loggedIn": True},
             ],
         },
+        connection=_mock_connection_preflight()["connection"],
+    )
+
+
+@app.get("/maglev/report/<report_key>")
+def maglev_report(report_key: str):
+    payload = MOCK_MAGLEV_REPORTS.get(str(report_key or "").strip())
+    if not payload:
+        return jsonify(
+            success=False,
+            available=False,
+            reportKey=str(report_key or "").strip(),
+            title="MagLev Report",
+            text="MagLev Report\n\n(unknown report)",
+        ), 404
+    return jsonify(
+        success=True,
+        available=True,
+        reportKey=str(report_key or "").strip(),
+        title=payload["title"],
+        text=payload["text"],
     )
 
 
@@ -732,7 +999,7 @@ def debug_threads():
 
 @app.get("/debug/frames/<int:oop>")
 def debug_frames(oop: int):
-    thread = DEBUG_THREADS.get(oop)
+    thread = _debug_thread_for_request(oop)
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
     frames = [
@@ -744,7 +1011,7 @@ def debug_frames(oop: int):
 
 @app.get("/debug/frame/<int:oop>")
 def debug_frame(oop: int):
-    thread = DEBUG_THREADS.get(oop)
+    thread = _debug_thread_for_request(oop)
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
     index = int(request.args.get("index", "0") or "0")
@@ -759,6 +1026,8 @@ def debug_frame(oop: int):
         sourceOffset=int(frame.get("sourceOffset", 0) or 0),
         stepPoint=int(frame.get("stepPoint", 0) or 0),
         lineNumber=int(frame.get("lineNumber", 0) or 0),
+        hasFrame=frame["name"] != "(no frame)",
+        canStep=frame["name"] != "(no frame)" and int(frame.get("stepPoint", 0) or 0) > 0,
         selfPrintString=frame["selfPrintString"],
         selfObject=frame.get("selfObject"),
         source=frame["source"],
@@ -773,9 +1042,14 @@ def debug_proceed(oop: int):
     return jsonify(success=True)
 
 
+@app.post("/debug/step/<int:oop>")
+def debug_step(oop: int):
+    return debug_step_into(oop)
+
+
 @app.post("/debug/step-into/<int:oop>")
 def debug_step_into(oop: int):
-    thread = DEBUG_THREADS.get(oop)
+    thread = _debug_thread_for_request(oop)
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
     thread["stepCount"] = int(thread.get("stepCount", 0)) + 1
@@ -783,6 +1057,7 @@ def debug_step_into(oop: int):
         "name": f"Object>>stepInto{thread['stepCount']}",
         "source": f"stepInto{thread['stepCount']}\n  ^ self",
         "sourceOffset": 1,
+        "lineNumber": 1,
         "stepPoint": 1,
         "selfPrintString": "an Object",
         "selfObject": _ref(410, "a HaltedReceiver", "object"),
@@ -799,7 +1074,7 @@ def debug_step_into(oop: int):
 
 @app.post("/debug/step-over/<int:oop>")
 def debug_step_over(oop: int):
-    thread = DEBUG_THREADS.get(oop)
+    thread = _debug_thread_for_request(oop)
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
     index = int((request.get_json(force=True) or {}).get("index", 0))
@@ -810,21 +1085,38 @@ def debug_step_over(oop: int):
     return jsonify(success=True)
 
 
+@app.post("/debug/restart/<int:oop>")
+def debug_restart(oop: int):
+    thread = _debug_thread_for_request(oop)
+    if thread is None:
+        return jsonify(success=False, exception=f"unknown thread {oop}"), 404
+    index = int((request.get_json(force=True) or {}).get("index", 0))
+    initial_thread = INITIAL_DEBUG_THREADS.get(oop, {})
+    initial_frames = copy.deepcopy(initial_thread.get("frames", []))
+    if 0 <= index < len(initial_frames):
+        thread["frames"] = initial_frames[index:]
+    else:
+        thread["frames"] = initial_frames
+    thread["sessionChannel"] = thread.get("sessionChannel") or _request_session_channel() or "debug-w"
+    thread["stepCount"] = 0
+    return jsonify(success=True)
+
+
 @app.post("/debug/trim/<int:oop>")
 def debug_trim(oop: int):
-    thread = DEBUG_THREADS.get(oop)
+    thread = _debug_thread_for_request(oop)
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
     index = int((request.get_json(force=True) or {}).get("index", 0))
     frames = thread.get("frames", [])
     if 0 <= index < len(frames):
-        thread["frames"] = frames[: index + 1]
+        thread["frames"] = frames[index:]
     return jsonify(success=True)
 
 
 @app.get("/debug/thread-local/<int:oop>")
 def debug_thread_local(oop: int):
-    thread = DEBUG_THREADS.get(oop)
+    thread = _debug_thread_for_request(oop)
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
     return jsonify(success=True, entries=thread.get("threadLocal", []))
@@ -833,6 +1125,48 @@ def debug_thread_local(oop: int):
 @app.get("/debug/request-counts")
 def debug_request_counts():
     return jsonify(success=True, counts=REQUEST_COUNTS)
+
+
+@app.post("/debug/mock/connection-mode")
+def debug_mock_connection_mode():
+    global FORCE_IDS_FAILURE, FORCE_CONNECTION_PREFLIGHT_SUCCESS, MOCK_CONNECTION_HOST, MOCK_CONNECTION_NETLDI, MOCK_CONNECTION_AVAILABLE_STONES, MOCK_CONNECTION_AVAILABLE_NETLDIS
+    payload = request.get_json(force=True) or {}
+    FORCE_IDS_FAILURE = bool(payload.get("idsFail", False))
+    FORCE_CONNECTION_PREFLIGHT_SUCCESS = bool(payload.get("preflightSuccess", False))
+    MOCK_CONNECTION_HOST = str(payload.get("host", DEFAULT_CONNECTION_HOST) or DEFAULT_CONNECTION_HOST).strip() or DEFAULT_CONNECTION_HOST
+    MOCK_CONNECTION_NETLDI = str(payload.get("netldi", DEFAULT_CONNECTION_NETLDI) or DEFAULT_CONNECTION_NETLDI).strip() or DEFAULT_CONNECTION_NETLDI
+    available_stones = payload.get("availableStones")
+    if isinstance(available_stones, list):
+        MOCK_CONNECTION_AVAILABLE_STONES = [
+            str(item or "").strip()
+            for item in available_stones
+            if str(item or "").strip()
+        ] or copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_STONES)
+    else:
+        MOCK_CONNECTION_AVAILABLE_STONES = copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_STONES)
+    available_netldis = payload.get("availableNetldis")
+    if isinstance(available_netldis, list):
+        parsed_netldis = []
+        for item in available_netldis:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            port = str(item.get("port", "")).strip()
+            if not name and not port:
+                continue
+            parsed_netldis.append({"name": name, "port": port})
+        MOCK_CONNECTION_AVAILABLE_NETLDIS = parsed_netldis or copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_NETLDIS)
+    else:
+        MOCK_CONNECTION_AVAILABLE_NETLDIS = copy.deepcopy(DEFAULT_CONNECTION_AVAILABLE_NETLDIS)
+    return jsonify(
+        success=True,
+        idsFail=FORCE_IDS_FAILURE,
+        preflightSuccess=FORCE_CONNECTION_PREFLIGHT_SUCCESS,
+        host=MOCK_CONNECTION_HOST,
+        netldi=MOCK_CONNECTION_NETLDI,
+        availableStones=MOCK_CONNECTION_AVAILABLE_STONES,
+        availableNetldis=MOCK_CONNECTION_AVAILABLE_NETLDIS,
+    )
 
 
 @app.route("/transaction/commit", methods=["GET", "POST"])
@@ -880,6 +1214,7 @@ def object_evaluate(oop: int):
     payload = request.get_json(silent=True) or {}
     code = str(payload.get("code", "") if request.method == "POST" else request.args.get("code", "")).strip()
     if code == "1/0":
+        DEBUG_THREADS[700]["sessionChannel"] = _normalize_write_session_channel(_request_session_channel())
         result = {
             "oop": 555,
             "inspection": "a ZeroDivide occurred (error 2026), reason:numErrIntDivisionByZero, attempt to divide 1 by zero",

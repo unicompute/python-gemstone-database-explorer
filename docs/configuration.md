@@ -14,8 +14,16 @@ GemStone Database Explorer is configured entirely through environment variables,
 
 | Variable | Description | Default |
 |---|---|---|
-| `GEMSTONE_NRS` | Network Resource String identifying the Stone process | local shared-memory login |
-| `GS_STONE_NAME` | Stone name (alternative to a full NRS) | `gs64stone` |
+| `GS_STONE` | Stone name to connect to | `gs64stone` |
+| `GS_STONE_NAME` | Compatibility alias for `GS_STONE` in this app | unset |
+| `GS_HOST` | Host running the stone/netldi | `localhost` |
+| `GS_NETLDI` | NetLDI service name or port | `netldi` |
+| `GS_GEM_SERVICE` | Gem service name | `gemnetobject` |
+| `GS_LIB_PATH` | Explicit path to the GCI shared library | auto-discover |
+
+If your running Stone is named `seaside`, export `GS_STONE=seaside` before starting the app. `GS_STONE_NAME` is accepted here as a compatibility alias, but the underlying `gemstone-py` client natively reads `GS_STONE`.
+
+The explorer taskbar `Connection` window and `GET /connection/preflight` surface the effective target, the local `gslist -lcv` probe when available, and suggested fixes for common mistakes such as leaving the default `gs64stone` configured when the running Stone is actually named `seaside`.
 
 ## Example
 
@@ -23,7 +31,9 @@ GemStone Database Explorer is configured entirely through environment variables,
 export GEMSTONE=/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin
 export GS_USERNAME=DataCurator
 export GS_PASSWORD=swordfish
-export GEMSTONE_NRS='!tcp@localhost#server!gemstone'
+export GS_HOST=localhost
+export GS_NETLDI=50377
+export GS_STONE=seaside
 
 .venv/bin/python-gemstone-database-explorer
 ```
@@ -42,6 +52,11 @@ export LD_LIBRARY_PATH=$GEMSTONE/lib:$LD_LIBRARY_PATH
 
 ## Session management
 
-Each HTTP request opens a new GemStone session (login), performs its work, then logs out. Read-only requests abort before logout to release any implicit transaction. Write requests (add/remove dictionary or entry, commit, abort) use `read_only=False` and commit explicitly.
+The Flask app uses a small broker over `GemStoneSession` objects rather than naive per-request login/logout.
 
-This per-request model avoids the teardown-commit problem that arises when using Flask session pools with GemStone (GemStone error #0 when committing with no open transaction).
+- requests are routed into channel families, either from explicit `X-GS-Channel` headers or by route defaults
+- managed sessions are created lazily and reused within those channel families
+- read-only requests still abort on exit to release transaction state cleanly
+- write flows keep their managed session alive so debugger state and browser context can survive across requests
+
+GemStone/GCI access is still serialized behind a process-global lock, so this improves isolation and recovery but does not make a single Flask process fully parallel for GemStone work.
