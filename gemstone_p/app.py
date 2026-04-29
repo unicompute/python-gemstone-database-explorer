@@ -475,6 +475,7 @@ def _cb_error_payload_message(payload: object, fallback: str) -> str | None:
 
 
 _DEBUG_SOURCE_HINTS: dict[int, str] = {}
+_DEBUG_REPLAY_RECEIVERS: dict[int, int] = {}
 
 
 def _remember_debug_source_hint(thread_oop: object, source: str) -> None:
@@ -495,12 +496,39 @@ def _debug_source_hint(thread_oop: object) -> str:
     return _DEBUG_SOURCE_HINTS.get(oop, "")
 
 
+def _remember_debug_replay_receiver(thread_oop: object, receiver_oop: object) -> None:
+    try:
+        oop = int(thread_oop)
+        receiver = int(receiver_oop)
+    except Exception:
+        return
+    if oop > 20 and receiver > 20:
+        _DEBUG_REPLAY_RECEIVERS[oop] = receiver
+
+
+def _debug_replay_receiver(thread_oop: object) -> int | None:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return None
+    receiver = _DEBUG_REPLAY_RECEIVERS.get(oop)
+    return int(receiver) if isinstance(receiver, int) and receiver > 20 else None
+
+
 def _forget_debug_source_hint(thread_oop: object) -> None:
     try:
         oop = int(thread_oop)
     except Exception:
         return
     _DEBUG_SOURCE_HINTS.pop(oop, None)
+
+
+def _forget_debug_replay_receiver(thread_oop: object) -> None:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return
+    _DEBUG_REPLAY_RECEIVERS.pop(oop, None)
 
 
 def create_app() -> Flask:
@@ -537,6 +565,7 @@ def create_app() -> Flask:
         object_view_fn=lambda *args, **kwargs: object_view(*args, **kwargs),
         eval_in_context_fn=lambda *args, **kwargs: eval_in_context(*args, **kwargs),
         remember_debug_source_hint=_remember_debug_source_hint,
+        remember_debug_replay_receiver=_remember_debug_replay_receiver,
     )
 
     # ------------------------------------------------------------------ #
@@ -603,8 +632,11 @@ def create_app() -> Flask:
         decode_field_fn=_decode_field,
         int_arg_fn=_int_arg,
         debug_source_hint_fn=_debug_source_hint,
+        debug_replay_receiver_fn=_debug_replay_receiver,
         remember_debug_source_hint_fn=_remember_debug_source_hint,
+        remember_debug_replay_receiver_fn=_remember_debug_replay_receiver,
         forget_debug_source_hint_fn=_forget_debug_source_hint,
+        forget_debug_replay_receiver_fn=_forget_debug_replay_receiver,
         debug_object_ref_fn=lambda *args, **kwargs: _debug_object_ref(*args, **kwargs),
         line_number_for_offset_fn=_line_number_for_offset,
     )

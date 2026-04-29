@@ -116,4 +116,89 @@ test('object browser model resolves inspector tab captions and custom tab paging
     objectBrowserModel.customTabRangeQuery({keep: 'x'}, customTabs[0], 11, 60),
     {keep: 'x', range_maglev_from: 11, range_maglev_to: 60}
   );
+  assert.deepEqual(
+    objectBrowserModel.buildPagedCollectionState({page: 1, pageSize: 20, total: 55, count: 20, hasMore: true}),
+    {
+      page: 1,
+      pageSize: 20,
+      total: 55,
+      count: 20,
+      offset: 20,
+      start: 21,
+      stop: 40,
+      pageNumber: 2,
+      canPrev: true,
+      canNext: true,
+    }
+  );
+  assert.deepEqual(
+    objectBrowserModel.buildCustomTabPagerState({3: [], 1: [], 2: []}, 10, customTabs[0]),
+    {
+      bounds: {from: 1, to: 3, count: 3},
+      pageSize: 50,
+      total: 10,
+      showPager: true,
+      summaryText: '1-3 of 10',
+      canPrev: false,
+      canNext: true,
+      canLoadAll: true,
+      prevRange: {from: 1, to: 10},
+      nextRange: {from: 4, to: 10},
+      allRange: {from: 1, to: 10},
+    }
+  );
+});
+
+test('object browser model builds method-browser button, tab, and load state', () => {
+  assert.deepEqual(
+    objectBrowserModel.buildMethodBrowserButtonState(),
+    {
+      disabled: true,
+      title: 'Open the current method in Class Browser',
+    }
+  );
+  assert.deepEqual(
+    objectBrowserModel.buildMethodBrowserButtonState({
+      className: 'Behavior',
+      meta: true,
+      method: 'new',
+    }),
+    {
+      disabled: false,
+      title: 'Open Behavior class >> new',
+    }
+  );
+  assert.deepEqual(
+    objectBrowserModel.resolveInspectorTab('missing', {
+      availableTabs: ['instvars', 'code'],
+      defaultTab: 'code',
+    }),
+    {
+      availableTabs: ['instvars', 'code'],
+      resolvedTab: 'code',
+      showTabs: true,
+      showMethodBrowser: true,
+    }
+  );
+  assert.deepEqual(
+    objectBrowserModel.buildObjectLoadStartState(44, {foo: 'bar', empty: ''}, {keepInstPage: false}),
+    {
+      currentOop: 44,
+      currentObjData: null,
+      currentObjectQuery: {foo: 'bar'},
+      mbClassName: '',
+      mbCurrentCategory: null,
+      mbCurrentSelector: null,
+      constantPage: 0,
+      instPage: 0,
+      modulePage: 0,
+    }
+  );
+  assert.equal(
+    objectBrowserModel.chooseRequestedInspectorTab('instvars', {defaultTab: 'code'}, {
+      preferredInitialTab: 'modules',
+      preserveCurrentTab: true,
+    }),
+    'modules'
+  );
 });

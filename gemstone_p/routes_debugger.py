@@ -6,6 +6,10 @@ from flask import jsonify, request
 from gemstone_py import OOP_FALSE, OOP_NIL, OOP_TRUE
 from gemstone_py.client import OopRef
 
+from .object_view_eval import eval_in_context
+from .routes_debugger_actions import register_debugger_action_routes
+from .routes_debugger_read import register_debugger_read_routes
+
 
 def register_debugger_routes(
     app,
@@ -17,12 +21,16 @@ def register_debugger_routes(
     decode_field_fn,
     int_arg_fn,
     debug_source_hint_fn,
+    debug_replay_receiver_fn,
     remember_debug_source_hint_fn,
+    remember_debug_replay_receiver_fn,
     forget_debug_source_hint_fn,
+    forget_debug_replay_receiver_fn,
     debug_object_ref_fn,
     line_number_for_offset_fn,
 ) -> None:
     _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
+    _PROCESS_STATUS_RE = re.compile(r"\bstatus=([A-Za-z]+)\b")
 
     def _reported_line_number(summary: str) -> int:
         match = _LINE_RE.search(str(summary or ""))
@@ -109,6 +117,76 @@ def register_debugger_routes(
     def _reported_or_offset_line_number(source: str, source_offset: int, summary: str) -> int:
         return _reported_line_number(summary) or line_number_for_offset_fn(source, source_offset) or (1 if source else 0)
 
+    def _source_line_spans(source: object) -> list[tuple[int, int, int]]:
+        text = str(source or "")
+        if not text:
+            return []
+        spans: list[tuple[int, int, int]] = []
+        start = 1
+        length = len(text)
+        index = 0
+        while index < length:
+            line_start = start
+            content_end = start - 1
+            while index < length and text[index] not in "\r\n":
+                index += 1
+                content_end += 1
+                start += 1
+            line_end = content_end
+            if index < length:
+                if text[index] == "\r" and (index + 1) < length and text[index + 1] == "\n":
+                    index += 2
+                    start += 2
+                else:
+                    index += 1
+                    start += 1
+            spans.append((line_start, line_end, start - 1))
+        if text.endswith(("\n", "\r")):
+            spans.append((start, start - 1, start - 1))
+        return spans
+
+    def _workspace_executed_code_body_bounds(source: object) -> tuple[int, int] | None:
+        text = str(source or "")
+        spans = _source_line_spans(text)
+        if len(spans) < 4:
+            return None
+        second_start, second_end, _ = spans[1]
+        last_start, last_end, _ = spans[-1]
+        second_line = text[second_start - 1:second_end].strip()
+        last_line = text[last_start - 1:last_end].strip()
+        if second_line != "^ [" or last_line != "] value":
+            return None
+        body_start = spans[2][0]
+        body_end = spans[-2][1]
+        return (body_start, body_end)
+
+    def _workspace_executed_code_source(source: object) -> str:
+        text = str(source or "")
+        bounds = _workspace_executed_code_body_bounds(text)
+        if bounds is None:
+            return text
+        return text[bounds[0] - 1:bounds[1]]
+
+    def _workspace_executed_code_display_offset(source: object, raw_offset: int, step_point: int) -> int:
+        text = str(source or "")
+        bounds = _workspace_executed_code_body_bounds(text)
+        try:
+            offset = int(raw_offset or 0)
+        except Exception:
+            offset = 0
+        try:
+            point = int(step_point or 0)
+        except Exception:
+            point = 0
+        if bounds is None:
+            return max(0, offset)
+        body_start, body_end = bounds
+        if body_start <= offset <= body_end:
+            return offset - body_start + 1
+        if point <= 1:
+            return 1
+        return 0
+
     def _source_offset_from_detail(session, detail, step_point: int) -> int:
         if step_point <= 0:
             return 0
@@ -138,12 +216,16 @@ def register_debugger_routes(
             })
         return variables
 
-    def _context_method_name(session, ctx, fallback: str = "unknown") -> str:
+    def _context_method_identity(session, ctx) -> tuple[str, str, object | None]:
         receiver = _send_safe(session, ctx, "receiver", default=None)
         receiver_class = _send_safe(session, receiver, "class", default=None)
         owner_name = _safe_print_string(session, _send_safe(session, receiver_class, "name", default=None), "")
         method = _send_safe(session, ctx, "method", default=None)
         selector_name = _safe_print_string(session, _send_safe(session, method, "selector", default=None), "")
+        return owner_name, selector_name, method
+
+    def _context_method_name(session, ctx, fallback: str = "unknown") -> str:
+        owner_name, selector_name, _ = _context_method_identity(session, ctx)
         if owner_name and selector_name:
             return f"{owner_name}>>{selector_name}"
         return _safe_print_string(session, ctx, fallback)
@@ -187,11 +269,45 @@ def register_debugger_routes(
             named.pop(0)
         return named or [{"index": level, "name": _context_method_name(session, ctx, f"frame {level}")} for level, ctx in chain]
 
+    def _debug_process_print_string_status(print_string: object) -> str:
+        text = str(print_string or "").strip()
+        if not text.startswith("GsProcess("):
+            return ""
+        match = _PROCESS_STATUS_RE.search(text)
+        if not match:
+            return "running"
+        status = match.group(1).strip().lower()
+        if status == "halted":
+            return "suspended"
+        if status in {"terminated", "terminationstarted"}:
+            return "terminated"
+        return status
+
     def _has_live_debugger_process(session, process_oop: int) -> bool:
+        ps = _send_safe(session, process_oop, "printString", default="")
+        if _debug_process_print_string_status(ps) == "terminated":
+            return False
         if isinstance(_send_safe(session, process_oop, "suspendedContext", default=None), OopRef):
             return True
-        ps = _send_safe(session, process_oop, "printString", default="")
         return isinstance(ps, str) and ps.startswith("GsProcess(")
+
+    def _debug_process_status(session, process_oop: int) -> str:
+        status = str(_send_safe(session, process_oop, "status", default="") or "").strip().lower()
+        if status == "halted":
+            return "suspended"
+        if status in {"suspended", "running", "terminated"}:
+            return status
+        ps = _send_safe(session, process_oop, "printString", default="")
+        print_status = _debug_process_print_string_status(ps)
+        if print_status == "terminated":
+            return "terminated"
+        if isinstance(_send_safe(session, process_oop, "suspendedContext", default=None), OopRef):
+            return "suspended"
+        if print_status:
+            return "running" if print_status == "terminated" else print_status
+        if isinstance(ps, str) and ps.startswith("GsProcess("):
+            return "running"
+        return "terminated"
 
     def _live_debug_frame_payload(session, process_oop: int, frame_index: int, debug_object_ref_fn) -> dict:
         chain = _context_chain(session, process_oop)
@@ -199,6 +315,8 @@ def register_debugger_routes(
         if target is None:
             return {
                 "methodName": "(no frame)",
+                "className": "",
+                "selectorName": "",
                 "ipOffset": 0,
                 "selfPrintString": "",
                 "selfObject": debug_object_ref_fn(session, None, ""),
@@ -208,11 +326,19 @@ def register_debugger_routes(
                 "lineNumber": 0,
                 "hasFrame": False,
                 "canStep": False,
+                "canProceed": False,
+                "canRestart": False,
+                "canTrim": False,
+                "canTerminate": False,
+                "canStepInto": False,
+                "canStepOver": False,
+                "canStepReturn": False,
                 "variables": [],
                 "frameIndex": frame_index,
             }
 
-        method_name = _context_method_name(session, target, "(no frame)")
+        class_name, selector_name, method = _context_method_identity(session, target)
+        method_name = f"{class_name}>>{selector_name}" if class_name and selector_name else _safe_print_string(session, target, "(no frame)")
         receiver = _send_safe(session, target, "receiver", default=None)
         receiver_oop = _marshal_to_oop(session, receiver)
         self_ps = _safe_print_string(session, receiver, "")
@@ -221,7 +347,7 @@ def register_debugger_routes(
             _safe_print_string(session, _send_safe(session, target, "sourceCode", default=None), "")
             or _safe_print_string(session, _send_safe(session, target, "sourceString", default=None), "")
             or _safe_print_string(session, _collection_at(session, detail, 9, default=None), "")
-            or _safe_print_string(session, _send_safe(session, _send_safe(session, target, "method", default=None), "sourceString", default=None), "")
+            or _safe_print_string(session, _send_safe(session, method, "sourceString", default=None), "")
             or _safe_print_string(session, _send_safe(session, _send_safe(session, target, "homeMethod", default=None), "sourceString", default=None), "")
         )
         step_point = _collection_at(session, detail, 5, default=0)
@@ -233,8 +359,13 @@ def register_debugger_routes(
         variables = _variable_entries_from_detail(session, detail, debug_object_ref_fn)
         self_object = debug_object_ref_fn(session, receiver_oop, self_ps)
         line_number = _reported_or_offset_line_number(source, source_offset, method_name)
+        status = _debug_process_status(session, process_oop)
+        can_control = status in {"suspended", "running"}
+        can_step = status == "suspended" and step_point > 0
         return {
             "methodName": method_name,
+            "className": class_name,
+            "selectorName": selector_name,
             "ipOffset": 0,
             "selfPrintString": self_ps,
             "selfObject": self_object,
@@ -242,8 +373,17 @@ def register_debugger_routes(
             "sourceOffset": source_offset,
             "stepPoint": step_point,
             "lineNumber": line_number,
+            "status": status,
+            "isLiveSession": can_control,
             "hasFrame": True,
-            "canStep": step_point > 0,
+            "canStep": can_step,
+            "canProceed": status == "suspended",
+            "canRestart": status == "suspended",
+            "canTrim": status == "suspended",
+            "canTerminate": can_control,
+            "canStepInto": can_step,
+            "canStepOver": can_step,
+            "canStepReturn": can_step,
             "variables": variables,
             "frameIndex": frame_index,
         }
@@ -278,9 +418,9 @@ def register_debugger_routes(
         return False
 
     def _direct_trim_action(session, process_oop: int, frame_index: int) -> bool | None:
-        if not _has_live_debugger_process(session, process_oop):
-            return None
         chain = _context_chain(session, process_oop)
+        if not chain and not _has_live_debugger_process(session, process_oop):
+            return None
         target = next((ctx for level, ctx in chain if level == frame_index), None)
         if target is not None:
             result = _send_safe(session, process_oop, "trimTo:", target, default=Ellipsis)
@@ -295,23 +435,320 @@ def register_debugger_routes(
             ],
         )
 
-    def _direct_restart_action(session, process_oop: int, frame_index: int) -> bool | None:
-        if not _has_live_debugger_process(session, process_oop):
+    def _normalized_debug_source_text(source: object) -> str:
+        text = str(source or "").replace("\r\n", "\n").replace("\r", "\n")
+        return "\n".join(line.rstrip() for line in text.split("\n")).strip()
+
+    def _source_matches_debug_hint(source: object, hint: str) -> bool:
+        candidate = _normalized_debug_source_text(source)
+        normalized_hint = _normalized_debug_source_text(hint)
+        if not candidate or not normalized_hint:
+            return False
+        return (
+            candidate == normalized_hint
+            or normalized_hint in candidate
+            or candidate in normalized_hint
+        )
+
+    def _primary_debug_frame_level(session, process_oop: int) -> int:
+        frames = _visible_debug_frames(session, process_oop)
+        if not frames:
+            return 1
+        try:
+            return max(1, int(frames[0].get("index", 0)) + 1)
+        except Exception:
+            return 1
+
+    def _debug_process_quick_step_point(session, process_oop: int, frame_level: int) -> int:
+        detail = _send_safe(session, process_oop, "_gsiDebuggerDetailedReportAt:", int(frame_level), default=None)
+        step_point = _collection_at(session, detail, 5, default=0)
+        try:
+            return max(0, int(step_point))
+        except Exception:
+            return 0
+
+    def _debug_process_context_for_level(session, process_oop: int, frame_level: int) -> OopRef | None:
+        zero_based_level = max(0, int(frame_level) - 1)
+        return next((ctx for level, ctx in _context_chain(session, process_oop) if level == zero_based_level), None)
+
+    def _rewind_debug_context_to_step_one(session, context) -> None:
+        if context is None:
+            return
+        for selector in ("jumpToStepPoint:", "runToStepPoint:", "jumpTo:"):
+            _send_safe(session, context, selector, 1, default=Ellipsis)
+
+    def _rewind_debug_process_to_step_one_if_needed(session, process_oop: int, frame_level: int) -> int:
+        quick_step_point = _debug_process_quick_step_point(session, process_oop, frame_level)
+        if quick_step_point <= 1:
+            return quick_step_point
+        _send_safe(session, process_oop, "_gsiStepAtLevel:step:", int(frame_level), 1, default=Ellipsis)
+        _send_safe(session, process_oop, "jumpToStepPoint:", 1, default=Ellipsis)
+        _send_safe(session, process_oop, "runToStepPoint:", 1, default=Ellipsis)
+        _send_safe(session, process_oop, "jumpTo:", 1, default=Ellipsis)
+        _rewind_debug_context_to_step_one(session, _debug_process_context_for_level(session, process_oop, frame_level))
+        return _debug_process_quick_step_point(session, process_oop, frame_level)
+
+    def _restart_needs_workspace_replay(session, process_oop: int, frame_index: int = 0) -> bool:
+        source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
+        if not source_hint:
+            return False
+        restart_level = max(1, int(_restart_frame_index(session, process_oop, frame_index)) + 1)
+        return _debug_process_quick_step_point(session, process_oop, restart_level) > 1
+
+    def _workspace_selector_name(frame_payload: dict | None) -> str | None:
+        if not isinstance(frame_payload, dict):
             return None
+        selector_name = str(frame_payload.get("selectorName", "") or "").strip()
+        if selector_name.startswith("sigWorkspace"):
+            return selector_name
+        method_name = str(frame_payload.get("methodName", "") or "")
+        marker = "SigWorkspaceEvaluator>>"
+        if marker in method_name:
+            candidate = method_name.split(marker, 1)[1].strip()
+            if candidate.startswith("sigWorkspace"):
+                return candidate
+        return None
+
+    def _is_workspace_executed_frame(frame_payload: dict | None) -> bool:
+        if not isinstance(frame_payload, dict):
+            return False
+        method_name = str(frame_payload.get("methodName", "") or "")
+        if method_name.startswith("[] in SigWorkspaceEvaluator>>sigWorkspace"):
+            return True
+        class_name = str(frame_payload.get("className", "") or "")
+        selector_name = str(frame_payload.get("selectorName", "") or "")
+        try:
+            line_number = int(frame_payload.get("lineNumber", 0) or 0)
+        except Exception:
+            line_number = 0
+        try:
+            step_point = int(frame_payload.get("stepPoint", 0) or 0)
+        except Exception:
+            step_point = 0
+        source = str(frame_payload.get("source", "") or "")
+        return (
+            class_name == "SigWorkspaceEvaluator"
+            and selector_name.startswith("sigWorkspace")
+            and (
+                line_number == 1
+                or step_point == 1
+                or _workspace_executed_code_body_bounds(source) is not None
+            )
+        )
+
+    def _restart_frame_index(session, process_oop: int, selected_frame_index: int) -> int:
+        frames = _visible_debug_frames(session, process_oop)
+        if not frames:
+            return max(0, int(selected_frame_index or 0))
+        source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
+        selected = next(
+            (frame for frame in frames if int(frame.get("index", -1)) == int(selected_frame_index)),
+            None,
+        )
+        if selected is None:
+            selected = frames[0]
+        resolved_index = int_arg_fn(selected.get("index", selected_frame_index), 0)
+        top_visible_index = int_arg_fn(frames[0].get("index", 0), 0)
+        payload_cache: dict[int, dict] = {}
+
+        def payload_for(frame_index: int) -> dict:
+            cached = payload_cache.get(frame_index)
+            if cached is not None:
+                return cached
+            try:
+                cached = _live_debug_frame_payload(session, process_oop, frame_index, debug_object_ref_fn)
+            except Exception:
+                cached = {}
+            payload_cache[frame_index] = cached
+            return cached
+
+        executed_index = None
+        executed_payload = None
+        for frame in frames:
+            frame_index = int_arg_fn(frame.get("index", 0), 0)
+            payload = payload_for(frame_index)
+            if _is_workspace_executed_frame(payload):
+                executed_index = frame_index
+                executed_payload = payload
+                break
+            if (
+                source_hint
+                and str(payload.get("className", "") or "") == "SigWorkspaceEvaluator"
+                and str(payload.get("selectorName", "") or "").startswith("sigWorkspace")
+                and (
+                    frame_index == top_visible_index
+                    or _source_matches_debug_hint(payload.get("source", ""), source_hint)
+                )
+            ):
+                executed_index = frame_index
+                executed_payload = payload
+                break
+        if executed_index is None:
+            return resolved_index
+        workspace_selector = _workspace_selector_name(executed_payload)
+        wrapper_candidates: list[int] = []
+        for frame in frames:
+            frame_index = int_arg_fn(frame.get("index", 0), 0)
+            if frame_index <= executed_index:
+                continue
+            payload = payload_for(frame_index)
+            if str(payload.get("className", "") or "") != "SigWorkspaceEvaluator":
+                continue
+            candidate_selector = _workspace_selector_name(payload)
+            candidate_matches_hint = bool(source_hint) and _source_matches_debug_hint(payload.get("source", ""), source_hint)
+            if workspace_selector is None:
+                if candidate_selector is not None or candidate_matches_hint:
+                    wrapper_candidates.append(frame_index)
+            elif candidate_selector == workspace_selector or candidate_matches_hint:
+                wrapper_candidates.append(frame_index)
+        return max(wrapper_candidates) if wrapper_candidates else executed_index
+
+    def _effective_debug_action_frame_index(session, process_oop: int, selected_frame_index: int) -> int:
+        frames = _visible_debug_frames(session, process_oop)
+        if not frames:
+            return max(0, int(selected_frame_index or 0))
+        source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
+        selected = next(
+            (frame for frame in frames if int(frame.get("index", -1)) == int(selected_frame_index)),
+            None,
+        )
+        if selected is None:
+            selected = frames[0]
+        resolved_index = int_arg_fn(selected.get("index", selected_frame_index), 0)
+        if resolved_index != 0:
+            return resolved_index
+        payload_cache: dict[int, dict] = {}
+
+        def payload_for(frame_index: int) -> dict:
+            cached = payload_cache.get(frame_index)
+            if cached is not None:
+                return cached
+            try:
+                cached = _live_debug_frame_payload(session, process_oop, frame_index, debug_object_ref_fn)
+            except Exception:
+                cached = {}
+            payload_cache[frame_index] = cached
+            return cached
+
+        selected_payload = payload_for(resolved_index)
+        if _is_workspace_executed_frame(selected_payload):
+            return resolved_index
+        for frame in frames:
+            frame_index = int_arg_fn(frame.get("index", 0), 0)
+            if frame_index <= resolved_index:
+                continue
+            payload = payload_for(frame_index)
+            if _is_workspace_executed_frame(payload):
+                return frame_index
+            if (
+                source_hint
+                and str(payload.get("className", "") or "") == "SigWorkspaceEvaluator"
+                and str(payload.get("selectorName", "") or "").startswith("sigWorkspace")
+                and _source_matches_debug_hint(payload.get("source", ""), source_hint)
+            ):
+                return frame_index
+        return resolved_index
+
+    def _preferred_debugger_frame_index(session, process_oop: int) -> int:
+        frames = _visible_debug_frames(session, process_oop)
+        if not frames:
+            return 0
+        source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
+        fallback_index = int_arg_fn(frames[0].get("index", 0), 0)
+        for frame in frames:
+            frame_index = int_arg_fn(frame.get("index", fallback_index), fallback_index)
+            try:
+                payload = _live_debug_frame_payload(session, process_oop, frame_index, debug_object_ref_fn)
+            except Exception:
+                payload = {}
+            if _is_workspace_executed_frame(payload):
+                return frame_index
+            if (
+                source_hint
+                and str(payload.get("className", "") or "") == "SigWorkspaceEvaluator"
+                and str(payload.get("selectorName", "") or "").startswith("sigWorkspace")
+                and _source_matches_debug_hint(payload.get("source", ""), source_hint)
+            ):
+                return frame_index
+            method_name = str(frame.get("name", "") or "")
+            if method_name.lower().startswith("executed code"):
+                return frame_index
+        return fallback_index
+
+    def _terminate_debug_process(session, process_oop: int) -> None:
+        for selector in ("terminate", "terminateProcess"):
+            result = _send_safe(session, process_oop, selector, default=Ellipsis)
+            if result is not Ellipsis:
+                return
+
+    def _restart_replay_receiver_oop(session, process_oop: int) -> int | None:
+        remembered_receiver = debug_replay_receiver_fn(process_oop)
+        if isinstance(remembered_receiver, int) and remembered_receiver > 20:
+            return remembered_receiver
+        context = _debug_process_context_for_level(session, process_oop, 1)
+        receiver = _send_safe(session, context, "receiver", default=None)
+        return _marshal_to_oop(session, receiver)
+
+    def _restart_workspace_debug_process(session, process_oop: int) -> dict | bool:
+        source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
+        if not source_hint:
+            return False
+        receiver_oop = _restart_replay_receiver_oop(session, process_oop)
+        if receiver_oop is None:
+            return False
+        _terminate_debug_process(session, process_oop)
+        replay = eval_in_context(session, receiver_oop, source_hint, "smalltalk")
+        new_process_oop = replay.get("debugThreadOop")
+        try:
+            new_process_oop = int(new_process_oop)
+        except Exception:
+            new_process_oop = None
+        if not replay.get("isException") or not new_process_oop:
+            forget_debug_source_hint_fn(process_oop)
+            forget_debug_replay_receiver_fn(process_oop)
+            return {"completed": True}
+        remember_debug_source_hint_fn(new_process_oop, source_hint)
+        remember_debug_replay_receiver_fn(new_process_oop, receiver_oop)
+        if new_process_oop != process_oop:
+            forget_debug_source_hint_fn(process_oop)
+            forget_debug_replay_receiver_fn(process_oop)
+        _restart_workspace_process_in_place(
+            session,
+            new_process_oop,
+            _preferred_debugger_frame_index(session, new_process_oop),
+        )
+        return {"thread_oop": new_process_oop}
+
+    def _restart_workspace_process_in_place(session, process_oop: int, frame_index: int) -> bool:
         chain = _context_chain(session, process_oop)
-        target = next((ctx for level, ctx in chain if level == frame_index), None)
+        if not chain and not _has_live_debugger_process(session, process_oop):
+            return False
+        restart_frame_index = _restart_frame_index(session, process_oop, frame_index)
+        target = next((ctx for level, ctx in chain if level == restart_frame_index), None)
+        restart_level = max(1, int(restart_frame_index) + 1)
         trim_result = Ellipsis
         if target is not None:
             trim_result = _send_safe(session, process_oop, "trimTo:", target, default=Ellipsis)
         if trim_result is Ellipsis or not _debug_action_succeeded(trim_result):
             for selector in ("trimStackToLevel:", "_trimStackToLevel:"):
-                trim_result = _send_safe(session, process_oop, selector, frame_index + 1, default=Ellipsis)
+                trim_result = _send_safe(session, process_oop, selector, restart_level, default=Ellipsis)
                 if trim_result is not Ellipsis and _debug_action_succeeded(trim_result):
                     break
         if trim_result is Ellipsis or not _debug_action_succeeded(trim_result):
-            return False
-        restart_result = _send_safe(session, process_oop, "restart", default=Ellipsis)
-        return restart_result is not Ellipsis and _debug_action_succeeded(restart_result)
+            if restart_level != 1:
+                return False
+        _rewind_debug_process_to_step_one_if_needed(session, process_oop, restart_level)
+        return True
+
+    def _direct_restart_action(session, process_oop: int, frame_index: int) -> dict | bool | None:
+        if not _restart_workspace_process_in_place(session, process_oop, frame_index):
+            chain = _context_chain(session, process_oop)
+            if chain or _has_live_debugger_process(session, process_oop):
+                return False
+            return None
+        if _restart_needs_workspace_replay(session, process_oop, frame_index):
+            return _restart_workspace_debug_process(session, process_oop)
+        return {"thread_oop": process_oop}
 
     def _debug_process_resolver(oop: int) -> str:
         return (
@@ -396,499 +833,40 @@ def register_debugger_routes(
             f"] value"
         )
 
-    @app.get("/debug/threads")
-    def debug_threads():
-        try:
-            with request_session_factory() as session:
-                raw = eval_str_fn(
-                    session,
-                    f"| result |\n"
-                    f"{encode_src}\n"
-                    "result := ''.\n"
-                    "[\n"
-                    "  GsProcess allSubinstances do: [:p |\n"
-                    "    | status ps ctx sourcePreview exceptionObj exceptionText |\n"
-                    "    status := [p status] on: Error do: [:e | 'unknown'].\n"
-                    "    (status = 'suspended' or: [status = 'halted']) ifTrue: [\n"
-                    "      ps := [p printString] on: Error do: [:e | 'a GsProcess'].\n"
-                    "      ps := ps size > 160 ifTrue: [ps copyFrom: 1 to: 160] ifFalse: [ps].\n"
-                    "      ctx := [p suspendedContext] on: Error do: [:e | nil].\n"
-                    "      sourcePreview := ''.\n"
-                    "      ctx notNil ifTrue: [\n"
-                    "        sourcePreview := [[ctx method sourceString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                    "        sourcePreview isNil ifTrue: [sourcePreview := ''].\n"
-                    "        sourcePreview := sourcePreview withBlanksTrimmed.\n"
-                    "        (sourcePreview includes: Character lf) ifTrue: [sourcePreview := sourcePreview copyUpTo: Character lf].\n"
-                    "        sourcePreview := sourcePreview size > 160 ifTrue: [sourcePreview copyFrom: 1 to: 160] ifFalse: [sourcePreview]\n"
-                    "      ].\n"
-                    "      exceptionObj := nil.\n"
-                    "      exceptionObj isNil ifTrue: [\n"
-                    "        exceptionObj := [(p respondsTo: #exception) ifTrue: [p exception] ifFalse: [nil]] on: Error do: [:e | nil]\n"
-                    "      ].\n"
-                    "      exceptionObj isNil ifTrue: [\n"
-                    "        exceptionObj := [(p respondsTo: #lastException) ifTrue: [p lastException] ifFalse: [nil]] on: Error do: [:e | nil]\n"
-                    "      ].\n"
-                    "      exceptionObj isNil ifTrue: [\n"
-                    "        [[p threadStorage do: [:assoc |\n"
-                    "          | keyText candidate |\n"
-                    "          exceptionObj notNil ifFalse: [\n"
-                    "            keyText := [[assoc key asString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                    "            candidate := [assoc value] on: Error do: [:e | nil].\n"
-                    "            ((candidate notNil) and: [keyText asLowercase includesSubstring: 'exception']) ifTrue: [\n"
-                    "              exceptionObj := candidate\n"
-                    "            ]\n"
-                    "          ]\n"
-                    "        ]] on: Error do: [:e | nil]\n"
-                    "      ].\n"
-                    "      exceptionText := ''.\n"
-                    "      exceptionObj notNil ifTrue: [\n"
-                    "        exceptionText := [[exceptionObj inspect] on: Error do: [:e | [exceptionObj printString] on: Error do: [:e2 | '']]] on: Error do: [:e | ''].\n"
-                    "        exceptionText isNil ifTrue: [exceptionText := ''].\n"
-                    "        exceptionText := exceptionText withBlanksTrimmed.\n"
-                    "        exceptionText := exceptionText size > 240 ifTrue: [exceptionText copyFrom: 1 to: 240] ifFalse: [exceptionText]\n"
-                    "      ].\n"
-                    "      result := result , (encode value: p asOop printString) , '|'\n"
-                    "        , (encode value: ps) , '|'\n"
-                    "        , (encode value: exceptionText) , '|'\n"
-                    "        , (encode value: sourcePreview)\n"
-                    "        , String lf asString\n"
-                    "    ]\n"
-                    "  ]\n"
-                    "] on: Error do: [:e | result := ''].\n"
-                    "result"
-                )
-                threads = []
-                for line in str(raw).splitlines():
-                    if "|" in line:
-                        parts = line.split("|", 3)
-                        try:
-                            oop = int(decode_field_fn(parts[0]).strip())
-                        except ValueError:
-                            continue
-                        print_string = decode_field_fn(parts[1]) if len(parts) > 1 else ""
-                        exception_text = decode_field_fn(parts[2]) if len(parts) > 2 else ""
-                        source_preview = decode_field_fn(parts[3]) if len(parts) > 3 else ""
-                        if not source_preview:
-                            source_preview = debug_source_hint_fn(oop)
-                        threads.append({
-                            "oop": oop,
-                            "printString": print_string,
-                            "exceptionText": exception_text,
-                            "sourcePreview": source_preview,
-                            "displayText": source_preview or exception_text or print_string,
-                        })
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, threads=threads)
-
-    @app.get("/debug/frames/<int:oop>")
-    def debug_frames(oop: int):
-        try:
-            with request_session_factory() as session:
-                if _has_live_debugger_process(session, oop):
-                    frames = _visible_debug_frames(session, oop)
-                else:
-                    raw = eval_str_fn(
-                        session,
-                        f"| obj proc result frameLevel maxFrames methodName ctx contextSkip receiver ownerName selectorName |\n"
-                        f"{encode_src}\n"
-                        f"{_debug_process_resolver(oop)}"
-                        f"result := ''.\n"
-                        f"maxFrames := 50.\n"
-                        f"[\n"
-                        f"{_debug_context_resolver('1')}"
-                        f"  frameLevel := 0.\n"
-                        f"  [ctx notNil and: [frameLevel < maxFrames]] whileTrue: [\n"
-                        f"    receiver := [ctx receiver] on: Error do: [:e | nil].\n"
-                        f"    ownerName := ''.\n"
-                        f"    receiver notNil ifTrue: [\n"
-                        f"      ownerName := [[receiver class name asString] on: Error do: [:e | '']] on: Error do: [:e | '']\n"
-                        f"    ].\n"
-                        f"    selectorName := [[[ctx method] selector asString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                        f"    methodName := ((ownerName notEmpty) and: [selectorName notEmpty])\n"
-                        f"      ifTrue: [ownerName , '>>' , selectorName]\n"
-                        f"      ifFalse: [[[ctx printString] on: Error do: [:e | 'unknown']] on: Error do: [:e | 'unknown']].\n"
-                        f"    result := result , frameLevel printString , '|'\n"
-                        f"      , (encode value: methodName) , String lf asString.\n"
-                        f"    ctx := [ctx sender] on: Error do: [:e | nil].\n"
-                        f"    frameLevel := frameLevel + 1\n"
-                        f"  ]\n"
-                        f"] on: Error do: [:e | result := '0|(error: ' , e messageText , ')'].\n"
-                        f"result"
-                    )
-                    frames = []
-                    for line in str(raw).splitlines():
-                        if "|" in line:
-                            idx_s, _, name = line.partition("|")
-                            try:
-                                frames.append({"index": int(idx_s), "name": decode_field_fn(name)})
-                            except ValueError:
-                                pass
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, frames=frames)
-
-    @app.get("/debug/frame/<int:oop>")
-    def debug_frame(oop: int):
-        frame_index = int(request.args.get("index", 0))
-        try:
-            with request_session_factory() as session:
-                if _has_live_debugger_process(session, oop):
-                    payload = _live_debug_frame_payload(session, oop, frame_index, debug_object_ref_fn)
-                    if not payload.get("source") and frame_index == 0:
-                        payload["source"] = debug_source_hint_fn(oop)
-                        payload["lineNumber"] = _reported_or_offset_line_number(
-                            str(payload.get("source", "")),
-                            int(payload.get("sourceOffset", 0) or 0),
-                            str(payload.get("methodName", "")),
-                        )
-                    method_name = payload["methodName"]
-                    ip_offset = payload["ipOffset"]
-                    self_ps = payload["selfPrintString"]
-                    self_object = payload["selfObject"]
-                    source = payload["source"]
-                    source_offset = payload["sourceOffset"]
-                    step_point = payload["stepPoint"]
-                    line_number = payload["lineNumber"]
-                    variables = payload["variables"]
-                    has_frame = bool(payload["hasFrame"])
-                    can_step = bool(payload["canStep"])
-                else:
-                    raw = eval_str_fn(
-                        session,
-                        f"| obj proc source receiver selfPs selfOop vars methodName ipOffset varLines stepPoint sourceOffset offsets rawOffset stackReport summary detail tempNames tempValues frameLevel ipValue stepValue n encode ctx contextSkip |\n"
-                        f"{encode_src}\n"
-                        f"{_debug_process_resolver(oop)}"
-                        f"frameLevel := {frame_index + 1}.\n"
-                        f"{_debug_context_resolver()}"
-                        f"stackReport := [proc _gsiStackReportFromLevel: frameLevel toLevel: frameLevel] on: Error do: [:e | nil].\n"
-                        f"summary := ((stackReport notNil) and: [stackReport size >= 1])\n"
-                        f"  ifTrue: [[stackReport at: 1] on: Error do: [:e | '']]\n"
-                        f"  ifFalse: [''].\n"
-                        f"detail := [proc _gsiDebuggerDetailedReportAt: frameLevel] on: Error do: [:e | nil].\n"
-                        f"((detail isNil) and: [ctx isNil]) ifTrue: [\n"
-                        f"  (encode value: '(no frame)') , '|'\n"
-                        f"    , (encode value: '0') , '|'\n"
-                        f"    , (encode value: '') , '|'\n"
-                        f"    , (encode value: '20') , '|'\n"
-                        f"    , (encode value: '') , '|'\n"
-                        f"    , (encode value: '0') , '|'\n"
-                        f"    , (encode value: '0') , '|'\n"
-                        f"    , (encode value: '')\n"
-                        f"] ifFalse: [\n"
-                        f"  methodName := summary.\n"
-                        f"  ((methodName isNil) or: [methodName isEmpty]) ifTrue: [\n"
-                        f"    methodName := [[detail first printString] on: Error do: [:e | '']] on: Error do: [:e | '']\n"
-                        f"  ].\n"
-                        f"  ((methodName isNil) or: [methodName isEmpty]) ifTrue: [\n"
-                        f"    methodName := (ctx notNil)\n"
-                        f"      ifTrue: [[[ctx printString] on: Error do: [:e | 'unknown']] on: Error do: [:e | 'unknown']]\n"
-                        f"      ifFalse: ['unknown']\n"
-                        f"  ].\n"
-                        f"  receiver := [[detail at: 2] on: Error do: [:e | nil]] on: Error do: [:e | nil].\n"
-                        f"  receiver isNil ifTrue: [\n"
-                        f"    receiver := (ctx notNil)\n"
-                        f"      ifTrue: [[ctx receiver] on: Error do: [:e | nil]]\n"
-                        f"      ifFalse: [nil]\n"
-                        f"  ].\n"
-                        f"  selfPs := [receiver printString] on: Error do: [:e | '?'].\n"
-                        f"  selfOop := [receiver asOop printString] on: Error do: [:e | '20'].\n"
-                        f"  source := [[detail at: 9] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                        f"  source isNil ifTrue: [source := ''].\n"
-                        f"  source := source withBlanksTrimmed.\n"
-                        f"  (source isEmpty and: [ctx notNil]) ifTrue: [\n"
-                        f"    source := [[ctx sourceCode] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                        f"    source isNil ifTrue: [source := ''].\n"
-                        f"    source := source withBlanksTrimmed.\n"
-                        f"  ].\n"
-                        f"  (source isEmpty and: [ctx notNil]) ifTrue: [\n"
-                        f"    source := [[ctx sourceString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                        f"    source isNil ifTrue: [source := ''].\n"
-                        f"    source := source withBlanksTrimmed.\n"
-                        f"  ].\n"
-                        f"  (source isEmpty and: [ctx notNil]) ifTrue: [\n"
-                        f"    source := [[[ctx method] sourceString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                        f"    source isNil ifTrue: [source := ''].\n"
-                        f"    source := source withBlanksTrimmed.\n"
-                        f"  ].\n"
-                        f"  (source isEmpty and: [ctx notNil]) ifTrue: [\n"
-                        f"    source := [[[ctx homeMethod] sourceString] on: Error do: [:e | '']] on: Error do: [:e | ''].\n"
-                        f"    source isNil ifTrue: [source := ''].\n"
-                        f"    source := source withBlanksTrimmed.\n"
-                        f"  ].\n"
-                        f"  source := source size > 4000\n"
-                        f"    ifTrue: [source copyFrom: 1 to: 4000]\n"
-                        f"    ifFalse: [source].\n"
-                        f"  ipValue := [detail at: 10] on: Error do: [:e | 0].\n"
-                        f"  ipOffset := [ipValue printString] on: Error do: [:e | '0'].\n"
-                        f"  varLines := OrderedCollection new.\n"
-                        f"  tempNames := [[detail at: 7] on: Error do: [:e | #()]] on: Error do: [:e | #()].\n"
-                        f"  tempValues := [[detail at: 8] on: Error do: [:e | #()]] on: Error do: [:e | #()].\n"
-                        f"  [1 to: tempNames size do: [:i |\n"
-                        f"    | v voop |\n"
-                        f"    n := [tempNames at: i] on: Error do: [:e | ''].\n"
-                        f"    v := [tempValues at: i ifAbsent: [nil]] on: Error do: [:e | nil].\n"
-                        f"    voop := [v asOop printString] on: Error do: [:e | '20'].\n"
-                        f"    varLines add: ((encode value: n asString) , Character tab asString , (encode value: voop))\n"
-                        f"  ]] on: Error do: [:e | ].\n"
-                        f"  vars := String streamContents: [:stream |\n"
-                        f"    varLines doWithIndex: [:line :lineIndex |\n"
-                        f"      lineIndex > 1 ifTrue: [stream nextPut: Character lf].\n"
-                        f"      stream nextPutAll: line\n"
-                        f"    ]\n"
-                        f"  ].\n"
-                        f"  stepValue := [detail at: 5] on: Error do: [:e | 0].\n"
-                        f"  stepPoint := [stepValue printString] on: Error do: [:e | '0'].\n"
-                        f"  offsets := [[detail at: 6] on: Error do: [:e | #()]] on: Error do: [:e | #()].\n"
-                        f"  sourceOffset := '0'.\n"
-                        f"  rawOffset := nil.\n"
-                        f"  [ | stepInt |\n"
-                        f"    stepInt := [stepPoint asInteger] on: Error do: [:e | 0].\n"
-                        f"    ((offsets isCollection) and: [stepInt > 0]) ifTrue: [\n"
-                        f"      rawOffset := [offsets at: stepInt ifAbsent: [nil]] on: Error do: [:e | nil]\n"
-                        f"    ]\n"
-                        f"  ] on: Error do: [:e | rawOffset := nil].\n"
-                        f"  rawOffset notNil ifTrue: [\n"
-                        f"    sourceOffset := [[rawOffset asInteger] on: Error do: [:e | 0]] printString\n"
-                        f"  ].\n"
-                        f"  (encode value: methodName) , '|'\n"
-                        f"    , (encode value: ipOffset) , '|'\n"
-                        f"    , (encode value: selfPs) , '|'\n"
-                        f"    , (encode value: selfOop) , '|'\n"
-                        f"    , (encode value: source) , '|'\n"
-                        f"    , (encode value: sourceOffset) , '|'\n"
-                        f"    , (encode value: stepPoint) , '|'\n"
-                        f"    , (encode value: vars)\n"
-                        f"]"
-                    )
-                    parts = str(raw).split("|", 7)
-                    method_name = decode_field_fn(parts[0]) if len(parts) > 0 else ""
-                    ip_offset = decode_field_fn(parts[1]) if len(parts) > 1 else "0"
-                    self_ps = decode_field_fn(parts[2]) if len(parts) > 2 else ""
-                    self_oop_raw = decode_field_fn(parts[3]) if len(parts) > 3 else ""
-                    source = decode_field_fn(parts[4]) if len(parts) > 4 else ""
-                    source_offset = int_arg_fn(decode_field_fn(parts[5]) if len(parts) > 5 else "0", 0)
-                    step_point = int_arg_fn(decode_field_fn(parts[6]) if len(parts) > 6 else "0", 0)
-                    vars_raw = decode_field_fn(parts[7]) if len(parts) > 7 else ""
-                    if not source and frame_index == 0:
-                        source = debug_source_hint_fn(oop)
-                    line_number = _reported_or_offset_line_number(source, source_offset, method_name)
-                    self_object = debug_object_ref_fn(session, self_oop_raw, self_ps)
-                    variables = []
-                    for item in vars_raw.splitlines():
-                        if not item.strip():
-                            continue
-                        fields = item.split("\t", 1)
-                        name = decode_field_fn(fields[0]) if len(fields) > 0 else ""
-                        value_oop_raw = decode_field_fn(fields[1]) if len(fields) > 1 else ""
-                        value_object = debug_object_ref_fn(session, value_oop_raw)
-                        variables.append({
-                            "name": name,
-                            "value": value_object.get("inspection", ""),
-                            "valueObject": value_object,
-                        })
-                    has_frame = method_name != "(no frame)"
-                    can_step = method_name != "(no frame)" and step_point > 0
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(
-            success=True,
-            methodName=method_name,
-            ipOffset=ip_offset,
-            selfPrintString=self_ps,
-            selfObject=self_object,
-            source=source,
-            sourceOffset=source_offset,
-            stepPoint=step_point,
-            lineNumber=line_number,
-            hasFrame=has_frame,
-            canStep=can_step,
-            variables=variables,
-            frameIndex=frame_index,
-        )
-
-    @app.post("/debug/proceed/<int:oop>")
-    def debug_proceed(oop: int):
-        try:
-            with request_session_factory(read_only=False) as session:
-                direct = _direct_debug_action(session, oop, [("resume", [])])
-                if direct is None:
-                    session.eval(
-                        f"| proc |\n"
-                        f"proc := {object_for_oop_expr_fn(oop)}.\n"
-                        f"[proc resume] on: Error do: [:e | ]"
-                    )
-                forget_debug_source_hint_fn(oop)
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
-
-    @app.post("/debug/step/<int:oop>")
-    def debug_step(oop: int):
-        frame_index = int((request.get_json(force=True) or {}).get("index", 0))
-        try:
-            with request_session_factory(read_only=False) as session:
-                direct = _direct_debug_action(
-                    session,
-                    oop,
-                    [
-                        ("step:", [frame_index + 1]),
-                        ("stepIntoFromLevel:", [frame_index + 1]),
-                        ("_stepIntoInFrame:", [frame_index + 1]),
-                        ("gciStepIntoFromLevel:", [frame_index + 1]),
-                    ],
-                )
-                if direct is False:
-                    return jsonify(success=False, exception="Debugger step is not supported for this process"), 400
-                if direct is None:
-                    result = session.eval(_debug_step_script(oop, ["step:", "stepIntoFromLevel:", "_stepIntoInFrame:", "gciStepIntoFromLevel:"], frame_index + 1))
-                    if not _is_true_result(result):
-                        return jsonify(success=False, exception="Debugger step is not supported for this process"), 400
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
-
-    @app.post("/debug/step-into/<int:oop>")
-    def debug_step_into(oop: int):
-        frame_index = int((request.get_json(force=True) or {}).get("index", 0))
-        try:
-            with request_session_factory(read_only=False) as session:
-                direct = _direct_debug_action(
-                    session,
-                    oop,
-                    [
-                        ("stepIntoFromLevel:", [frame_index + 1]),
-                        ("_stepIntoInFrame:", [frame_index + 1]),
-                        ("gciStepIntoFromLevel:", [frame_index + 1]),
-                        ("step:", [frame_index + 1]),
-                    ],
-                )
-                if direct is False:
-                    return jsonify(success=False, exception="Debugger step-into is not supported for this process"), 400
-                if direct is None:
-                    result = session.eval(_debug_step_script(oop, ["stepIntoFromLevel:", "_stepIntoInFrame:", "gciStepIntoFromLevel:", "step:"], frame_index + 1))
-                    if not _is_true_result(result):
-                        return jsonify(success=False, exception="Debugger step-into is not supported for this process"), 400
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
-
-    @app.post("/debug/step-over/<int:oop>")
-    def debug_step_over(oop: int):
-        frame_index = int((request.get_json(force=True) or {}).get("index", 0))
-        try:
-            with request_session_factory(read_only=False) as session:
-                direct = _direct_debug_action(
-                    session,
-                    oop,
-                    [
-                        ("stepOverFromLevel:", [frame_index + 1]),
-                        ("_stepOverInFrame:", [frame_index + 1]),
-                        ("gciStepOverFromLevel:", [frame_index + 1]),
-                    ],
-                )
-                if direct is False:
-                    return jsonify(success=False, exception="Debugger step-over is not supported for this process"), 400
-                if direct is None:
-                    result = session.eval(_debug_step_script(oop, ["stepOverFromLevel:", "_stepOverInFrame:", "gciStepOverFromLevel:"], frame_index + 1))
-                    if not _is_true_result(result):
-                        return jsonify(success=False, exception="Debugger step-over is not supported for this process"), 400
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
-
-    @app.post("/debug/restart/<int:oop>")
-    def debug_restart(oop: int):
-        frame_index = int((request.get_json(force=True) or {}).get("index", 0))
-        try:
-            with request_session_factory(read_only=False) as session:
-                direct = _direct_restart_action(session, oop, frame_index)
-                if direct is False:
-                    return jsonify(success=False, exception="Debugger restart is not supported for this process"), 400
-                if direct is None:
-                    result = session.eval(_debug_restart_script(oop, frame_index + 1))
-                    if not _is_true_result(result):
-                        return jsonify(success=False, exception="Debugger restart is not supported for this process"), 400
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
-
-    @app.post("/debug/trim/<int:oop>")
-    def debug_trim(oop: int):
-        frame_index = int((request.get_json(force=True) or {}).get("index", 0))
-        try:
-            with request_session_factory(read_only=False) as session:
-                direct = _direct_trim_action(session, oop, frame_index)
-                if direct is False:
-                    return jsonify(success=False, exception="Debugger trim-stack is not supported for this process"), 400
-                if direct is None:
-                    result = session.eval(
-                        f"| proc ctx idx |\n"
-                        f"proc := {object_for_oop_expr_fn(oop)}.\n"
-                        f"ctx := proc suspendedContext.\n"
-                        f"idx := 0.\n"
-                        f"[ctx notNil and: [idx < {frame_index}]] whileTrue: [\n"
-                        f"  ctx := ctx sender. idx := idx + 1\n"
-                        f"].\n"
-                        f"ctx isNil ifFalse: [\n"
-                        f"  [proc trimTo: ctx] on: Error do: [:e | false]\n"
-                        f"] ifFalse: [false]"
-                    )
-                    if not _is_true_result(result):
-                        return jsonify(success=False, exception="Debugger trim-stack is not supported for this process"), 400
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True)
-
-    @app.get("/debug/thread-local/<int:oop>")
-    def debug_thread_local(oop: int):
-        try:
-            with request_session_factory() as session:
-                if _has_live_debugger_process(session, oop):
-                    entries = _live_thread_local_entries(session, oop)
-                else:
-                    raw = eval_str_fn(
-                        session,
-                        f"| proc result lines |\n"
-                        f"{encode_src}\n"
-                        f"proc := {object_for_oop_expr_fn(oop)}.\n"
-                        f"lines := OrderedCollection new.\n"
-                        f"[proc threadStorage do: [:assoc |\n"
-                        f"  | key value keyPs valuePs keyOop valueOop |\n"
-                        f"  key := [assoc key] on: Error do: [:e | nil].\n"
-                        f"  value := [assoc value] on: Error do: [:e | nil].\n"
-                        f"  keyPs := [key printString] on: Error do: [:e | '?'].\n"
-                        f"  valuePs := [value printString] on: Error do: [:e | '?'].\n"
-                        f"  keyOop := [key asOop printString] on: Error do: [:e | '20'].\n"
-                        f"  valueOop := [value asOop printString] on: Error do: [:e | '20'].\n"
-                        f"  lines add: ((encode value: keyPs) , Character tab asString\n"
-                        f"    , (encode value: keyOop) , Character tab asString\n"
-                        f"    , (encode value: valuePs) , Character tab asString\n"
-                        f"    , (encode value: valueOop))\n"
-                        f"]] on: Error do: [:e | ].\n"
-                        f"result := String streamContents: [:stream |\n"
-                        f"  lines doWithIndex: [:line :lineIndex |\n"
-                        f"    lineIndex > 1 ifTrue: [stream nextPut: Character lf].\n"
-                        f"    stream nextPutAll: line\n"
-                        f"  ]\n"
-                        f"].\n"
-                        f"result"
-                    )
-                    entries = []
-                    for line in str(raw).splitlines():
-                        if not line.strip():
-                            continue
-                        fields = line.split("\t", 3)
-                        key = decode_field_fn(fields[0]) if len(fields) > 0 else ""
-                        key_oop_raw = decode_field_fn(fields[1]) if len(fields) > 1 else ""
-                        value = decode_field_fn(fields[2]) if len(fields) > 2 else ""
-                        value_oop_raw = decode_field_fn(fields[3]) if len(fields) > 3 else ""
-                        entries.append({
-                            "key": key,
-                            "value": value,
-                            "keyObject": debug_object_ref_fn(session, key_oop_raw, key),
-                            "valueObject": debug_object_ref_fn(session, value_oop_raw, value),
-                        })
-        except Exception as exc:
-            return jsonify(success=False, exception=str(exc)), 500
-        return jsonify(success=True, entries=entries)
+    read_shared = dict(
+        request_session_factory=request_session_factory,
+        eval_str_fn=eval_str_fn,
+        object_for_oop_expr_fn=object_for_oop_expr_fn,
+        encode_src=encode_src,
+        decode_field_fn=decode_field_fn,
+        debug_source_hint_fn=debug_source_hint_fn,
+        debug_object_ref_fn=debug_object_ref_fn,
+        int_arg_fn=int_arg_fn,
+        has_live_debugger_process_fn=_has_live_debugger_process,
+        visible_debug_frames_fn=_visible_debug_frames,
+        live_debug_frame_payload_fn=_live_debug_frame_payload,
+        reported_or_offset_line_number_fn=_reported_or_offset_line_number,
+        live_thread_local_entries_fn=_live_thread_local_entries,
+        debug_process_resolver_fn=_debug_process_resolver,
+        debug_context_resolver_fn=_debug_context_resolver,
+        workspace_executed_code_source_fn=_workspace_executed_code_source,
+        workspace_executed_code_display_offset_fn=_workspace_executed_code_display_offset,
+    )
+    action_shared = dict(
+        request_session_factory=request_session_factory,
+        object_for_oop_expr_fn=object_for_oop_expr_fn,
+        forget_debug_source_hint_fn=forget_debug_source_hint_fn,
+        forget_debug_replay_receiver_fn=forget_debug_replay_receiver_fn,
+        is_true_result_fn=_is_true_result,
+        direct_debug_action_fn=_direct_debug_action,
+        direct_trim_action_fn=_direct_trim_action,
+        direct_restart_action_fn=_direct_restart_action,
+        effective_debug_action_frame_index_fn=_effective_debug_action_frame_index,
+        debug_process_quick_step_point_fn=_debug_process_quick_step_point,
+        debug_step_script_fn=_debug_step_script,
+        debug_restart_script_fn=_debug_restart_script,
+        has_live_debugger_process_fn=_has_live_debugger_process,
+        debug_process_status_fn=_debug_process_status,
+    )
+    register_debugger_read_routes(app, **read_shared)
+    register_debugger_action_routes(app, **action_shared)

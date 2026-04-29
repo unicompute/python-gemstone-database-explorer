@@ -33,12 +33,17 @@
         <span class="spinner" style="margin:8px"></span>
       </div>
       <div class="dbg-action-bar">
-        <button class="btn-dbg" id="${id}-proceed">Proceed</button>
-        <button class="btn-dbg" id="${id}-step">Step</button>
-        <button class="btn-dbg" id="${id}-stepinto">Step into</button>
-        <button class="btn-dbg" id="${id}-stepover">Step over</button>
-        <button class="btn-dbg" id="${id}-restart">Restart</button>
-        <button class="btn-dbg" id="${id}-trim">Trim stack</button>
+        <button class="btn-dbg" id="${id}-refresh" title="Alt+F">Refresh</button>
+        <button class="btn-dbg" id="${id}-proceed" title="Alt+P">Proceed</button>
+        <button class="btn-dbg" id="${id}-step" title="Alt+S">Step</button>
+        <button class="btn-dbg" id="${id}-stepinto" title="Alt+I">Step into</button>
+        <button class="btn-dbg" id="${id}-stepover" title="Alt+O">Step over</button>
+        <button class="btn-dbg" id="${id}-stepreturn" title="Alt+U">Step out</button>
+        <button class="btn-dbg" id="${id}-restart" title="Alt+R">Restart</button>
+        <button class="btn-dbg" id="${id}-trim" title="Alt+T">Trim stack</button>
+        <button class="btn-dbg" id="${id}-terminate" title="Alt+X">Terminate</button>
+        <button class="btn-dbg" id="${id}-copystack" title="Alt+L">Copy Stack</button>
+        <button class="btn-dbg" id="${id}-copysource" title="Alt+C">Copy Source</button>
       </div>
       <div class="dbg-source-pane" id="${id}-srcp">
         <div class="dbg-source-meta hidden" id="${id}-srcmeta"></div>
@@ -108,37 +113,104 @@
     return line;
   }
 
+  function computeDebuggerCursorLocation(sourceText, sourceOffset) {
+    const offset = Number(sourceOffset || 0);
+    const text = String(sourceText || '');
+    if (!(offset > 0) || !text) return null;
+    const normalizedOffset = Math.min(offset, text.length + 1);
+    let line = 1;
+    let column = 1;
+    for (let i = 0; i < normalizedOffset - 1 && i < text.length; i += 1) {
+      const ch = text[i];
+      if (ch === '\n') {
+        line += 1;
+        column = 1;
+      } else if (ch === '\r') {
+        line += 1;
+        column = 1;
+        if (text[i + 1] === '\n') i += 1;
+      } else {
+        column += 1;
+      }
+    }
+    return {line, column};
+  }
+
+  function clampDebuggerLineNumber(lineNumber, sourceText) {
+    const resolved = Number(lineNumber || 0);
+    const normalized = String(sourceText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized ? normalized.split('\n') : ['(no source)'];
+    if (!(resolved > 0)) return 0;
+    return Math.max(1, Math.min(lines.length, resolved));
+  }
+
+  function buildDebuggerSourceTextHtml(lineText, cursorColumn, escHtml = fallbackEscHtml) {
+    const safeEscHtml = typeof escHtml === 'function' ? escHtml : fallbackEscHtml;
+    const text = String(lineText || '');
+    if (!(Number(cursorColumn) > 0)) return text.length ? safeEscHtml(text) : '&nbsp;';
+    const splitAt = Math.max(0, Math.min(text.length, Number(cursorColumn) - 1));
+    const before = safeEscHtml(text.slice(0, splitAt));
+    const after = safeEscHtml(text.slice(splitAt));
+    return `${before}<span class="dbg-inline-cursor" aria-label="Next instruction">|</span>${after || ''}`;
+  }
+
   function buildDebuggerSourceView(frameData = {}, options = {}) {
     const escHtml = typeof options.escHtml === 'function' ? options.escHtml : fallbackEscHtml;
     const frameIndex = Number(options.frameIndex || 0);
     const thread = options.thread || {};
     const sourceText = fallbackSourceText(frameData, thread, frameIndex);
-    const activeLine = Number(frameData.lineNumber || 0) || computeDebuggerLineNumber(sourceText, frameData.sourceOffset);
+    const normalized = String(sourceText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized ? normalized.split('\n') : ['(no source)'];
+    const rawActiveLine = Number(frameData.lineNumber || 0) || computeDebuggerLineNumber(sourceText, frameData.sourceOffset);
+    const activeLine = clampDebuggerLineNumber(rawActiveLine, normalized);
     const stepPoint = Number(frameData.stepPoint || 0);
     const sourceOffset = Number(frameData.sourceOffset || 0);
     const ipOffset = Number(frameData.ipOffset || 0);
+    const status = String(frameData.status || '').trim().toLowerCase();
+    const framePosition = Number(options.framePosition || 0);
+    const frameCount = Number(options.frameCount || 0);
     const metaBits = [];
+    if (framePosition > 0 && frameCount > 0) metaBits.push(`Frame ${framePosition}/${frameCount}`);
+    if (status) metaBits.push(`Status ${status}`);
     if (stepPoint > 0) metaBits.push(`Step ${stepPoint}`);
     if (activeLine > 0) metaBits.push(`Line ${activeLine}`);
     if (ipOffset > 0) metaBits.push(`PC ${ipOffset}`);
     if (sourceOffset > 0) metaBits.push(`Offset ${sourceOffset}`);
 
-    const normalized = String(sourceText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const lines = normalized ? normalized.split('\n') : ['(no source)'];
+    let cursorLocation = computeDebuggerCursorLocation(normalized, sourceOffset);
+    if (!cursorLocation && activeLine > 0 && stepPoint > 0) {
+      cursorLocation = {line: activeLine, column: 1};
+    }
     const sourceHtml = lines.map((line, lineIndex) => {
       const lineNumber = lineIndex + 1;
       const active = activeLine > 0 && lineNumber === activeLine ? ' active' : '';
-      const marker = active ? '&#9654;' : '&nbsp;';
-      const text = line.length ? escHtml(line) : '&nbsp;';
+      const cursorColumn = cursorLocation && cursorLocation.line === lineNumber ? cursorLocation.column : 0;
+      const marker = active
+        ? `<span class="dbg-step-cursor" aria-label="Current step">${stepPoint > 0 ? escHtml(`S${stepPoint}`) : '&#9654;'}</span>`
+        : '<span class="dbg-step-cursor-spacer" aria-hidden="true">&nbsp;</span>';
+      const text = buildDebuggerSourceTextHtml(line, cursorColumn, escHtml);
       return `<span class="dbg-source-line${active}" data-line="${lineNumber}"><span class="dbg-source-marker" aria-hidden="true">${marker}</span><span class="dbg-source-lno">${lineNumber}</span><span class="dbg-source-text">${text}</span></span>`;
     }).join('');
 
     return {
       sourceText,
       activeLine,
+      cursorLocation,
       metaText: metaBits.join(' • '),
       sourceHtml,
     };
+  }
+
+  function buildDebuggerFramesExportText(frames = [], activeFrameIndex = 0) {
+    return (Array.isArray(frames) ? frames : []).map((frame, pos) => {
+      const marker = Number(frame.index) === Number(activeFrameIndex) ? '>' : ' ';
+      return `${marker} ${String(frame.name || `frame ${pos}`)}`;
+    }).join('\n');
+  }
+
+  function buildDebuggerSourceExportText(frameData = {}, options = {}) {
+    const view = buildDebuggerSourceView(frameData, options);
+    return view.metaText ? `${view.metaText}\n${view.sourceText}` : view.sourceText;
   }
 
   function buildDebuggerVariableOptionsHtml(variables = [], escHtml = fallbackEscHtml) {
@@ -159,7 +231,12 @@
     buildDebuggerFramesListHtml,
     fallbackSourceText,
     computeDebuggerLineNumber,
+    computeDebuggerCursorLocation,
+    clampDebuggerLineNumber,
+    buildDebuggerSourceTextHtml,
     buildDebuggerSourceView,
+    buildDebuggerFramesExportText,
+    buildDebuggerSourceExportText,
     buildDebuggerVariableOptionsHtml,
   };
 });

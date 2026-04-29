@@ -16,6 +16,7 @@ def register_object_routes(
     object_view_fn,
     eval_in_context_fn,
     remember_debug_source_hint,
+    remember_debug_replay_receiver,
 ) -> None:
     @app.get("/ids")
     def ids():
@@ -93,6 +94,7 @@ def register_object_routes(
                     result_view["sourcePreview"] = code
                     result_view["autoOpenDebugger"] = bool(eval_result.get("debugThreadOop"))
                     remember_debug_source_hint(eval_result.get("debugThreadOop"), code)
+                    remember_debug_replay_receiver(eval_result.get("debugThreadOop"), oop)
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
 

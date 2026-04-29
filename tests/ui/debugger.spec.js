@@ -65,13 +65,20 @@ test('workspace eval exceptions auto-open the debugger', async ({ page }) => {
   await expect(debuggerWin.locator('.dbg-summary-error')).toContainText('ZeroDivide occurred');
   await expect(debuggerWin.locator('.dbg-frame-item')).toHaveCount(3);
   await expect(debuggerWin.locator('.dbg-source-code')).toContainText('1/0');
+  await expect(debuggerWin.locator('.dbg-source-meta')).toContainText('Frame 1/3');
+  await expect(debuggerWin.locator('.dbg-source-meta')).toContainText('Status suspended');
   await expect(debuggerWin.locator('.dbg-source-meta')).toContainText('Step 1');
   await expect(debuggerWin.locator('.dbg-source-line.active')).toHaveCount(1);
-  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-source-marker')).toContainText('▶');
+  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-step-cursor')).toContainText('S1');
+  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
+  await debuggerWin.getByRole('button', { name: 'Copy Source' }).click();
+  await expect.poll(() => page.evaluate(() => window.__lastCopiedText || '')).toContain('1/0');
+  await debuggerWin.getByRole('button', { name: 'Copy Stack' }).click();
+  await expect.poll(() => page.evaluate(() => window.__lastCopiedText || '')).toContain('Executed code @1 line 1');
   await expect(workspace.locator('.ws-entry').last()).toContainText('ZeroDivide occurred');
 });
 
-test('debugger restart uses the selected stack frame as the restart target', async ({ page }) => {
+test('debugger restart rewinds to executed code regardless of the selected frame', async ({ page }) => {
   await page.goto('/');
 
   const haltedBar = page.locator('#halted-threads-bar');
@@ -90,9 +97,15 @@ test('debugger restart uses the selected stack frame as the restart target', asy
   await expect(sourceMeta).toContainText('Line 2');
 
   await debuggerWin.getByRole('button', { name: 'Restart' }).click();
-  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Behavior>>helper');
-  await expect(sourceArea).toContainText('helper');
-  await expect(sourceMeta).toContainText('Line 2');
+  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Executed code @1 line 1');
+  await expect(sourceArea).toContainText('1/0');
+  await expect(sourceMeta).toContainText('Step 1');
+  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
+
+  await debuggerWin.getByRole('button', { name: 'Restart' }).click();
+  await debuggerWin.getByRole('button', { name: 'Step', exact: true }).click();
+  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 1');
+  await expect(sourceMeta).toContainText('Step 2');
 });
 
 test('halted thread bar opens debugger with stack and TLS actions', async ({ page }) => {
@@ -111,12 +124,17 @@ test('halted thread bar opens debugger with stack and TLS actions', async ({ pag
   await expect(debuggerWin.getByRole('button', { name: 'Step', exact: true })).toBeVisible();
   await expect(debuggerWin.getByRole('button', { name: 'Step into' })).toBeVisible();
   await expect(debuggerWin.getByRole('button', { name: 'Step over' })).toBeVisible();
+  await expect(debuggerWin.getByRole('button', { name: 'Step out' })).toBeVisible();
   await expect(debuggerWin.getByRole('button', { name: 'Restart' })).toBeVisible();
+  await expect(debuggerWin.getByRole('button', { name: 'Terminate' })).toBeVisible();
   await expect(debuggerWin.locator('.dbg-frame-item')).toHaveCount(3);
   const sourceArea = debuggerWin.locator('.dbg-source-code');
   const sourceMeta = debuggerWin.locator('.dbg-source-meta');
   await expect(sourceArea).toContainText('1/0');
   await expect(sourceMeta).toContainText('Step 1');
+  await expect(sourceMeta).toContainText('Status suspended');
+  await expect(debuggerWin.locator('.dbg-frame-item').first()).toContainText('Executed code @1 line 1');
+  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
 
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.classList.contains('dbg-frame-item')))
@@ -131,6 +149,10 @@ test('halted thread bar opens debugger with stack and TLS actions', async ({ pag
   await debuggerWin.locator('.dbg-frame-item').nth(1).click();
   await expect(sourceArea).toContainText('helper');
   await expect(debuggerWin.locator('.dbg-self-val')).toContainText('Behavior');
+  await debuggerWin.getByRole('button', { name: 'Refresh' }).click();
+  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Behavior>>helper');
+  await expect(sourceArea).toContainText('helper');
+  await expect(sourceMeta).toContainText('Line 2');
   const selfChip = debuggerWin.locator('.dbg-self-val .obj-chip');
   await expect(selfChip).toContainText('Behavior');
   const debuggerWindowCount = await page.locator('.win').count();
@@ -147,14 +169,16 @@ test('halted thread bar opens debugger with stack and TLS actions', async ({ pag
   await expect(debuggerWin.locator('.dbg-tls-list')).toContainText("'debug-session'");
 
   await debuggerWin.getByText('Stack Trace').click();
+  await debuggerWin.locator('.dbg-frame-item').first().click();
   await debuggerWin.getByRole('button', { name: 'Step', exact: true }).click();
-  await expect(debuggerWin.locator('.dbg-frame-item')).toHaveCount(4);
-  await expect(debuggerWin.locator('.dbg-frame-item').first()).toContainText('stepInto1');
-  await expect(sourceArea).toContainText('stepInto1');
+  await expect(debuggerWin.locator('.dbg-frame-item')).toHaveCount(3);
+  await expect(debuggerWin.locator('.dbg-frame-item').first()).toContainText('Executed code @2 line 1');
+  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-source-text')).toContainText('/0');
+  await expect(sourceMeta).toContainText('Step 2');
 
   await debuggerWin.getByRole('button', { name: 'Restart' }).click();
   await expect(debuggerWin.locator('.dbg-frame-item')).toHaveCount(3);
-  await expect(debuggerWin.locator('.dbg-frame-item').first()).toContainText('Object>>haltedMethod');
+  await expect(debuggerWin.locator('.dbg-frame-item').first()).toContainText('Executed code @1 line 1');
   await expect(sourceArea).toContainText('1/0');
 
   await debuggerWin.getByRole('button', { name: 'Step into' }).click();
@@ -163,17 +187,23 @@ test('halted thread bar opens debugger with stack and TLS actions', async ({ pag
   await expect(sourceArea).toContainText('stepInto1');
 
   await debuggerWin.getByRole('button', { name: 'Step over' }).click();
-  await expect(sourceArea).toContainText('stepped over');
+  await expect(debuggerWin.locator('.dbg-frame-item').first()).toContainText('Executed code @2 line 1');
+  await expect(sourceMeta).toContainText('Step 2');
 
-  const trimTarget = debuggerWin.locator('.dbg-frame-item').filter({ hasText: 'Object>>haltedMethod' }).first();
-  await trimTarget.click();
-  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Object>>haltedMethod');
-  await debuggerWin.getByRole('button', { name: 'Trim stack' }).click();
+  await debuggerWin.getByRole('button', { name: 'Step out' }).click();
   await expect(debuggerWin.locator('.dbg-frame-item')).toHaveCount(3);
-  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Object>>haltedMethod');
+  await expect(debuggerWin.locator('.dbg-frame-item').first()).toContainText('Executed code @1 line 1');
   await expect(sourceArea).toContainText('1/0');
 
-  await debuggerWin.getByRole('button', { name: 'Proceed' }).click();
+  const trimTarget = debuggerWin.locator('.dbg-frame-item').filter({ hasText: 'Behavior>>helper' }).first();
+  await trimTarget.click();
+  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Behavior>>helper');
+  await debuggerWin.getByRole('button', { name: 'Trim stack' }).click();
+  await expect(debuggerWin.locator('.dbg-frame-item')).toHaveCount(2);
+  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Behavior>>helper');
+  await expect(sourceArea).toContainText('helper');
+
+  await debuggerWin.getByRole('button', { name: 'Terminate' }).click();
   await expect(debuggerWin).toHaveCount(0);
   await expect(haltedBar.locator('.thread-pill')).toHaveCount(0);
 });

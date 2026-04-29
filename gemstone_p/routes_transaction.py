@@ -11,6 +11,10 @@ def register_transaction_routes(
     smalltalk_error_text_fn,
     remember_persistent_mode_fn,
 ) -> None:
+    def _persistent_mode_enabled(raw: object) -> bool:
+        text = str(raw).strip()
+        return text in {"true", "#autoBegin", "autoBegin"}
+
     @app.route("/transaction/commit", methods=["GET", "POST"])
     def transaction_commit():
         try:
@@ -52,14 +56,14 @@ def register_transaction_routes(
             with request_session_factory() as session:
                 raw = eval_str_fn(
                     session,
-                    "[GemStone session autoBeginTransaction printString] on: Error do: [:e | 'error: ' , e messageText]"
+                    "[System transactionMode printString] on: Error do: [:e | 'error: ' , e messageText]"
                 )
         except Exception as exc:
             return jsonify(success=False, exception=str(exc)), 500
         error_text = smalltalk_error_text_fn(raw)
         if error_text:
             return jsonify(success=False, exception=error_text)
-        persistent = str(raw).strip() == "true"
+        persistent = _persistent_mode_enabled(raw)
         remember_persistent_mode_fn(persistent)
         return jsonify(success=True, persistent=persistent)
 
@@ -69,10 +73,10 @@ def register_transaction_routes(
         enable = bool(data.get("enable", True))
         try:
             with request_session_factory(read_only=False) as session:
-                val = "true" if enable else "false"
+                mode = "#autoBegin" if enable else "#manualBegin"
                 result = eval_str_fn(
                     session,
-                    f"[GemStone session autoBeginTransaction: {val}. GemStone session autoBeginTransaction printString]\n"
+                    f"[System transactionMode: {mode}. System transactionMode printString]\n"
                     f"on: Error do: [:e | 'error: ' , e messageText]"
                 )
         except Exception as exc:
@@ -80,7 +84,7 @@ def register_transaction_routes(
         error_text = smalltalk_error_text_fn(result)
         if error_text:
             return jsonify(success=False, exception=error_text)
-        persistent = str(result).strip() == "true"
+        persistent = _persistent_mode_enabled(result)
         remember_persistent_mode_fn(persistent)
         return jsonify(
             success=True,

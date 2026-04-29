@@ -373,14 +373,15 @@ INITIAL_SYMBOL_LISTS = {
 INITIAL_DEBUG_THREADS = {
     700: {
         "printString": "a HaltedDemoProcess",
+        "status": "suspended",
         "exceptionText": "a ZeroDivide occurred (error 2026), reason:numErrIntDivisionByZero, attempt to divide 1 by zero",
         "sourcePreview": "1/0",
         "sessionChannel": "debug-w",
         "frames": [
             {
-                "name": "Object>>haltedMethod",
-                "source": "",
-                "sourceOffset": 0,
+                "name": "Executed code @1 line 1",
+                "source": "1/0",
+                "sourceOffset": 1,
                 "lineNumber": 1,
                 "stepPoint": 1,
                 "selfPrintString": "an Object",
@@ -1003,7 +1004,14 @@ def debug_frames(oop: int):
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
     frames = [
-        {"index": index, "name": frame["name"]}
+        {
+            "index": index,
+            "name": frame["name"],
+            "className": frame.get("className", ""),
+            "selectorName": frame.get("selectorName", ""),
+            "frameKey": frame.get("frameKey", ""),
+            "isExecutedCode": bool(frame.get("isExecutedCode", False)),
+        }
         for index, frame in enumerate(thread.get("frames", []))
     ]
     return jsonify(success=True, frames=frames)
@@ -1022,12 +1030,25 @@ def debug_frame(oop: int):
     return jsonify(
         success=True,
         methodName=frame["name"],
+        className=frame.get("className", ""),
+        selectorName=frame.get("selectorName", ""),
+        frameKey=frame.get("frameKey", ""),
+        isExecutedCode=bool(frame.get("isExecutedCode", False)),
         ipOffset=str(index),
         sourceOffset=int(frame.get("sourceOffset", 0) or 0),
         stepPoint=int(frame.get("stepPoint", 0) or 0),
         lineNumber=int(frame.get("lineNumber", 0) or 0),
+        status=str(thread.get("status", "suspended") or "suspended"),
+        isLiveSession=str(thread.get("status", "suspended") or "suspended") in {"suspended", "running"},
         hasFrame=frame["name"] != "(no frame)",
         canStep=frame["name"] != "(no frame)" and int(frame.get("stepPoint", 0) or 0) > 0,
+        canProceed=frame["name"] != "(no frame)",
+        canRestart=frame["name"] != "(no frame)",
+        canTrim=frame["name"] != "(no frame)",
+        canTerminate=frame["name"] != "(no frame)",
+        canStepInto=frame["name"] != "(no frame)" and int(frame.get("stepPoint", 0) or 0) > 0,
+        canStepOver=frame["name"] != "(no frame)" and int(frame.get("stepPoint", 0) or 0) > 0,
+        canStepReturn=frame["name"] != "(no frame)" and int(frame.get("stepPoint", 0) or 0) > 0,
         selfPrintString=frame["selfPrintString"],
         selfObject=frame.get("selfObject"),
         source=frame["source"],
@@ -1039,12 +1060,22 @@ def debug_frame(oop: int):
 @app.post("/debug/proceed/<int:oop>")
 def debug_proceed(oop: int):
     DEBUG_THREADS.pop(oop, None)
-    return jsonify(success=True)
+    return jsonify(success=True, action="proceed", threadOop=oop, message="resumed", status="running")
 
 
 @app.post("/debug/step/<int:oop>")
 def debug_step(oop: int):
-    return debug_step_into(oop)
+    thread = _debug_thread_for_request(oop)
+    if thread is None:
+        return jsonify(success=False, exception=f"unknown thread {oop}"), 404
+    frames = thread.setdefault("frames", [])
+    if frames:
+        current = frames[0]
+        next_step = int(current.get("stepPoint", 0) or 0) + 1
+        current["stepPoint"] = next_step
+        current["name"] = f"Executed code @{next_step} line {int(current.get('lineNumber', 1) or 1)}"
+        current["sourceOffset"] = next_step
+    return jsonify(success=True, action="step", threadOop=oop, frameIndex=0, message="stepped", status="suspended")
 
 
 @app.post("/debug/step-into/<int:oop>")
@@ -1069,7 +1100,7 @@ def debug_step_into(oop: int):
             },
         ],
     })
-    return jsonify(success=True)
+    return jsonify(success=True, action="stepInto", threadOop=oop, frameIndex=0, message="stepped into", status="suspended")
 
 
 @app.post("/debug/step-over/<int:oop>")
@@ -1080,9 +1111,23 @@ def debug_step_over(oop: int):
     index = int((request.get_json(force=True) or {}).get("index", 0))
     frames = thread.get("frames", [])
     if 0 <= index < len(frames):
-        frames[index]["source"] = frames[index]["source"] + "\n\"stepped over\""
-        frames[index]["sourceOffset"] = int(frames[index].get("sourceOffset", 1) or 1)
-    return jsonify(success=True)
+        next_step = int(frames[index].get("stepPoint", 0) or 0) + 1
+        frames[index]["stepPoint"] = next_step
+        frames[index]["name"] = f"Executed code @{next_step} line {int(frames[index].get('lineNumber', 1) or 1)}"
+        frames[index]["sourceOffset"] = next_step
+    return jsonify(success=True, action="stepOver", threadOop=oop, frameIndex=index, message="stepped over", status="suspended")
+
+
+@app.post("/debug/step-return/<int:oop>")
+def debug_step_return(oop: int):
+    thread = _debug_thread_for_request(oop)
+    if thread is None:
+        return jsonify(success=False, exception=f"unknown thread {oop}"), 404
+    frames = thread.get("frames", [])
+    index = int((request.get_json(force=True) or {}).get("index", 0))
+    if len(frames) > 1:
+        thread["frames"] = frames[1:]
+    return jsonify(success=True, action="stepReturn", threadOop=oop, frameIndex=max(0, index - 1), message="stepped out", status="suspended")
 
 
 @app.post("/debug/restart/<int:oop>")
@@ -1090,16 +1135,17 @@ def debug_restart(oop: int):
     thread = _debug_thread_for_request(oop)
     if thread is None:
         return jsonify(success=False, exception=f"unknown thread {oop}"), 404
-    index = int((request.get_json(force=True) or {}).get("index", 0))
     initial_thread = INITIAL_DEBUG_THREADS.get(oop, {})
-    initial_frames = copy.deepcopy(initial_thread.get("frames", []))
-    if 0 <= index < len(initial_frames):
-        thread["frames"] = initial_frames[index:]
-    else:
-        thread["frames"] = initial_frames
+    thread["frames"] = copy.deepcopy(initial_thread.get("frames", []))
     thread["sessionChannel"] = thread.get("sessionChannel") or _request_session_channel() or "debug-w"
     thread["stepCount"] = 0
-    return jsonify(success=True)
+    return jsonify(success=True, action="restart", threadOop=oop, frameIndex=0, message="restarted", status="suspended", completed=False)
+
+
+@app.post("/debug/terminate/<int:oop>")
+def debug_terminate(oop: int):
+    DEBUG_THREADS.pop(oop, None)
+    return jsonify(success=True, action="terminate", threadOop=oop, message="terminated", status="terminated")
 
 
 @app.post("/debug/trim/<int:oop>")
@@ -1111,7 +1157,7 @@ def debug_trim(oop: int):
     frames = thread.get("frames", [])
     if 0 <= index < len(frames):
         thread["frames"] = frames[index:]
-    return jsonify(success=True)
+    return jsonify(success=True, action="trim", threadOop=oop, frameIndex=0, message="stack trimmed", status="suspended")
 
 
 @app.get("/debug/thread-local/<int:oop>")

@@ -152,6 +152,62 @@ class TestApiContracts(unittest.TestCase):
         )
 
     @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_add_dictionary_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|TmpUI"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/class-browser/add-dictionary", json={"name": "TmpUI"})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "dictionary"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["dictionary"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_rename_class_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|RenamedObject|Globals"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/rename-class",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "targetClassName": "RenamedObject",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "className", "dictionary"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["className"], str)
+        self.assertIsInstance(data["dictionary"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_remove_method_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|printString"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/remove-method",
+            json={"className": "Object", "dictionary": "Globals", "selector": "printString"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "selector"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["selector"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
     def test_class_browser_file_out_contract(self, mock_rs):
         session = _mock_session()
         session.eval.return_value = "printString ^ 'ok'\n"
@@ -410,6 +466,20 @@ class TestApiContracts(unittest.TestCase):
         self.assertIsInstance(data["connection"], dict)
 
     @patch("gemstone_p.app.gs_session.request_session")
+    def test_transaction_commit_contract(self, mock_rs):
+        session = _mock_session()
+        session.commit.return_value = None
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/transaction/commit", json={})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
     def test_maglev_report_contract(self, mock_rs):
         session = _mock_session()
         session.eval.return_value = "Loaded Features Report\n\n1. app/models/user.rb\n"
@@ -534,6 +604,10 @@ class TestApiContracts(unittest.TestCase):
             {
                 "success",
                 "methodName",
+                "className",
+                "selectorName",
+                "frameKey",
+                "isExecutedCode",
                 "ipOffset",
                 "selfPrintString",
                 "selfObject",
@@ -541,22 +615,44 @@ class TestApiContracts(unittest.TestCase):
                 "sourceOffset",
                 "stepPoint",
                 "lineNumber",
+                "status",
+                "isLiveSession",
                 "hasFrame",
                 "canStep",
+                "canProceed",
+                "canRestart",
+                "canTrim",
+                "canTerminate",
+                "canStepInto",
+                "canStepOver",
+                "canStepReturn",
                 "variables",
                 "frameIndex",
             },
         )
         self.assertIs(data["success"], True)
         self.assertIsInstance(data["methodName"], str)
+        self.assertIsInstance(data["className"], str)
+        self.assertIsInstance(data["selectorName"], str)
+        self.assertIsInstance(data["frameKey"], str)
+        self.assertIsInstance(data["isExecutedCode"], bool)
         self.assertIsInstance(data["ipOffset"], str)
         self.assertIsInstance(data["selfPrintString"], str)
         self.assertIsInstance(data["selfObject"], dict)
         self.assertIsInstance(data["source"], str)
         self.assertIsInstance(data["sourceOffset"], int)
         self.assertIsInstance(data["stepPoint"], int)
+        self.assertIsInstance(data["status"], str)
+        self.assertIsInstance(data["isLiveSession"], bool)
         self.assertIsInstance(data["hasFrame"], bool)
         self.assertIsInstance(data["canStep"], bool)
+        self.assertIsInstance(data["canProceed"], bool)
+        self.assertIsInstance(data["canRestart"], bool)
+        self.assertIsInstance(data["canTrim"], bool)
+        self.assertIsInstance(data["canTerminate"], bool)
+        self.assertIsInstance(data["canStepInto"], bool)
+        self.assertIsInstance(data["canStepOver"], bool)
+        self.assertIsInstance(data["canStepReturn"], bool)
         self.assertIsInstance(data["lineNumber"], int)
         self.assertIsInstance(data["frameIndex"], int)
         self.assertIsInstance(data["variables"], list)
@@ -566,3 +662,76 @@ class TestApiContracts(unittest.TestCase):
         self.assertIsInstance(variable["name"], str)
         self.assertIsInstance(variable["value"], str)
         self.assertIsInstance(variable["valueObject"], dict)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/debug/step/700", json={"index": 2})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "frameIndex", "message", "status"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["action"], "step")
+        self.assertIsInstance(data["status"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_return_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/debug/step-return/700", json={"index": 2})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "frameIndex", "message", "status"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["action"], "stepReturn")
+        self.assertEqual(data["frameIndex"], 1)
+        self.assertIsInstance(data["status"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_restart_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/debug/restart/700", json={"index": 1})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "frameIndex", "message", "status", "completed"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["action"], "restart")
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_terminate_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/debug/terminate/700", json={})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "message", "status"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["action"], "terminate")
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_trim_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/debug/trim/700", json={"index": 1})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "frameIndex", "message", "status"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["action"], "trim")

@@ -44,12 +44,17 @@
   }
 
   function bindDebuggerToolbarActions(buttons = {}, handlers = {}) {
+    bindEvent(buttons.refreshBtn, 'click', handlers.onRefresh);
     bindEvent(buttons.proceedBtn, 'click', handlers.onProceed);
     bindEvent(buttons.stepBtn, 'click', handlers.onStep);
     bindEvent(buttons.stepIntoBtn, 'click', handlers.onStepInto);
     bindEvent(buttons.stepOverBtn, 'click', handlers.onStepOver);
+    bindEvent(buttons.stepReturnBtn, 'click', handlers.onStepReturn);
     bindEvent(buttons.restartBtn, 'click', handlers.onRestart);
     bindEvent(buttons.trimBtn, 'click', handlers.onTrim);
+    bindEvent(buttons.terminateBtn, 'click', handlers.onTerminate);
+    bindEvent(buttons.copyStackBtn, 'click', handlers.onCopyStack);
+    bindEvent(buttons.copySourceBtn, 'click', handlers.onCopySource);
   }
 
   function bindDebuggerVariableSelector(selectEl, handlers = {}) {
@@ -102,17 +107,50 @@
   }
 
   function applyDebuggerToolbarState(buttons = {}, state = {}) {
+    if (buttons.refreshBtn) buttons.refreshBtn.disabled = !!state.refreshDisabled;
     if (buttons.proceedBtn) buttons.proceedBtn.disabled = !!state.proceedDisabled;
     if (buttons.stepBtn) buttons.stepBtn.disabled = !!state.stepDisabled;
     if (buttons.stepIntoBtn) buttons.stepIntoBtn.disabled = !!state.stepIntoDisabled;
     if (buttons.stepOverBtn) buttons.stepOverBtn.disabled = !!state.stepOverDisabled;
+    if (buttons.stepReturnBtn) buttons.stepReturnBtn.disabled = !!state.stepReturnDisabled;
     if (buttons.restartBtn) buttons.restartBtn.disabled = !!state.restartDisabled;
     if (buttons.trimBtn) buttons.trimBtn.disabled = !!state.trimDisabled;
+    if (buttons.terminateBtn) buttons.terminateBtn.disabled = !!state.terminateDisabled;
+    if (buttons.copyStackBtn) buttons.copyStackBtn.disabled = !!state.copyStackDisabled;
+    if (buttons.copySourceBtn) buttons.copySourceBtn.disabled = !!state.copySourceDisabled;
+  }
+
+  function bindDebuggerKeyboardActions(root, handlers = {}) {
+    bindEvent(root, 'keydown', event => {
+      const target = event.target || null;
+      const tagName = String(target?.tagName || '').toUpperCase();
+      if (target?.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
+      if (!event.altKey || event.ctrlKey || event.metaKey) return;
+      const key = String(event.key || '').toLowerCase();
+      const shortcuts = {
+        f: handlers.onRefresh,
+        p: handlers.onProceed,
+        s: handlers.onStep,
+        i: handlers.onStepInto,
+        o: handlers.onStepOver,
+        u: handlers.onStepReturn,
+        r: handlers.onRestart,
+        t: handlers.onTrim,
+        x: handlers.onTerminate,
+        l: handlers.onCopyStack,
+        c: handlers.onCopySource,
+      };
+      const handler = shortcuts[key];
+      if (typeof handler !== 'function') return;
+      if (typeof event.preventDefault === 'function') event.preventDefault();
+      handler();
+    });
   }
 
   return {
     bindDebuggerTabActions,
     bindDebuggerToolbarActions,
+    bindDebuggerKeyboardActions,
     bindDebuggerVariableSelector,
     bindDebuggerFrameListActions,
     applyDebuggerTabState,

@@ -96,8 +96,8 @@ class _SessionBroker:
     def _apply_defaults(self, session: GemStoneSession) -> None:
         if self._default_auto_begin is None:
             return
-        flag = "true" if self._default_auto_begin else "false"
-        session.eval(f"GemStone session autoBeginTransaction: {flag}")
+        mode = "#autoBegin" if self._default_auto_begin else "#manualBegin"
+        session.eval(f"System transactionMode: {mode}")
 
     def _ensure_session(self, channel: str) -> tuple[_ManagedSession, GemStoneSession]:
         config = self._resolved_config()
@@ -184,10 +184,12 @@ class _SessionBroker:
         with _gci_lock:
             managed: _ManagedSession | None = None
             session: GemStoneSession | None = None
+            resolved_channel = ""
             try:
-                managed, session = self._ensure_session(self._resolve_channel(read_only=read_only, channel=channel))
+                resolved_channel = self._resolve_channel(read_only=read_only, channel=channel)
+                managed, session = self._ensure_session(resolved_channel)
                 yield session
-                if read_only:
+                if read_only and not resolved_channel.endswith("-w"):
                     try:
                         session.abort()
                     except Exception:

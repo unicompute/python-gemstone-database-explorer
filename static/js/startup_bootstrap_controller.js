@@ -9,20 +9,21 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (startupBootstrapModel) {
   const model = startupBootstrapModel || {
     buildStartupRootState(data = {}) {
-      return {
-        startupIds: {
-          persistentRootId: data.persistentRootId,
-          systemId: data.gemStoneSystemId,
-          globalsId: data.globalsId,
-          defaultWorkspaceId: data.defaultWorkspaceId,
-        },
-        roots: {
-          UserGlobals: data.persistentRootId,
-          Globals: data.globalsId,
-          System: data.gemStoneSystemId,
-          RubyWorkspace: data.defaultWorkspaceId,
-        },
+      const startupIds = {
+        persistentRootId: data.persistentRootId,
+        systemId: data.gemStoneSystemId,
+        globalsId: data.globalsId,
       };
+      const roots = {
+        UserGlobals: data.persistentRootId,
+        Globals: data.globalsId,
+        System: data.gemStoneSystemId,
+      };
+      if (data.defaultWorkspaceId !== undefined) {
+        startupIds.defaultWorkspaceId = data.defaultWorkspaceId;
+        roots.RubyWorkspace = data.defaultWorkspaceId;
+      }
+      return {startupIds, roots};
     },
     hasNonConnectionManagedWindows(windows, readWindowState) {
       const items = Array.isArray(windows) ? windows : [];

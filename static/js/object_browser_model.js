@@ -87,6 +87,21 @@
     return `/object/index/${oop}?${qs.toString()}`;
   }
 
+  function buildMethodBrowserButtonState(target = null) {
+    if (!target) {
+      return {
+        disabled: true,
+        title: 'Open the current method in Class Browser',
+      };
+    }
+    return {
+      disabled: false,
+      title: target.method
+        ? `Open ${target.className}${target.meta ? ' class' : ''} >> ${target.method}`
+        : `Open ${target.className}${target.meta ? ' class' : ''}`,
+    };
+  }
+
   function getAvailableInspectorTabs(obj) {
     if (Array.isArray(obj?.availableTabs) && obj.availableTabs.length) return obj.availableTabs;
     return ['instvars'];
@@ -99,6 +114,41 @@
   function getInspectorTabCaption(tabId, customTabs, captions = BUILTIN_ITAB_CAPTIONS) {
     const custom = getCustomTab(customTabs, tabId);
     return custom?.caption || captions[tabId] || tabId;
+  }
+
+  function resolveInspectorTab(currentTab, obj) {
+    const availableTabs = getAvailableInspectorTabs(obj);
+    const defaultTab = obj?.defaultTab;
+    const resolvedTab = availableTabs.includes(currentTab)
+      ? currentTab
+      : ((defaultTab && availableTabs.includes(defaultTab)) ? defaultTab : (availableTabs[0] || 'instvars'));
+    return {
+      availableTabs,
+      resolvedTab,
+      showTabs: availableTabs.length > 1,
+      showMethodBrowser: resolvedTab === 'code',
+    };
+  }
+
+  function buildObjectLoadStartState(oop, query = null, options = {}) {
+    const keepInstPage = !!options.keepInstPage;
+    return {
+      currentOop: oop,
+      currentObjData: null,
+      currentObjectQuery: query === null ? {} : normalizeObjectQuery(query),
+      mbClassName: '',
+      mbCurrentCategory: null,
+      mbCurrentSelector: null,
+      constantPage: keepInstPage ? null : 0,
+      instPage: keepInstPage ? null : 0,
+      modulePage: keepInstPage ? null : 0,
+    };
+  }
+
+  function chooseRequestedInspectorTab(currentTab, obj, options = {}) {
+    const preferredInitialTab = options.preferredInitialTab || '';
+    const preserveCurrentTab = !!options.preserveCurrentTab;
+    return preferredInitialTab || (preserveCurrentTab ? currentTab : obj?.defaultTab) || currentTab;
   }
 
   function customTabRangeName(customTab) {
@@ -128,6 +178,52 @@
     });
   }
 
+  function buildPagedCollectionState({page = 0, pageSize = 20, offset, total = 0, count = 0, hasMore = false} = {}) {
+    const safePage = Math.max(0, Number(page) || 0);
+    const safePageSize = Math.max(1, Number(pageSize) || 20);
+    const safeOffset = Number.isFinite(Number(offset)) ? Math.max(0, Number(offset)) : safePage * safePageSize;
+    const safeCount = Math.max(0, Number(count) || 0);
+    const safeTotal = Math.max(0, Number(total) || safeCount);
+    const start = safeCount ? safeOffset + 1 : 0;
+    const stop = safeCount ? safeOffset + safeCount : 0;
+    return {
+      page: safePage,
+      pageSize: safePageSize,
+      total: safeTotal,
+      count: safeCount,
+      offset: safeOffset,
+      start,
+      stop,
+      pageNumber: safePage + 1,
+      canPrev: safePage > 0,
+      canNext: !!hasMore,
+    };
+  }
+
+  function buildCustomTabPagerState(entries, totalSize, customTab) {
+    const total = Math.max(0, Number(totalSize) || 0);
+    const bounds = loadedEntryBounds(entries, total);
+    const pageSize = customTabPageSize(customTab);
+    const showPager = !!total && !(bounds.count >= total && total <= pageSize);
+    const nextFrom = bounds.to + 1;
+    const nextTo = Math.min(total, nextFrom + pageSize - 1);
+    const prevFrom = Math.max(1, bounds.from - pageSize);
+    const prevTo = Math.min(total, prevFrom + pageSize - 1);
+    return {
+      bounds,
+      pageSize,
+      total,
+      showPager,
+      summaryText: bounds.count >= total ? `All ${total} entries` : `${bounds.from}-${bounds.to} of ${total}`,
+      canPrev: bounds.from > 1,
+      canNext: !!bounds.count && bounds.to < total,
+      canLoadAll: bounds.count < total,
+      prevRange: {from: prevFrom, to: prevTo},
+      nextRange: {from: nextFrom, to: nextTo},
+      allRange: {from: 1, to: total},
+    };
+  }
+
   return {
     BUILTIN_ITAB_CAPTIONS,
     normalizeCodeTarget,
@@ -136,12 +232,18 @@
     currentCodeBrowserTarget,
     normalizeObjectQuery,
     buildObjectIndexUrl,
+    buildMethodBrowserButtonState,
     getAvailableInspectorTabs,
     getCustomTab,
     getInspectorTabCaption,
+    resolveInspectorTab,
+    buildObjectLoadStartState,
+    chooseRequestedInspectorTab,
     customTabRangeName,
     customTabPageSize,
     loadedEntryBounds,
     customTabRangeQuery,
+    buildPagedCollectionState,
+    buildCustomTabPagerState,
   };
 });

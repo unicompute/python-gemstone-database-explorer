@@ -87,6 +87,19 @@ class TestSessionChannelIsolation(unittest.TestCase):
                     pass
         mock_ensure.assert_called_once_with("debugger:win-2-w")
 
+    def test_request_session_does_not_abort_explicit_write_channel_reads(self):
+        managed = gs_session._ManagedSession(channel="class-browser:win-2-w")
+        session = MagicMock()
+        with patch.object(gs_session._BROKER, "_ensure_session", return_value=(managed, session)) as mock_ensure:
+            with self.flask_app.test_request_context(
+                "/class-browser/classes?dictionary=UserGlobals",
+                headers={"X-GS-Channel": "class-browser:win-2-w"},
+            ):
+                with gs_session.request_session(read_only=True):
+                    pass
+        mock_ensure.assert_called_once_with("class-browser:win-2-w")
+        session.abort.assert_not_called()
+
     def test_broker_snapshot_reports_managed_channels(self):
         gs_session._BROKER._managed = {
             "object:win-1-r": gs_session._ManagedSession(channel="object:win-1-r", session=MagicMock(_logged_in=True)),
