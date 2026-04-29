@@ -1,10 +1,12 @@
 import os
+import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
 from gemstone_py import GemStoneConfig as RealGemStoneConfig
 
 from gemstone_p import session as gs_session
+from gemstone_p import session_soak
 
 
 class TestSessionChannelIsolation(unittest.TestCase):
@@ -181,6 +183,115 @@ class TestSessionChannelIsolation(unittest.TestCase):
         self.assertEqual(snapshot["stoneSource"], "request-override")
         self.assertTrue(snapshot["overrideActive"])
         self.assertEqual(snapshot["override"]["stone"], "seaside")
+
+    def test_request_session_reuses_single_session_under_concurrent_same_channel_load(self):
+        created = []
+
+        def build_session(**kwargs):
+            session = MagicMock(_logged_in=False)
+            session.config = kwargs.get("config")
+
+            def login():
+                session._logged_in = True
+
+            session.login.side_effect = login
+            created.append(session)
+            return session
+
+        barrier = threading.Barrier(6)
+        seen_session_ids = []
+        errors = []
+
+        def worker():
+            try:
+                barrier.wait(timeout=5)
+                with gs_session.request_session(read_only=True, channel="stress-same") as session:
+                    seen_session_ids.append(id(session))
+            except Exception as exc:
+                errors.append(exc)
+
+        with patch("gemstone_p.session.GemStoneSession", side_effect=build_session):
+            threads = [threading.Thread(target=worker) for _ in range(6)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(created), 1)
+        self.assertEqual(len(set(seen_session_ids)), 1)
+        created[0].login.assert_called_once()
+        self.assertEqual(created[0].abort.call_count, 6)
+
+    def test_request_session_keeps_channels_isolated_under_concurrent_load(self):
+        created = []
+
+        def build_session(**kwargs):
+            session = MagicMock(_logged_in=False)
+            session.config = kwargs.get("config")
+
+            def login():
+                session._logged_in = True
+
+            session.login.side_effect = login
+            created.append(session)
+            return session
+
+        barrier = threading.Barrier(6)
+        seen_by_channel = {"stress-a": [], "stress-b": []}
+        errors = []
+
+        def worker(channel):
+            try:
+                barrier.wait(timeout=5)
+                with gs_session.request_session(read_only=True, channel=channel) as session:
+                    seen_by_channel[channel].append(id(session))
+            except Exception as exc:
+                errors.append(exc)
+
+        with patch("gemstone_p.session.GemStoneSession", side_effect=build_session):
+            threads = [
+                threading.Thread(target=worker, args=("stress-a",)),
+                threading.Thread(target=worker, args=("stress-a",)),
+                threading.Thread(target=worker, args=("stress-a",)),
+                threading.Thread(target=worker, args=("stress-b",)),
+                threading.Thread(target=worker, args=("stress-b",)),
+                threading.Thread(target=worker, args=("stress-b",)),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(created), 2)
+        self.assertEqual(len(set(seen_by_channel["stress-a"])), 1)
+        self.assertEqual(len(set(seen_by_channel["stress-b"])), 1)
+        self.assertNotEqual(seen_by_channel["stress-a"][0], seen_by_channel["stress-b"][0])
+        self.assertEqual(sum(session.login.call_count for session in created), 2)
+        self.assertEqual(sum(session.abort.call_count for session in created), 6)
+
+
+class TestSessionSoakHelpers(unittest.TestCase):
+    def test_channel_name_cycles_across_configured_channels(self):
+        self.assertEqual(session_soak._channel_name(0, 4), "soak-0")
+        self.assertEqual(session_soak._channel_name(3, 4), "soak-3")
+        self.assertEqual(session_soak._channel_name(4, 4), "soak-0")
+        self.assertEqual(session_soak._channel_name(10, 1), "soak-0")
+
+    def test_write_iteration_respects_interval(self):
+        self.assertFalse(session_soak._is_write_iteration(0, 0))
+        self.assertFalse(session_soak._is_write_iteration(0, 3))
+        self.assertFalse(session_soak._is_write_iteration(1, 3))
+        self.assertTrue(session_soak._is_write_iteration(2, 3))
+
+    def test_latency_summary_reports_basic_percentiles(self):
+        summary = session_soak._latency_summary([1.0, 2.0, 3.0, 4.0, 5.0])
+        self.assertEqual(summary["min"], 1.0)
+        self.assertEqual(summary["avg"], 3.0)
+        self.assertEqual(summary["p50"], 3.0)
+        self.assertEqual(summary["p95"], 4.8)
+        self.assertEqual(summary["max"], 5.0)
 
 
 if __name__ == "__main__":

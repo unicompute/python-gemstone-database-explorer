@@ -1,12 +1,25 @@
 (function (root, factory) {
-  const api = factory();
+  const api = factory(
+    typeof module === 'object' && module.exports
+      ? require('./connection_window_checks_runtime.js')
+      : root.ConnectionWindowChecksRuntime,
+    typeof module === 'object' && module.exports
+      ? require('./connection_window_profiles_runtime.js')
+      : root.ConnectionWindowProfilesRuntime
+  );
   if (typeof module === 'object' && module.exports) {
     module.exports = api;
   }
   if (root) {
     root.ConnectionWindowRuntime = api;
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (
+  checksRuntimeApi,
+  profilesRuntimeApi
+) {
+  const {createConnectionWindowChecksRuntime} = checksRuntimeApi;
+  const {createConnectionWindowProfilesRuntime} = profilesRuntimeApi;
+
   function createConnectionWindowRuntime(deps = {}) {
     const {
       id,
@@ -43,6 +56,34 @@
       });
     }
 
+    function getLatestPreflight() {
+      return latestPreflight;
+    }
+
+    function setLatestPreflight(value) {
+      latestPreflight = value;
+    }
+
+    function getLatestStartupError() {
+      return latestStartupError;
+    }
+
+    function getConnectionCheckResults() {
+      return connectionCheckResults;
+    }
+
+    function setConnectionCheckResults(value) {
+      connectionCheckResults = Array.isArray(value) ? value : [];
+    }
+
+    function getConnectionCheckViewMode() {
+      return connectionCheckViewMode;
+    }
+
+    function setConnectionCheckViewMode(value) {
+      connectionCheckViewMode = deps.normalizeConnectionCheckViewMode(value);
+    }
+
     function connectionPayload() {
       return deps.buildConnectionPayloadModel({
         latestPreflight,
@@ -60,344 +101,67 @@
       });
     }
 
-    function buildFixShell() {
-      return deps.buildConnectionFixShell(latestPreflight);
-    }
+    const checksRuntime = createConnectionWindowChecksRuntime({
+      ...deps,
+      id,
+      getLatestPreflight,
+      setLatestPreflight,
+      getLatestStartupError,
+      getConnectionCheckResults,
+      setConnectionCheckResults,
+      getConnectionCheckViewMode,
+      setConnectionCheckViewMode,
+      syncConnectionWindowState,
+      renderConnection,
+    });
 
-    function shouldAutoRecoverStartup() {
-      return !deps.startupBootstrapped() || !!latestStartupError;
-    }
+    const profilesRuntime = createConnectionWindowProfilesRuntime({
+      ...deps,
+      id,
+      getLatestPreflight,
+      getLatestStartupError,
+      syncConnectionWindowState,
+      renderConnection,
+      refreshConnection,
+      retryStartup,
+    });
 
-    async function applyConnectionTargetAction(override, successLabel) {
-      const normalized = deps.persistConnectionOverride(override);
-      if (!normalized) {
-        deps.setStatus(false, 'no connection target available');
-        return false;
-      }
-      deps.setStatus(true, `${successLabel}: ${deps.summarizeConnectionOverride(normalized)}`);
-      if (shouldAutoRecoverStartup()) {
-        await retryStartup();
-      } else {
-        await refreshConnection();
-      }
-      return true;
-    }
+    const {
+      rememberConnectionCheckResult,
+      removeConnectionCheckResult,
+      clearConnectionCheckResults,
+      checkConnectionTargetPreflight,
+      recheckConnectionTargetResults,
+      getVisibleConnectionCheckEntries,
+      isFilteredConnectionChecksView,
+      copyConnectionChecks,
+      downloadConnectionChecks,
+      importConnectionChecksFromModal,
+    } = checksRuntime;
 
-    async function copyNamedConnectionTargetShell(override, label) {
-      const shell = deps.buildShellForOverride(override);
-      if (!shell) {
-        deps.setStatus(false, `no shell export available for ${label}`);
-        return false;
-      }
-      try {
-        await deps.copyTextToClipboard(shell);
-        deps.setStatus(true, `copied shell for ${label}`);
-        return true;
-      } catch (e) {
-        deps.setStatus(false, e.message);
-        return false;
-      }
-    }
-
-    function rememberConnectionCheckResult(result) {
-      const sanitized = deps.sanitizeConnectionCheckResult(result);
-      if (!sanitized) return null;
-      const key = deps.connectionOverrideKey(sanitized.target);
-      connectionCheckResults = [
-        sanitized,
-        ...connectionCheckResults.filter(item => !(item.label === sanitized.label && deps.connectionOverrideKey(item.target) === key)),
-      ].slice(0, 8);
-      syncConnectionWindowState();
-      return sanitized;
-    }
-
-    function removeConnectionCheckResult(result) {
-      const sanitized = deps.sanitizeConnectionCheckResult(result);
-      if (!sanitized) return;
-      const key = deps.connectionOverrideKey(sanitized.target);
-      connectionCheckResults = connectionCheckResults.filter(item => !(item.label === sanitized.label && deps.connectionOverrideKey(item.target) === key));
-      syncConnectionWindowState();
-    }
-
-    function clearConnectionCheckResults() {
-      connectionCheckResults = [];
-      syncConnectionWindowState();
-    }
-
-    async function checkConnectionTargetPreflight(target, label) {
-      const normalized = deps.sanitizeConnectionOverride(target);
-      if (!normalized) {
-        deps.setStatus(false, `no target available to check for ${label}`);
-        return null;
-      }
-      try {
-        const data = await deps.api('/connection/preflight', {
-          connectionOverride: normalized,
-        });
-        const result = rememberConnectionCheckResult(deps.captureConnectionCheckResult({
-          label,
-          target: normalized,
-          status: data?.success ? 'ok' : 'error',
-          checkedAt: new Date().toISOString(),
-          exception: data?.exception || '',
-          effectiveTarget: data?.connection?.configured?.effectiveTarget || '',
-          stoneSource: data?.connection?.configured?.stoneSource || '',
-        }, data));
-        if (data?.success) {
-          deps.setStatus(true, `checked ${label}: ok`);
-        } else {
-          deps.setStatus(false, `checked ${label}: ${data?.exception || 'connection failed'}`);
-        }
-        renderConnection(latestPreflight, latestStartupError);
-        return result;
-      } catch (e) {
-        const result = rememberConnectionCheckResult(deps.captureConnectionCheckResult({
-          label,
-          target: normalized,
-          status: 'error',
-          checkedAt: new Date().toISOString(),
-          exception: e.message || 'connection failed',
-        }, latestPreflight));
-        deps.setStatus(false, `checked ${label}: ${e.message}`);
-        renderConnection(latestPreflight, latestStartupError);
-        return result;
-      }
-    }
-
-    async function recheckConnectionTargetResults(options = {}) {
-      const failuresOnly = !!options.failuresOnly;
-      const staleOnly = !!options.staleOnly;
-      const selected = connectionCheckResults.filter(item => {
-        if (!item) return false;
-        if (failuresOnly && item.success) return false;
-        if (staleOnly && !deps.describeConnectionCheckFreshness(item, latestPreflight).stale) return false;
-        return true;
-      });
-      if (!selected.length) {
-        deps.setStatus(false, staleOnly
-          ? 'no stale target checks to recheck'
-          : (failuresOnly ? 'no failing target checks to recheck' : 'no target checks to recheck'));
-        return [];
-      }
-      let okCount = 0;
-      let errorCount = 0;
-      for (const item of selected) {
-        const result = await checkConnectionTargetPreflight(item.target, item.label);
-        if (result?.success) okCount += 1;
-        else errorCount += 1;
-      }
-      if (staleOnly) {
-        try {
-          latestPreflight = await deps.resolveConnectionPreflight();
-        } catch (_) {
-          // keep the last rendered preflight if the current target cannot be refreshed
-        }
-      }
-      deps.setStatus(errorCount === 0, `rechecked ${selected.length} target check${selected.length === 1 ? '' : 's'}: ${okCount} ok${errorCount ? `, ${errorCount} error` : ''}`);
-      renderConnection(latestPreflight, latestStartupError);
-      return selected;
-    }
-
-    function getVisibleConnectionCheckEntries(payload = latestPreflight) {
-      return deps.getVisibleConnectionCheckEntriesModel({
-        connectionCheckResults,
-        payload,
-        connectionCheckViewMode,
-        describeConnectionCheckFreshness: deps.describeConnectionCheckFreshness,
-      });
-    }
-
-    function isFilteredConnectionChecksView() {
-      return deps.isFilteredConnectionChecksViewModel(connectionCheckViewMode);
-    }
-
-    async function copyConnectionChecks() {
-      if (!connectionCheckResults.length) {
-        deps.setStatus(false, 'no target checks to copy');
-        return;
-      }
-      try {
-        const entries = getVisibleConnectionCheckEntries(latestPreflight);
-        await deps.copyTextToClipboard(JSON.stringify(deps.buildConnectionCheckBundle(entries.map(entry => entry.item)), null, 2));
-        deps.setStatus(true, `copied ${isFilteredConnectionChecksView() ? 'visible' : 'saved'} target checks`);
-      } catch (e) {
-        deps.setStatus(false, e.message);
-      }
-    }
-
-    function downloadConnectionChecks() {
-      if (!connectionCheckResults.length) {
-        deps.setStatus(false, 'no target checks to download');
-        return;
-      }
-      const stamp = new Date().toISOString().replace(/[:]/g, '-');
-      const entries = getVisibleConnectionCheckEntries(latestPreflight);
-      deps.downloadDataFile(`connection-checks-${stamp}.json`, JSON.stringify(deps.buildConnectionCheckBundle(entries.map(entry => entry.item)), null, 2), 'application/json;charset=utf-8');
-      deps.setStatus(true, `downloaded ${isFilteredConnectionChecksView() ? 'visible' : 'saved'} target checks`);
-    }
-
-    async function importConnectionChecksFromModal(options = {}) {
-      const replace = !!options.replace;
-      const values = await deps.requestModal(replace ? 'Replace Target Checks' : 'Import Target Checks', [{
-        id: `${id}-import-checks-json`,
-        label: 'Check JSON',
-        type: 'textarea',
-        placeholder: '{"version":1,"checks":[...]}',
-        value: '',
-      }], {
-        okLabel: replace ? 'Replace Checks' : 'Import Checks',
-        message: replace
-          ? 'Paste a target-check bundle exported from Copy Checks JSON or Download Checks JSON. This replaces the current saved target checks.'
-          : 'Paste a target-check bundle exported from Copy Checks JSON or Download Checks JSON. Imported checks are merged into the current saved target checks.',
-      });
-      if (!values) return;
-      const raw = String(values[`${id}-import-checks-json`] || '').trim();
-      if (!raw) {
-        deps.setStatus(false, 'no target check JSON provided');
-        return;
-      }
-      try {
-        const imported = deps.mergeConnectionCheckBundle(connectionCheckResults, JSON.parse(raw), {replace});
-        connectionCheckResults = imported.checks;
-        syncConnectionWindowState();
-        const verb = replace ? 'replaced' : 'imported';
-        deps.setStatus(true, `${verb} ${imported.importedCheckCount} target check${imported.importedCheckCount === 1 ? '' : 's'}; ${imported.checkCount} saved`);
-        deps.notifyLiveWindowUpdated();
-        renderConnection(latestPreflight, latestStartupError);
-      } catch (e) {
-        deps.setStatus(false, `target check import failed: ${e.message}`);
-      }
-    }
-
-    function suggestedOverrideFromPayload(payload = latestPreflight) {
-      return deps.suggestedConnectionOverrideFromPayloadModel(payload, deps.sanitizeConnectionOverride);
-    }
-
-    function configuredOverrideSeed(payload = latestPreflight) {
-      return deps.buildConfiguredConnectionOverrideSeedModel(payload, deps.readConnectionOverride(), deps.sanitizeConnectionOverride);
-    }
-
-    function localStoneOverridesFromPayload(payload = latestPreflight) {
-      return deps.localStoneOverridesFromPayloadModel(payload);
-    }
-
-    function currentConnectionTargetOverride(payload = latestPreflight) {
-      return deps.currentConnectionTargetOverrideModel(payload, deps.readConnectionOverride(), deps.sanitizeConnectionOverride);
-    }
-
-    function favoriteProfileForOverride(override, profiles = deps.readFavoriteConnectionProfiles()) {
-      return deps.favoriteProfileForOverrideModel(override, profiles, deps.connectionOverrideKey);
-    }
-
-    async function saveConnectionTargetAsFavorite(target, options = {}) {
-      const normalized = deps.sanitizeConnectionOverride(target);
-      if (!normalized) {
-        deps.setStatus(false, 'no connection target available to save');
-        return null;
-      }
-      const currentProfile = favoriteProfileForOverride(normalized);
-      const baseName = currentProfile?.name || String(options.suggestedName || '').trim() || deps.defaultConnectionOverrideName(normalized);
-      const baseNote = currentProfile?.note || String(options.suggestedNote || '').trim();
-      const values = await deps.requestModal(currentProfile ? 'Rename Favorite Target' : 'Save Favorite Target', [{
-        id: `${id}-favorite-name`,
-        label: 'Name',
-        value: baseName,
-        placeholder: baseName,
-      }, {
-        id: `${id}-favorite-note`,
-        label: 'Note',
-        type: 'textarea',
-        value: baseNote,
-        placeholder: 'Optional note about this saved target',
-      }], {
-        okLabel: currentProfile ? 'Rename Favorite' : 'Save Favorite',
-        message: options.message || 'Saved favorite targets stay available in the Connection window even after recents change.',
-      });
-      if (!values) return null;
-      const profileName = String(values[`${id}-favorite-name`] || '').trim() || baseName;
-      const profileNote = String(values[`${id}-favorite-note`] || '').trim();
-      const saved = deps.addFavoriteConnectionProfile(normalized, profileName, profileNote);
-      deps.setStatus(true, `${currentProfile ? 'renamed' : 'saved'} favorite target ${saved.name}: ${deps.summarizeConnectionOverride(saved.target)}`);
-      deps.notifyLiveWindowUpdated();
-      renderConnection(latestPreflight, latestStartupError);
-      return saved;
-    }
-
-    async function editFavoriteTargetProfile(favorite) {
-      if (!favorite) {
-        deps.setStatus(false, 'no favorite target available to edit');
-        return null;
-      }
-      const current = deps.sanitizeConnectionOverride(favorite.target);
-      if (!current) {
-        deps.setStatus(false, 'favorite target is invalid');
-        return null;
-      }
-      const values = await deps.requestModal(`Edit Favorite Target ${favorite.name}`, [
-        {
-          id: `${id}-edit-favorite-name`,
-          label: 'Name',
-          value: favorite.name || deps.defaultConnectionOverrideName(current),
-          placeholder: favorite.name || deps.defaultConnectionOverrideName(current),
-        },
-        {
-          id: `${id}-edit-favorite-note`,
-          label: 'Note',
-          type: 'textarea',
-          value: favorite.note || '',
-          placeholder: 'Optional note about this saved target',
-        },
-        {
-          id: `${id}-edit-favorite-stone`,
-          label: 'Stone',
-          value: current.stone || '',
-          placeholder: 'stone name',
-        },
-        {
-          id: `${id}-edit-favorite-host`,
-          label: 'Host',
-          value: current.host || '',
-          placeholder: 'host',
-        },
-        {
-          id: `${id}-edit-favorite-netldi`,
-          label: 'NetLDI',
-          value: current.netldi || '',
-          placeholder: 'netldi port or service',
-        },
-        {
-          id: `${id}-edit-favorite-gem-service`,
-          label: 'Gem Service',
-          value: current.gemService || '',
-          placeholder: 'gem service',
-        },
-      ], {
-        okLabel: 'Save Favorite',
-        message: 'Edit the saved target details without changing the active override.',
-      });
-      if (!values) return null;
-      const nextTarget = deps.sanitizeConnectionOverride({
-        stone: values[`${id}-edit-favorite-stone`] || '',
-        host: values[`${id}-edit-favorite-host`] || '',
-        netldi: values[`${id}-edit-favorite-netldi`] || '',
-        gemService: values[`${id}-edit-favorite-gem-service`] || '',
-      });
-      if (!nextTarget) {
-        deps.setStatus(false, 'favorite target must include at least one connection field');
-        return null;
-      }
-      const nextName = String(values[`${id}-edit-favorite-name`] || '').trim() || favorite.name || deps.defaultConnectionOverrideName(nextTarget);
-      const nextNote = String(values[`${id}-edit-favorite-note`] || '').trim();
-      const updated = deps.updateFavoriteConnectionProfile(favorite.target, nextTarget, nextName, nextNote);
-      if (!updated) {
-        deps.setStatus(false, 'failed to update favorite target');
-        return null;
-      }
-      deps.setStatus(true, `updated favorite target ${updated.name}: ${deps.summarizeConnectionOverride(updated.target)}`);
-      deps.notifyLiveWindowUpdated();
-      renderConnection(latestPreflight, latestStartupError);
-      return updated;
-    }
+    const {
+      buildFixShell,
+      applyConnectionTargetAction,
+      copyNamedConnectionTargetShell,
+      suggestedOverrideFromPayload,
+      configuredOverrideSeed,
+      localStoneOverridesFromPayload,
+      currentConnectionTargetOverride,
+      favoriteProfileForOverride,
+      saveConnectionTargetAsFavorite,
+      editFavoriteTargetProfile,
+      copyConnectionProfiles,
+      downloadConnectionProfiles,
+      applySuggestedOverride,
+      saveSuggestedOverrideAsFavorite,
+      editOverride,
+      toggleFavoriteCurrentTarget,
+      importConnectionProfilesFromModal,
+      clearOverrideAndRefresh,
+      clearFavoriteProfilesWithConfirm,
+      clearRecentTargetsWithConfirm,
+      clearLastWorkingTargetWithConfirm,
+    } = profilesRuntime;
 
     function renderConnection(preflight = null, startupError = '') {
       if (preflight) latestPreflight = preflight;
@@ -882,191 +646,10 @@
       }
     }
 
-    async function copyConnectionProfiles() {
-      try {
-        await deps.copyTextToClipboard(JSON.stringify(deps.buildConnectionProfileBundle(), null, 2));
-        deps.setStatus(true, 'copied connection profiles');
-      } catch (e) {
-        deps.setStatus(false, e.message);
-      }
-    }
-
     function downloadConnectionJson() {
       const stamp = new Date().toISOString().replace(/[:]/g, '-');
       deps.downloadDataFile(`connection-preflight-${stamp}.json`, JSON.stringify(connectionPayload(), null, 2), 'application/json;charset=utf-8');
       deps.setStatus(true, 'downloaded connection diagnostics');
-    }
-
-    function downloadConnectionProfiles() {
-      const stamp = new Date().toISOString().replace(/[:]/g, '-');
-      deps.downloadDataFile(`connection-profiles-${stamp}.json`, JSON.stringify(deps.buildConnectionProfileBundle(), null, 2), 'application/json;charset=utf-8');
-      deps.setStatus(true, 'downloaded connection profiles');
-    }
-
-    async function applySuggestedOverride() {
-      const override = suggestedOverrideFromPayload();
-      if (!override) {
-        deps.setStatus(false, 'no suggested target available');
-        return;
-      }
-      await applyConnectionTargetAction(override, 'applied connection override');
-    }
-
-    async function saveSuggestedOverrideAsFavorite() {
-      const override = suggestedOverrideFromPayload();
-      if (!override) {
-        deps.setStatus(false, 'no suggested target available');
-        return;
-      }
-      await saveConnectionTargetAsFavorite(override, {
-        suggestedName: deps.defaultConnectionOverrideName(override),
-        message: 'Save or rename the current suggested target as a reusable favorite profile without changing the active override.',
-      });
-    }
-
-    async function editOverride() {
-      const seed = configuredOverrideSeed();
-      const values = await deps.requestModal('Edit Connection Override', [
-        {
-          id: `${id}-override-stone`,
-          label: 'Stone',
-          value: seed.current?.stone || '',
-          placeholder: seed.placeholders.stone || 'stone name',
-        },
-        {
-          id: `${id}-override-host`,
-          label: 'Host',
-          value: seed.current?.host || '',
-          placeholder: seed.placeholders.host || 'host',
-        },
-        {
-          id: `${id}-override-netldi`,
-          label: 'NetLDI',
-          value: seed.current?.netldi || '',
-          placeholder: seed.placeholders.netldi || 'netldi port or service',
-        },
-        {
-          id: `${id}-override-gem-service`,
-          label: 'Gem Service',
-          value: seed.current?.gemService || '',
-          placeholder: seed.placeholders.gemService || 'gem service',
-        },
-      ], {
-        message: 'Leave fields blank to remove the browser-local override and fall back to the server environment.',
-        okLabel: 'Apply Override',
-      });
-      if (!values) return;
-      const override = {
-        stone: values[`${id}-override-stone`] || '',
-        host: values[`${id}-override-host`] || '',
-        netldi: values[`${id}-override-netldi`] || '',
-        gemService: values[`${id}-override-gem-service`] || '',
-      };
-      const normalized = deps.sanitizeConnectionOverride(override);
-      if (!normalized) {
-        deps.clearConnectionOverride();
-        deps.setStatus(true, 'cleared connection override');
-        await refreshConnection();
-        return;
-      }
-      await applyConnectionTargetAction(normalized, 'applied connection override');
-    }
-
-    async function toggleFavoriteCurrentTarget() {
-      const target = currentConnectionTargetOverride();
-      if (!target) {
-        deps.setStatus(false, 'no current target to save');
-        return;
-      }
-      await saveConnectionTargetAsFavorite(target);
-    }
-
-    async function importConnectionProfilesFromModal(options = {}) {
-      const replace = !!options.replace;
-      const values = await deps.requestModal(replace ? 'Replace Connection Profiles' : 'Import Connection Profiles', [{
-        id: `${id}-import-profiles-json`,
-        label: 'Profile JSON',
-        type: 'textarea',
-        placeholder: '{"version":1,"favoriteProfiles":[...]}',
-        value: '',
-      }], {
-        okLabel: replace ? 'Replace Profiles' : 'Import Profiles',
-        message: replace
-          ? 'Paste a connection profile bundle exported from Copy Profiles or Download Profiles. This replaces the current favorites, recents, default favorite, and last working target.'
-          : 'Paste a connection profile bundle exported from Copy Profiles or Download Profiles. Imported favorites and recents are merged into the current browser state.',
-      });
-      if (!values) return;
-      const raw = String(values[`${id}-import-profiles-json`] || '').trim();
-      if (!raw) {
-        deps.setStatus(false, 'no connection profile JSON provided');
-        return;
-      }
-      try {
-        const imported = replace
-          ? deps.replaceConnectionProfileBundle(JSON.parse(raw))
-          : deps.importConnectionProfileBundle(JSON.parse(raw));
-        const defaultLabel = imported.defaultFavoriteProfile ? `; default ${imported.defaultFavoriteProfile.name}` : '';
-        const verb = replace ? 'replaced' : 'imported';
-        deps.setStatus(true, `${verb} ${imported.importedFavoriteCount} favorite target${imported.importedFavoriteCount === 1 ? '' : 's'} and ${imported.importedRecentCount} recent target${imported.importedRecentCount === 1 ? '' : 's'}${defaultLabel}`);
-        deps.notifyLiveWindowUpdated();
-        renderConnection(latestPreflight, latestStartupError);
-      } catch (e) {
-        deps.setStatus(false, `profile import failed: ${e.message}`);
-      }
-    }
-
-    async function clearOverrideAndRefresh() {
-      deps.clearConnectionOverride();
-      deps.setStatus(true, 'cleared connection override');
-      await refreshConnection();
-    }
-
-    async function clearFavoriteProfilesWithConfirm() {
-      const favorites = deps.readFavoriteConnectionProfiles();
-      if (!favorites.length) {
-        deps.setStatus(false, 'no favorite targets to clear');
-        return;
-      }
-      const confirmed = await deps.requestConfirmModal('Clear Favorite Targets', `Forget all ${favorites.length} saved favorite target${favorites.length === 1 ? '' : 's'}?`, {
-        okLabel: 'Clear Favorites',
-      });
-      if (!confirmed) return;
-      deps.clearFavoriteConnectionProfiles();
-      deps.setStatus(true, `cleared ${favorites.length} favorite target${favorites.length === 1 ? '' : 's'}`);
-      deps.notifyLiveWindowUpdated();
-      renderConnection(latestPreflight, latestStartupError);
-    }
-
-    async function clearRecentTargetsWithConfirm() {
-      const recents = deps.readRecentConnectionOverrides();
-      if (!recents.length) {
-        deps.setStatus(false, 'no recent targets to clear');
-        return;
-      }
-      const confirmed = await deps.requestConfirmModal('Clear Recent Targets', `Forget all ${recents.length} recent target${recents.length === 1 ? '' : 's'}?`, {
-        okLabel: 'Clear Recents',
-      });
-      if (!confirmed) return;
-      deps.clearRecentConnectionOverrides();
-      deps.setStatus(true, `cleared ${recents.length} recent target${recents.length === 1 ? '' : 's'}`);
-      deps.notifyLiveWindowUpdated();
-      renderConnection(latestPreflight, latestStartupError);
-    }
-
-    async function clearLastWorkingTargetWithConfirm() {
-      const saved = deps.readLastSuccessfulConnectionOverride();
-      if (!saved) {
-        deps.setStatus(false, 'no last working target to clear');
-        return;
-      }
-      const confirmed = await deps.requestConfirmModal('Clear Last Working Target', `Forget the saved last working target ${deps.summarizeConnectionOverride(saved)}?`, {
-        okLabel: 'Clear Last Working',
-      });
-      if (!confirmed) return;
-      deps.clearLastSuccessfulConnectionOverride();
-      deps.setStatus(true, `cleared last working target: ${deps.summarizeConnectionOverride(saved)}`);
-      deps.notifyLiveWindowUpdated();
-      renderConnection(latestPreflight, latestStartupError);
     }
 
     function mount() {

@@ -109,11 +109,24 @@ npm run test:ui:live
 
 The live suite starts the real Flask app on `127.0.0.1:4192` and covers startup browsing, debugger flow, and a transactional Class Browser write flow that aborts its changes before the test ends.
 
+### Session Soak
+
+For longer operational pressure against the shared session broker, run:
+
+```bash
+.venv/bin/python -m gemstone_p.session_soak --workers 8 --iterations 100 --channels 4
+```
+
+This is not a throughput benchmark. It is a maintenance tool for exercising
+channel reuse, login/logout churn, write-channel cleanup, and broken-session
+recovery against a real Stone.
+
 ## Documentation
 
 - [Configuration](docs/configuration.md)
 - [Architecture](docs/architecture.md)
 - [API Reference](docs/api.md)
+- [Live UI Maintainer Notes](docs/live-ui-maintainer.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

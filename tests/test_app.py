@@ -1511,6 +1511,9 @@ class TestRoutes(unittest.TestCase):
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_debug_frames_uses_context_chain_labels(self, mock_rs):
+        import gemstone_p.app as app_module
+
+        app_module._forget_debug_source_hint(700)
         session = _mock_session()
         session.eval.return_value = "0|Object>>haltedMethod\n1|Behavior>>helper"
         mock_rs.return_value = _mock_request_session(session)

@@ -1,12 +1,33 @@
 const { test, expect } = require('@playwright/test');
 const { clickClassBrowserAction, launchDockApp, submitModal, windowByTitle } = require('./helpers');
 
+// Keep this suite narrow. Add cases here only when the behavior depends on a
+// real GemStone runtime and cannot be covered faithfully by the mock UI suite.
+const LIVE_STONE = process.env.GS_STONE || '';
+
 test('startup opens the default browser windows against a live GemStone session', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.locator('.win')).toHaveCount(2);
   await expect(page.locator('.win').filter({ hasText: 'Abort Transaction' }).first()).toBeVisible();
   await expect(page.locator('#status-txt')).toContainText('connected');
+});
+
+test('connection window exports live diagnostics for the active target', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#status-txt')).toContainText('connected');
+
+  await launchDockApp(page, 'Connection');
+  const connection = windowByTitle(page, 'Connection');
+  await expect(connection).toBeVisible();
+
+  await page.evaluate(() => { window.__lastDownloadedFile = null; });
+  await connection.getByRole('button', { name: 'Download JSON' }).click();
+  await expect.poll(() => page.evaluate(() => window.__lastDownloadedFile?.filename || '')).toMatch(/^connection-preflight-.*\.json$/);
+
+  const bundle = JSON.parse(await page.evaluate(() => window.__lastDownloadedFile?.text || '{}'));
+  expect(bundle.preflight?.success).toBeTruthy();
+  expect(bundle.preflight?.connection?.configured?.stone || '').toBe(LIVE_STONE);
 });
 
 test('workspace can evaluate Object and drag it into a linked inspector', async ({ page }) => {

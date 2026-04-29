@@ -190,6 +190,148 @@ class TestApiContracts(unittest.TestCase):
         self.assertIsInstance(data["dictionary"], str)
 
     @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_move_class_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|Object|UserGlobals"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/move-class",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "targetDictionary": "UserGlobals",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "className", "dictionary"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["className"], str)
+        self.assertIsInstance(data["dictionary"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_add_category_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|testing"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/add-category",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "category": "testing",
+                "meta": False,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "category"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["category"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_add_instance_variable_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|name"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/add-instance-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "name",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "variableName"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["variableName"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_add_class_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|TmpUiClass|UserGlobals|Object"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/add-class",
+            json={
+                "className": "TmpUiClass",
+                "dictionary": "UserGlobals",
+                "superclassName": "Object",
+                "superclassDictionary": "Globals",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(
+            set(data.keys()),
+            {"success", "result", "className", "dictionary", "superclassName"},
+        )
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["className"], str)
+        self.assertIsInstance(data["dictionary"], str)
+        self.assertIsInstance(data["superclassName"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_remove_category_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|3|as yet unclassified"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/remove-category",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "category": "testing",
+                "meta": False,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "category", "movedCount"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["category"], str)
+        self.assertIsInstance(data["movedCount"], int)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_class_browser_remove_instance_variable_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "OK|name"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post(
+            "/class-browser/remove-instance-variable",
+            json={
+                "className": "Object",
+                "dictionary": "Globals",
+                "variableName": "name",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "result", "variableName"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["result"], str)
+        self.assertIsInstance(data["variableName"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
     def test_class_browser_remove_method_contract(self, mock_rs):
         session = _mock_session()
         session.eval.return_value = "OK|printString"
@@ -480,6 +622,21 @@ class TestApiContracts(unittest.TestCase):
         self.assertIsInstance(data["result"], str)
 
     @patch("gemstone_p.app.gs_session.request_session")
+    def test_transaction_set_persistent_mode_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "#autoBegin"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/transaction/persistent-mode", json={"enable": True})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "persistent", "result"})
+        self.assertIs(data["success"], True)
+        self.assertIsInstance(data["persistent"], bool)
+        self.assertIsInstance(data["result"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
     def test_maglev_report_contract(self, mock_rs):
         session = _mock_session()
         session.eval.return_value = "Loaded Features Report\n\n1. app/models/user.rb\n"
@@ -676,6 +833,36 @@ class TestApiContracts(unittest.TestCase):
         self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "frameIndex", "message", "status"})
         self.assertIs(data["success"], True)
         self.assertEqual(data["action"], "step")
+        self.assertIsInstance(data["status"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_into_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/debug/step-into/700", json={"index": 2})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "frameIndex", "message", "status"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["action"], "stepInto")
+        self.assertIsInstance(data["status"], str)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_over_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.post("/debug/step-over/700", json={"index": 2})
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "action", "threadOop", "frameIndex", "message", "status"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["action"], "stepOver")
         self.assertIsInstance(data["status"], str)
 
     @patch("gemstone_p.app.gs_session.request_session")

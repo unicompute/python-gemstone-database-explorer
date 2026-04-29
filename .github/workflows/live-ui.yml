@@ -1,0 +1,57 @@
+name: Live UI
+
+# Maintainer note:
+# - This workflow is intentionally self-hosted because it needs a real GemStone runtime.
+# - Keep tests/ui/live.spec.js focused on real-stone-only regressions; prefer the mock UI
+#   suite for ordinary UI coverage. See docs/live-ui-maintainer.md for usage details.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *"
+
+concurrency:
+  group: live-ui
+  cancel-in-progress: false
+
+jobs:
+  live-ui:
+    if: ${{ secrets.GEMSTONE != '' && secrets.GS_USERNAME != '' && secrets.GS_PASSWORD != '' }}
+    runs-on: self-hosted
+    env:
+      GEMSTONE: ${{ secrets.GEMSTONE }}
+      GS_USERNAME: ${{ secrets.GS_USERNAME }}
+      GS_PASSWORD: ${{ secrets.GS_PASSWORD }}
+      GS_STONE: ${{ secrets.GS_STONE }}
+      GS_HOST: ${{ secrets.GS_HOST }}
+      GS_NETLDI: ${{ secrets.GS_NETLDI }}
+      GS_LIB: ${{ secrets.GS_LIB }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Create virtualenv
+        run: python -m venv .venv
+
+      - name: Install Python dependencies
+        run: |
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e ".[dev]"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Run live UI suite
+        run: npm run test:ui:live

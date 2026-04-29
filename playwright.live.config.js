@@ -1,4 +1,7 @@
+const path = require('path');
 const { defineConfig } = require('@playwright/test');
+
+const pythonBin = path.join(__dirname, '.venv', 'bin', 'python');
 
 module.exports = defineConfig({
   testDir: './tests/ui',
@@ -15,7 +18,7 @@ module.exports = defineConfig({
     headless: true,
   },
   webServer: {
-    command: '/Users/tariq/src/python-gemstone-database-explorer/.venv/bin/python -m gemstone_p.cli --host 127.0.0.1 --port 4192',
+    command: `${pythonBin} -m gemstone_p.cli --host 127.0.0.1 --port 4192`,
     url: 'http://127.0.0.1:4192/',
     reuseExistingServer: true,
     timeout: 60000,

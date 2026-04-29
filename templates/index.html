@@ -1938,6 +1938,10 @@
 <script src="/static/js/desktop_layout_runtime.js"></script>
 <script src="/static/js/startup_bootstrap_model.js"></script>
 <script src="/static/js/startup_bootstrap_controller.js"></script>
+<script src="/static/js/app_api_runtime.js"></script>
+<script src="/static/js/app_desktop_runtime.js"></script>
+<script src="/static/js/app_bootstrap_runtime.js"></script>
+<script src="/static/js/app_shell_runtime.js"></script>
 <script src="/static/js/about_window_view.js"></script>
 <script src="/static/js/about_window_controller.js"></script>
 <script src="/static/js/about_window_runtime.js"></script>
@@ -1955,6 +1959,8 @@
 <script src="/static/js/connection_window_model.js"></script>
 <script src="/static/js/connection_window_view.js"></script>
 <script src="/static/js/connection_window_controller.js"></script>
+<script src="/static/js/connection_window_checks_runtime.js"></script>
+<script src="/static/js/connection_window_profiles_runtime.js"></script>
 <script src="/static/js/connection_window_runtime.js"></script>
 <script src="/static/js/debugger_window_view.js"></script>
 <script src="/static/js/debugger_window_controller.js"></script>
@@ -2004,6 +2010,7 @@
 <script src="/static/js/query_helper_window_controller.js"></script>
 <script src="/static/js/query_helper_window_runtime.js"></script>
 <script src="/static/js/developer_tools_app_runtime.js"></script>
+<script src="/static/js/app_windows_runtime.js"></script>
 <script src="/static/js/taskbar_state_runtime.js"></script>
 <script src="/static/js/dock_launcher_runtime.js"></script>
 <script src="/static/js/dock_surface_runtime.js"></script>
@@ -2026,75 +2033,6 @@ const desktop = document.getElementById('desktop');
 const arrowCanvas = document.getElementById('arrow-canvas');
 let zTop = 100;
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-async function api(url, opts) {
-  const {sessionChannel = '', connectionOverride = undefined, skipConnectionOverride = false, ...fetchOpts} = opts || {};
-  const headers = new Headers(fetchOpts.headers || {});
-  if (sessionChannel) headers.set('X-GS-Channel', String(sessionChannel));
-  const connectionHeaders = connectionOverride !== undefined
-    ? connectionOverrideHeadersFor(connectionOverride)
-    : (skipConnectionOverride ? {} : getConnectionOverrideHeaders());
-  Object.entries(connectionHeaders).forEach(([key, value]) => {
-    if (value) headers.set(key, value);
-  });
-  if (Array.from(headers.keys()).length) fetchOpts.headers = headers;
-  const r = await fetch(url, fetchOpts);
-  const text = await r.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch (_) {
-    data = null;
-  }
-  if (!r.ok) {
-    const detail = data?.exception || data?.error || text || `HTTP ${r.status}`;
-    const error = new Error(detail);
-    error.data = data;
-    error.status = r.status;
-    error.url = url;
-    throw error;
-  }
-  return data;
-}
-async function apiPost(url, body, options = {}) {
-  return api(url, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body),
-    sessionChannel: options.sessionChannel || '',
-  });
-}
-async function apiEvaluate(oop, {code, language='smalltalk', depth=2, ranges={}} = {}, options = {}) {
-  return apiPost(`/object/evaluate/${oop}`, {code, language, depth, ranges}, options);
-}
-async function apiTransaction(url, options = {}) {
-  return apiPost(url, {}, options);
-}
-function exactWriteSessionChannel(channel = '') {
-  const value = String(channel || '').trim();
-  if (!value) return '';
-  if (value.endsWith('-w')) return value;
-  if (value.endsWith('-r')) return `${value.slice(0, -2)}-w`;
-  return `${value}-w`;
-}
-function apiWithParams(url, params = {}, options = {}) {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return;
-    qs.set(key, String(value));
-  });
-  const suffix = qs.toString();
-  return api(suffix ? `${url}?${suffix}` : url, {sessionChannel: options.sessionChannel || ''});
-}
-
-function setStatus(ok, msg) {
-  return desktopStatusRuntime?.setStatus?.(ok, msg);
-}
-
-const LEAF_BASETYPES = new Set(['string', 'symbol', 'fixnum', 'float', 'boolean', 'nilclass']);
 const windowState = new Map();
 const windowLayoutStorageKey = 'python-gemstone-window-layout-v1';
 const healthyWindowLayoutStorageKey = 'python-gemstone-window-layout-healthy-v1';
@@ -2178,6 +2116,20 @@ const {
 const {
   createSupportWindowsAppRuntime,
 } = window.SupportWindowsAppRuntime;
+const {
+  createAppApiRuntime,
+} = window.AppApiRuntime;
+const {
+  createAppDesktopRuntime,
+  shortLabel: desktopShortLabel,
+  isLeafBasetype: desktopIsLeafBasetype,
+} = window.AppDesktopRuntime;
+const {
+  createAppBootstrapRuntime,
+} = window.AppBootstrapRuntime;
+const {
+  createAppShellRuntime,
+} = window.AppShellRuntime;
 const {
   buildWindowLinksWindowView,
 } = window.WindowLinksWindowView;
@@ -2431,6 +2383,9 @@ const {
   createDeveloperToolsAppRuntime,
 } = window.DeveloperToolsAppRuntime;
 const {
+  createAppWindowsRuntime,
+} = window.AppWindowsRuntime;
+const {
   getRelatedWindowIds: computeRelatedWindowIds,
   collectWindowLinkSummaries: buildWindowLinkSummaries,
   collectWindowGroupSummaries: buildWindowGroupSummaries,
@@ -2479,28 +2434,6 @@ const {
   createDesktopStateRuntime,
 } = window.DesktopStateRuntime;
 
-function isLeafBasetype(basetype) {
-  return LEAF_BASETYPES.has(basetype);
-}
-
-function shortLabel(value, max = 32) {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
-  if (!text) return '';
-  return text.length > max ? text.slice(0, max - 1) + '…' : text;
-}
-
-function currentStatusSource() {
-  return desktopStatusRuntime?.currentStatusSource?.() || {
-    sourceWindowId: null,
-    sourceTitle: 'Desktop',
-    sourceKind: 'desktop',
-  };
-}
-
-function renderTaskbarVersion(info) {
-  return desktopStatusRuntime?.renderTaskbarVersion?.(info);
-}
-
 const taskbarConnectionOverrideButton = document.getElementById('taskbar-connection-override');
 const taskbarWindowTypeButtons = Array.from(document.querySelectorAll('#taskbar [data-window-kinds]'));
 const dockContextMenu = document.getElementById('dock-context-menu');
@@ -2510,13 +2443,7 @@ const dockLauncherPanel = document.getElementById('dock-launcher-panel');
 let roots = {};
 let startupIds = {};
 let startupBootstrapped = false;
-let taskbarRuntime = null;
-let startupLayoutRuntime = null;
-let windowShellRuntime = null;
-let objectLinkRuntime = null;
-let desktopStatusRuntime = null;
-let windowArrowRuntime = null;
-let objectChipRuntime = null;
+let appWindowsRuntime = null;
 
 const MAGLEV_REPORT_DEFS = {
   'load-path': {
@@ -2545,140 +2472,137 @@ const MAGLEV_REPORT_DEFS = {
   },
 };
 
-windowArrowRuntime = createWindowArrowRuntime({
+const appShellRuntime = createAppShellRuntime({
+  createAppApiRuntime,
+  createWindowArrowRuntime,
+  createDesktopStatusRuntime,
+  createWindowShellRuntime,
+  createObjectLinkRuntime,
+  createObjectChipRuntime,
+  createStartupLayoutRuntime,
+  createDesktopStateRuntime,
+  createAppDesktopRuntime,
+  createTaskbarRuntime,
+  createAppBootstrapRuntime,
+  startupBootstrapController: StartupBootstrapController,
   document,
+  window,
+  desktop,
   arrowCanvas,
-  shortLabel,
-});
-
-desktopStatusRuntime = createDesktopStatusRuntime({
-  document,
-  readWindowState(id) {
-    return windowState.get(id) || {};
-  },
-  getFocusedOrTopWindow: () => getFocusedOrTopWindow(),
-  recordStatusEntry(ok, msg) {
-    taskbarRuntime?.recordStatusEntry?.(ok, msg);
-  },
-  fetchVersion: () => api('/version'),
-  onRuntimeVersionLoaded(value) {
-    runtimeVersionInfo = value;
-  },
-});
-
-windowShellRuntime = createWindowShellRuntime({
-  document,
-  window,
-  desktop,
-  escHtml,
-  nextZIndex() {
-    return ++zTop;
-  },
-  taskbarInsertBeforeEl: document.getElementById('halted-threads-bar'),
-  taskbarContainer: document.getElementById('taskbar'),
-  upsertWindowState: (...args) => upsertWindowState(...args),
-  persistWindowLayout: () => persistWindowLayout(),
-  notifyStatusHistoryUpdated() {
-    taskbarRuntime?.notifyStatusHistoryUpdated?.();
-  },
-  notifyLiveWindowUpdated() {
-    taskbarRuntime?.notifyLiveWindowUpdated?.();
-  },
-  redrawArrows,
-  removeArrowsFor,
-  liveWindowRenderers,
-  windowState,
-});
-
-objectLinkRuntime = createObjectLinkRuntime({
-  document,
-  window,
-  desktop,
-  windowState,
-  openObjectBrowser: (...args) => openObjectBrowser(...args),
-  drawArrow,
-  redrawArrows,
-  removeArrowsWhere,
-  isLeafBasetype,
-  shortLabel,
-});
-
-objectChipRuntime = createObjectChipRuntime({
-  document,
-  apiEvaluate,
-  maybeOpenEvalDebugger: (...args) => maybeOpenEvalDebugger(...args),
-  openLinkedObjectWindow: payload => openLinkedObjectWindow(payload),
-});
-
-startupLayoutRuntime = createStartupLayoutRuntime({
-  window,
-  getStartupIds: () => startupIds,
-  getRoots: () => roots,
-  openObjectBrowser: (...args) => openObjectBrowser(...args),
-  clearWindowLayout: () => clearWindowLayout(),
-  closeAllWindows: () => closeAllWindows(),
-  persistWindowLayout: () => persistWindowLayout(),
-  setSuppressWindowLayoutPersist(value) {
-    suppressWindowLayoutPersist = !!value;
-  },
-  setCascadePosition(x, y) {
-    windowShellRuntime.setCascadePosition(x, y);
-  },
-});
-
-const desktopStateRuntime = createDesktopStateRuntime({
-  document,
   localStorage,
   windowState,
-  restorableWindowKinds,
+  liveWindowRenderers,
   windowLayoutStorageKey,
   healthyWindowLayoutStorageKey,
+  statusHistoryStorageKey,
+  restorableWindowKinds,
   windowLayoutModel: WindowLayoutModel,
   windowRestoreModel: WindowRestoreModel,
   createDesktopLayoutRuntime,
-  isPersistSuppressed: () => suppressWindowLayoutPersist,
-  setPersistSuppressed(value) {
-    suppressWindowLayoutPersist = !!value;
-  },
-  isStartupBootstrapped: () => startupBootstrapped,
-  sanitizeSelectionIndex,
-  toggleMinimise,
-  focusWin,
-  redrawArrows,
-  notifyLiveWindowUpdated() {
-    taskbarRuntime?.notifyLiveWindowUpdated?.();
-  },
-  getZTop: () => zTop,
-  setZTop(value) {
+  desktopShortLabel,
+  desktopIsLeafBasetype,
+  readZTop: () => zTop,
+  writeZTop(value) {
     zTop = value;
   },
+  readSuppressWindowLayoutPersist: () => suppressWindowLayoutPersist,
+  writeSuppressWindowLayoutPersist(value) {
+    suppressWindowLayoutPersist = !!value;
+  },
+  readRuntimeVersionInfo: () => runtimeVersionInfo,
+  writeRuntimeVersionInfo(value) {
+    runtimeVersionInfo = value;
+  },
+  readRoots: () => roots,
+  writeRoots(value) {
+    roots = value || {};
+  },
+  readStartupIds: () => startupIds,
+  writeStartupIds(value) {
+    startupIds = value || {};
+  },
+  readStartupBootstrapped: () => startupBootstrapped,
+  writeStartupBootstrapped(value) {
+    startupBootstrapped = !!value;
+  },
+  taskbarConnectionOverrideButton,
+  taskbarWindowTypeButtons,
+  dockContextMenu,
+  dockWindowPreview,
+  dockLauncherBtn,
+  dockLauncherPanel,
+  connectionOverrideStorageKey,
+  readPersistedStatusHistory,
+  writePersistedStatusHistory,
+  appendStatusHistoryEntry,
+  summarizeStatusHistory,
+  maglevReportDefs: MAGLEV_REPORT_DEFS,
+  sanitizeConnectionOverride,
+  readConnectionOverride,
+  rememberRecentConnectionOverride,
+  buildDockContextMenuHtml,
+  applyDockContextMenuState,
+  bindDockContextMenuActions,
+  buildDockWindowPreviewHtml,
+  applyDockWindowPreviewState,
+  bindDockWindowPreviewActions,
+  buildDockLauncherView,
+  applyDockLauncherState,
+  bindDockLauncherActions,
+  readPinnedCommands,
+  normalizePinnedCommands,
+  writePinnedCommands,
+  togglePinnedCommand,
   buildWindowLinkSummaries,
   buildWindowGroupSummaries,
-  get arrows() {
-    return windowArrowRuntime?.getArrows?.() || [];
-  },
   computeRelatedWindowIds,
-  getStartupIds: () => startupIds,
-  getRoots: () => roots,
-  openObjectBrowser,
-  openClassBrowser,
-  openWorkspace,
-  openRubyWorkspace,
-  openMaglevReportWindow,
-  openWebBrowser,
-  openConnectionWindow,
-  openAboutWindow,
-  openStatusLogWindow,
-  openWindowGroupsWindow,
-  openWindowLinksWindow,
-  openSymbolList,
-  openDebugger,
-  openMethodQueryWindow,
-  openHierarchyWindow,
-  openVersionsWindow,
+  closeAllManagedWindows,
+  getDesktopFocusedOrTopWindow,
+  revealDesktopWindow,
+  resolveDesktopStatusEntrySourceWindow,
+  withSuppressedDesktopLayoutPersist,
+  afterDesktopWindowLayoutMutation,
+  afterDesktopWindowLayoutPersistOnly,
+  raiseManagedWindowGroupByIds,
+  closeManagedWindowGroupByIds,
+  cascadeManagedWindows,
+  tileManagedWindows,
+  raiseManagedRelatedWindows,
+  minimiseManagedWindows,
+  closeManagedFocusedWindowGroup,
+  openObjectBrowser: (...args) => appWindowsRuntime.openObjectBrowser(...args),
+  openClassBrowser: (...args) => appWindowsRuntime.openClassBrowser(...args),
+  openWorkspace: (...args) => appWindowsRuntime.openWorkspace(...args),
+  openRubyWorkspace: (...args) => appWindowsRuntime.openRubyWorkspace(...args),
+  openMaglevReportWindow: (...args) => appWindowsRuntime.openMaglevReportWindow(...args),
+  openWebBrowser: (...args) => appWindowsRuntime.openWebBrowser(...args),
+  openConnectionWindow: (...args) => appWindowsRuntime.openConnectionWindow(...args),
+  openAboutWindow: (...args) => appWindowsRuntime.openAboutWindow(...args),
+  openStatusLogWindow: (...args) => appWindowsRuntime.openStatusLogWindow(...args),
+  openWindowGroupsWindow: (...args) => appWindowsRuntime.openWindowGroupsWindow(...args),
+  openWindowLinksWindow: (...args) => appWindowsRuntime.openWindowLinksWindow(...args),
+  openSymbolList: (...args) => appWindowsRuntime.openSymbolList(...args),
+  openDebugger: (...args) => appWindowsRuntime.openDebugger(...args),
+  openMethodQueryWindow: (...args) => appWindowsRuntime.openMethodQueryWindow(...args),
+  openHierarchyWindow: (...args) => appWindowsRuntime.openHierarchyWindow(...args),
+  openVersionsWindow: (...args) => appWindowsRuntime.openVersionsWindow(...args),
+  rememberLastSuccessfulConnectionOverride,
 });
 
 const {
+  taskbarRuntime,
+  windowArrowRuntime,
+  escHtml,
+  api,
+  apiPost,
+  apiEvaluate,
+  apiTransaction,
+  exactWriteSessionChannel,
+  apiWithParams,
+  resolveConnectionPreflight,
+  copyTextToClipboard,
+  downloadDataFile,
+  loadRuntimeVersionInfo,
   readWindowState,
   parsePixelValue,
   getManagedWindows,
@@ -2700,76 +2624,49 @@ const {
   clearWindowLayout,
   applyRestoredSourceLinks,
   restoreWindowBounds,
-} = desktopStateRuntime;
-
-taskbarRuntime = createTaskbarRuntime({
-  document,
-  window,
-  localStorage,
-  taskbarConnectionOverrideButton,
-  taskbarWindowTypeButtons,
-  dockContextMenu,
-  dockWindowPreview,
-  dockLauncherBtn,
-  dockLauncherPanel,
-  connectionOverrideStorageKey,
-  statusHistoryStorageKey,
-  maglevReportDefs: MAGLEV_REPORT_DEFS,
-  sanitizeConnectionOverride,
-  readConnectionOverride,
-  rememberRecentConnectionOverride,
-  readPersistedStatusHistory,
-  writePersistedStatusHistory,
-  appendStatusHistoryEntry,
-  summarizeStatusHistory,
+  setStatus,
+  isLeafBasetype,
   shortLabel,
   currentStatusSource,
-  resolveStatusEntrySourceWindow,
-  getLiveWindowRenderers: () => Array.from(liveWindowRenderers.values()),
-  buildDockContextMenuHtml,
-  applyDockContextMenuState,
-  bindDockContextMenuActions,
-  buildDockWindowPreviewHtml,
-  applyDockWindowPreviewState,
-  bindDockWindowPreviewActions,
-  buildDockLauncherView,
-  applyDockLauncherState,
-  bindDockLauncherActions,
-  readPinnedCommands,
-  normalizePinnedCommands,
-  writePinnedCommands,
-  togglePinnedCommand,
-  getOrderedManagedWindows,
-  readWindowState,
-  collectOpenWindowSummaries,
-  raiseWindowGroupByIds,
-  closeWindowGroupByIds,
+  renderTaskbarVersion,
+  sanitizeSelectionIndex,
+  closeAllWindows,
+  getFocusedOrTopWindow,
   revealWindow,
   resolveStatusEntrySourceWindow,
-  getStartupIds: () => startupIds,
-  getRoots: () => roots,
-  openObjectBrowser,
-  openClassBrowser,
-  openWorkspace,
-  openRubyWorkspace,
-  openMaglevReportWindow,
-  openSymbolList,
-  openWebBrowser,
-  openConnectionWindow,
-  openAboutWindow,
-  openStatusLogWindow,
-  openWindowLinksWindow,
-  openWindowGroupsWindow,
-  openDebugger,
+  getRelatedWindowIds,
+  withSuppressedWindowLayoutPersist,
+  afterWindowLayoutMutation,
+  afterWindowLayoutPersistOnly,
+  raiseWindowGroupByIds,
+  closeWindowGroupByIds,
   cascadeWindows,
   tileWindows,
   raiseRelatedWindows,
   minimiseAllWindows,
+  closeWindowGroup,
   closeOtherWindows,
+  restoreSavedLayout,
+  openDefaultStartupLayout,
   resetStartupLayout,
-});
-
-const {
+  shouldDrawManualArrow,
+  clampLinkedWindowPosition,
+  positionLinkedWindowOutsideSource,
+  resolveLinkedWindowPosition,
+  openLinkedObjectWindow,
+  attachObjectButtonBehavior,
+  createWindow,
+  sourceRelativeWindowPosition,
+  focusWin,
+  closeWindow,
+  toggleMinimise,
+  drawArrow,
+  redrawArrows,
+  removeArrowsWhere,
+  removeArrowsFor,
+  collectObjectLinks,
+  syncObjectWindowArrows,
+  makeChip,
   persistConnectionOverride,
   clearConnectionOverride,
   connectionOverrideHeadersFor,
@@ -2796,708 +2693,79 @@ const {
   closeDockContextMenu,
   closeDockWindowPreview,
   isDockContextMenuOpen,
-} = taskbarRuntime;
-
-async function resolveConnectionPreflight(error = null) {
-  if (error?.data?.preflight) return error.data.preflight;
-  try {
-    const data = await api('/connection/preflight');
-    if (data) return data;
-  } catch (inner) {
-    if (inner?.data) return inner.data;
-    return {
-      success: false,
-      status: 'error',
-      exception: inner?.message || error?.message || 'connection failed',
-      connection: {
-        configured: {},
-        probe: {},
-        suggestions: [],
-      },
-    };
-  }
-  return {
-    success: false,
-    status: 'error',
-    exception: error?.message || 'connection failed',
-    connection: {
-      configured: {},
-      probe: {},
-      suggestions: [],
-    },
-  };
-}
-
-async function copyTextToClipboard(text) {
-  const value = String(text ?? '');
-  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-    try {
-      await navigator.clipboard.writeText(value);
-      window.__lastCopiedText = value;
-      return true;
-    } catch (_) {
-      // Fall back to execCommand below when clipboard API is present but unavailable.
-    }
-  }
-  const area = document.createElement('textarea');
-  area.value = value;
-  area.setAttribute('readonly', 'readonly');
-  area.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
-  document.body.appendChild(area);
-  area.select();
-  area.setSelectionRange(0, area.value.length);
-  let copied = false;
-  try {
-    copied = document.execCommand('copy');
-  } finally {
-    area.remove();
-  }
-  if (!copied) throw new Error('Clipboard unavailable');
-  window.__lastCopiedText = value;
-  return true;
-}
-
-function downloadDataFile(filename, text, mimeType = 'text/plain;charset=utf-8') {
-  window.__lastDownloadedFile = {
-    filename: String(filename || ''),
-    text: String(text || ''),
-  };
-  const blob = new Blob([text], {type: mimeType});
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = String(filename || 'export.txt').replace(/[\\/:*?"<>|]+/g, '-');
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-async function loadRuntimeVersionInfo() {
-  return desktopStatusRuntime?.loadRuntimeVersionInfo?.();
-}
-
-function sanitizeSelectionIndex(index, items) {
-  return WindowLayoutModel.sanitizeSelectionIndex(index, items);
-}
-
-function closeAllWindows() {
-  return closeAllManagedWindows({
-    getManagedWindows,
-    closeWindow,
-  });
-}
-
-function getFocusedOrTopWindow() {
-  return getDesktopFocusedOrTopWindow({
-    document,
-    getOrderedManagedWindows,
-  });
-}
-
-function revealWindow(win) {
-  return revealDesktopWindow(win, {
-    toggleMinimise,
-    focusWin,
-  });
-}
-
-function resolveStatusEntrySourceWindow(entry) {
-  return resolveDesktopStatusEntrySourceWindow(entry, {
-    document,
-    getManagedWindows,
-    readWindowState(id) {
-      return windowState.get(id) || {};
-    },
-  });
-}
-
-function getRelatedWindowIds(seedId) {
-  return desktopStateRuntime.getRelatedWindowIds(seedId);
-}
-
-function withSuppressedWindowLayoutPersist(work) {
-  return withSuppressedDesktopLayoutPersist(work, {
-    setSuppressWindowLayoutPersist(value) {
-      suppressWindowLayoutPersist = !!value;
-    },
-  });
-}
-
-function afterWindowLayoutMutation() {
-  return afterDesktopWindowLayoutMutation({
-    persistWindowLayout,
-    redrawArrows,
-    notifyLiveWindowUpdated,
-  });
-}
-
-function afterWindowLayoutPersistOnly() {
-  return afterDesktopWindowLayoutPersistOnly({
-    persistWindowLayout,
-  });
-}
-
-function raiseWindowGroupByIds(memberIds, seedId = null) {
-  return raiseManagedWindowGroupByIds(memberIds, {seedId}, {
-    getOrderedManagedWindows,
-    toggleMinimise,
-    focusWin,
-    withSuppressedLayoutPersist: withSuppressedWindowLayoutPersist,
-    afterWindowMutation: afterWindowLayoutMutation,
-  });
-}
-
-function closeWindowGroupByIds(memberIds, options = {}) {
-  return closeManagedWindowGroupByIds(memberIds, options, {
-    getOrderedManagedWindows,
-    closeWindow,
-  });
-}
-
-function cascadeWindows() {
-  return cascadeManagedWindows({
-    getOrderedManagedWindows,
-    toggleMinimise,
-    focusWin,
-    cascadeX: () => 28,
-    cascadeY: () => 24,
-    setCascadePosition(nextX, nextY) {
-      windowShellRuntime.setCascadePosition(nextX, nextY);
-    },
-    CASCADE_STEP: windowShellRuntime.CASCADE_STEP,
-    CASCADE_MAX_X: windowShellRuntime.CASCADE_MAX_X,
-    CASCADE_MAX_Y: windowShellRuntime.CASCADE_MAX_Y,
-    withSuppressedLayoutPersist: withSuppressedWindowLayoutPersist,
-    afterWindowMutation: afterWindowLayoutMutation,
-  });
-}
-
-function tileWindows() {
-  return tileManagedWindows({
-    getOrderedManagedWindows,
-    toggleMinimise,
-    focusWin,
-    windowWidth: () => window.innerWidth,
-    windowHeight: () => window.innerHeight,
-    withSuppressedLayoutPersist: withSuppressedWindowLayoutPersist,
-    afterWindowMutation: afterWindowLayoutMutation,
-  });
-}
-
-function raiseRelatedWindows() {
-  return raiseManagedRelatedWindows({
-    getFocusedOrTopWindow,
-    getRelatedWindowIds,
-    getOrderedManagedWindows,
-    focusWin,
-    withSuppressedLayoutPersist: withSuppressedWindowLayoutPersist,
-    afterPersistOnly: afterWindowLayoutPersistOnly,
-  });
-}
-
-function minimiseAllWindows() {
-  return minimiseManagedWindows({
-    getManagedWindows,
-    toggleMinimise,
-    withSuppressedLayoutPersist: withSuppressedWindowLayoutPersist,
-    afterPersistOnly: afterWindowLayoutPersistOnly,
-  });
-}
-
-function closeWindowGroup() {
-  return closeManagedFocusedWindowGroup({
-    getFocusedOrTopWindow,
-    getRelatedWindowIds,
-    getOrderedManagedWindows,
-    closeWindow,
-  });
-}
-
-function closeOtherWindows() {
-  const focused = document.querySelector('.win.focused') || getOrderedManagedWindows().slice(-1)[0] || null;
-  if (!focused) return;
-  getManagedWindows().forEach(win => {
-    if (win !== focused) closeWindow(win, win.id);
-  });
-  focusWin(focused);
-}
-
-async function restoreSavedLayout(options = {}) {
-  return getDesktopLayoutRuntime().restoreSavedLayout(options);
-}
-
-function openDefaultStartupLayout() {
-  return startupLayoutRuntime.openDefaultStartupLayout();
-}
-
-function resetStartupLayout() {
-  return startupLayoutRuntime.resetStartupLayout();
-}
-
-function shouldDrawManualArrow(sourceWinId) {
-  return objectLinkRuntime.shouldDrawManualArrow(sourceWinId);
-}
-
-function clampLinkedWindowPosition(x, y, width=520, height=480) {
-  return objectLinkRuntime.clampLinkedWindowPosition(x, y, width, height);
-}
-
-function positionLinkedWindowOutsideSource(sourceEl, width=520, height=480, seedX, seedY) {
-  return objectLinkRuntime.positionLinkedWindowOutsideSource(sourceEl, width, height, seedX, seedY);
-}
-
-function resolveLinkedWindowPosition({sourceWinId, x, y, width=520, height=480}) {
-  return objectLinkRuntime.resolveLinkedWindowPosition({sourceWinId, x, y, width, height});
-}
-
-function openLinkedObjectWindow({oop, text, sourceWinId, arrowType='ref', arrowLabel='', x, y}) {
-  return objectLinkRuntime.openLinkedObjectWindow({oop, text, sourceWinId, arrowType, arrowLabel, x, y});
-}
-
-function attachObjectButtonBehavior(el, {oop, text, sourceWinId, arrowType='ref', arrowLabel=''} = {}) {
-  return objectLinkRuntime.attachObjectButtonBehavior(el, {oop, text, sourceWinId, arrowType, arrowLabel});
-}
-
-// ── windowing system ──────────────────────────────────────────────────────────
-function createWindow({title, width=640, height=480, x, y, taskbarLabel}) {
-  return windowShellRuntime.createWindow({title, width, height, x, y, taskbarLabel});
-}
-
-function sourceRelativeWindowPosition(sourceWindowId, width, height, options = {}) {
-  return windowShellRuntime.sourceRelativeWindowPosition(sourceWindowId, width, height, options);
-}
-
-function focusWin(win, options = {}) {
-  return windowShellRuntime.focusWin(win, options);
-}
-
-function closeWindow(win, id) {
-  return windowShellRuntime.closeWindow(win, id);
-}
-
-function toggleMinimise(win, id) {
-  return windowShellRuntime.toggleMinimise(win, id);
-}
-
-// ── SVG arrows between windows ────────────────────────────────────────────────
-function drawArrow(srcWinId, dstWinId, label='', type='ref', {auto=false} = {}) {
-  return windowArrowRuntime.drawArrow(srcWinId, dstWinId, label, type, {auto});
-}
-
-function redrawArrows() {
-  return windowArrowRuntime.redrawArrows();
-}
-
-function removeArrowsWhere(predicate) {
-  return windowArrowRuntime.removeArrowsWhere(predicate);
-}
-
-function removeArrowsFor(winId) {
-  return windowArrowRuntime.removeArrowsFor(winId);
-}
-
-function collectObjectLinks(obj, targetOop) {
-  return objectLinkRuntime.collectObjectLinks(obj, targetOop);
-}
-
-function syncObjectWindowArrows(winId) {
-  return objectLinkRuntime.syncObjectWindowArrows(winId);
-}
-
-// ── inline object chip (ClassName▼ button) ────────────────────────────────────
-function makeChip(text, oop, winId, evalContext) {
-  return objectChipRuntime.makeChip(text, oop, winId, evalContext);
-}
-
-objectLinkRuntime.bindDesktopDrop();
-
-taskbarRuntime.initialise();
-
-function setStartupState(state = {}) {
-  startupIds = state.startupIds || {};
-  roots = state.roots || {};
-  if (isDockLauncherOpen()) renderDockLauncher({focusSearch: false});
-}
-
-function markStartupBootstrapped(value) {
-  startupBootstrapped = !!value;
-}
-
-// ── init ──────────────────────────────────────────────────────────────────────
-async function init(options = {}) {
-  const result = await StartupBootstrapController.initialiseRuntimeConnection({
-    fetchIds: () => api('/ids'),
-    readConnectionOverride,
-    rememberLastSuccessfulConnectionOverride,
-    setStartupState,
-    setStatus,
-    loadRuntimeVersionInfo,
-    resolveConnectionPreflight,
-    openConnectionWindow,
-  }, options);
-  return !!result.connected;
-}
-
-// ── halted thread poller ──────────────────────────────────────────────────────
-let threadPollTimer = null;
-async function refreshHaltedThreadsBar() {
-  const bar = document.getElementById('halted-threads-bar');
-  try {
-    const haltedThreadsSessionChannel = 'debug-w';
-    const d = await api('/debug/threads', {sessionChannel: haltedThreadsSessionChannel});
-    const haltedThreads = d.success && Array.isArray(d.threads) ? d.threads.slice() : [];
-    setLatestHaltedThreads(haltedThreads);
-    bar.innerHTML = '';
-    if (haltedThreads.length) {
-      const lbl = document.createElement('span');
-      lbl.style.cssText = 'font-size:10px;color:#f38ba8;margin-right:3px';
-      lbl.textContent = 'Halted:';
-      bar.appendChild(lbl);
-      for (const t of haltedThreads) {
-        const pillText = t.displayText || t.sourcePreview || t.exceptionText || t.printString || `oop:${t.oop}`;
-        const pillTitle = [t.sourcePreview, t.exceptionText ? `⚑ ${t.exceptionText}` : '', t.printString]
-          .filter(Boolean)
-          .join('\n');
-        const pill = document.createElement('span');
-        pill.className = 'thread-pill';
-        pill.textContent = pillText.slice(0, 30);
-        pill.title = pillTitle || pillText;
-        pill.addEventListener('click', () => openDebugger(t, null, {sessionChannel: haltedThreadsSessionChannel}));
-        bar.appendChild(pill);
-      }
-    }
-  } catch (_) {
-    setLatestHaltedThreads([]);
-    if (bar) bar.innerHTML = '';
-  }
-}
-
-function maybeOpenEvalDebugger(rv, code, sourceWindowId = null) {
-  const threadOop = Number(rv?.debugThreadOop || 0);
-  if (!(threadOop > 20)) return false;
-  refreshHaltedThreadsBar();
-  const sourceSessionChannel = sourceWindowId ? windowState.get(sourceWindowId)?.sessionChannel || '' : '';
-  openDebugger({
-    oop: threadOop,
-    printString: rv?.inspection || 'Debugger',
-    exceptionText: rv?.exceptionText || rv?.inspection || 'Exception',
-    sourcePreview: rv?.sourcePreview || code || '',
-  }, null, {sourceWindowId, sessionChannel: exactWriteSessionChannel(sourceSessionChannel)});
-  return true;
-}
-
-function startThreadPoller() {
-  clearInterval(threadPollTimer);
-  refreshHaltedThreadsBar();
-  threadPollTimer = setInterval(refreshHaltedThreadsBar, 3000);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// OBJECT BROWSER WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-const objectBrowserAppRuntime = createObjectBrowserAppRuntime({
-  createWindow,
-  roots,
-  model: ObjectBrowserModel,
-  buildObjectBrowserWindowHtml,
-  buildInspectorTabsHtml,
-  prepareTitlebar: prepareObjectBrowserTitlebar,
-  updateTitlebar: updateObjectBrowserTitlebar,
-  populateRootsList: populateObjectBrowserRootsList,
-  renderBreadcrumb: renderObjectBrowserBreadcrumb,
-  createObjectBrowserWindowRuntime,
-  createObjectBrowserActionsRuntime,
-  api,
-  apiEvaluate,
-  apiTransaction,
-  upsertWindowState,
-  maybeOpenEvalDebugger,
-  isLeafBasetype,
-  makeChip,
-  bindObjectBrowserCoreActions,
-  bindObjectBrowserMethodBrowserActions,
-  loadObjectBrowserObject,
-  syncObjectWindowArrows,
-  showObjectBrowserInspectorTab,
-  renderObjectBrowserInstances,
-  renderObjectBrowserConstants,
-  renderObjectBrowserModules,
-  renderControlPanel: renderObjectBrowserControlPanel,
-  setStatus,
+  setStartupState,
+  markStartupBootstrapped,
+  init,
   refreshHaltedThreadsBar,
-  document,
-  escHtml,
-  attachObjectButtonBehavior,
-  createObjectBrowserContentRuntime,
-  buildAssociationRenderState,
-  buildCustomTabRenderState,
-  buildObjectCardState,
-  buildValueRenderState,
-  buildInstancesCollectionState,
-  buildConstantsCollectionState,
-  buildModulesCollectionState,
-  appendObjectBrowserValueChips,
-  renderObjectBrowserAssociationPairs,
-  makeObjectBrowserValCellFromState,
-  renderObjectBrowserCustomTab,
-  renderObjectBrowserCard,
-  openMethodBrowser: openObjectBrowserMethodBrowser,
-  buildMethodBrowserCategoriesHtml,
-  buildMethodBrowserSelectorsHtml,
-  openClassBrowser,
-  makeTable,
-});
+  maybeOpenEvalDebugger,
+  startThreadPoller,
+  boot,
+} = appShellRuntime;
 
-function openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options = {}) {
-  return objectBrowserAppRuntime.openObjectBrowser(initialOop, initialLabel, px, py, pw, ph, options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// WORKSPACE WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openExpressionWorkspace(options = {}) {
-  return workspaceAppRuntime.openExpressionWorkspace(options);
-}
-
-function openWorkspace(options = {}) {
-  return workspaceAppRuntime.openWorkspace(options);
-}
-
-function openRubyWorkspace(options = {}) {
-  return workspaceAppRuntime.openRubyWorkspace(options);
-}
-
-function openMaglevReportWindow(reportKey, options = {}) {
-  return workspaceAppRuntime.openMaglevReportWindow(reportKey, options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// WEB BROWSER WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openWebBrowser(initialUrl, options = {}) {
-  return workspaceAppRuntime.openWebBrowser(initialUrl, options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONNECTION WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openConnectionWindow(options = {}) {
-  return supportWindowsAppRuntime.openConnectionWindow(options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ABOUT WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openAboutWindow(options = {}) {
-  return supportWindowsAppRuntime.openAboutWindow(options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// WINDOW LINKS WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openWindowLinksWindow(options = {}) {
-  return supportWindowsAppRuntime.openWindowLinksWindow(options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// WINDOW GROUPS WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openWindowGroupsWindow(options = {}) {
-  return supportWindowsAppRuntime.openWindowGroupsWindow(options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STATUS LOG WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openStatusLogWindow(options = {}) {
-  return supportWindowsAppRuntime.openStatusLogWindow(options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DEBUGGER WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openDebugger(threadOrOop, threadName, options = {}) {
-  return developerToolsAppRuntime.openDebugger(threadOrOop, threadName, options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SYMBOL LIST WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openSymbolList(px, py, pw, ph) {
-  return developerToolsAppRuntime.openSymbolList(px, py, pw, ph);
-}
-
-function openTextWindow(title, text, taskbarLabel='Report', px, py, pw=560, ph=380) {
-  return workspaceAppRuntime.openTextWindow(title, text, taskbarLabel, px, py, pw, ph);
-}
-
-function openMethodQueryWindow(title, results, options = {}) {
-  return developerToolsAppRuntime.openMethodQueryWindow(title, results, options);
-}
-
-function openHierarchyWindow(title, classes, options = {}) {
-  return developerToolsAppRuntime.openHierarchyWindow(title, classes, options);
-}
-
-function openVersionsWindow(title, versions, options = {}) {
-  return developerToolsAppRuntime.openVersionsWindow(title, versions, options);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CLASS BROWSER WINDOW
-// ═══════════════════════════════════════════════════════════════════════════════
-function openClassBrowser(options = {}) {
-  return classBrowserAppRuntime.openClassBrowser(options);
-}
-
-// ── shared helpers ────────────────────────────────────────────────────────────
-function makeTable(headers, rows) {
-  const tbl = document.createElement('table'); tbl.className='dbtable';
-  const thead=document.createElement('thead');
-  thead.innerHTML='<tr>'+headers.map(h=>`<th>${escHtml(h)}</th>`).join('')+'</tr>';
-  tbl.appendChild(thead);
-  const tbody=document.createElement('tbody');
-  rows.forEach(r=>{
-    const tr=document.createElement('tr');
-    r.forEach((c,i)=>{
-      const td=document.createElement('td');td.className=i===0?'col-key':'col-val';td.textContent=c;tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
-  tbl.appendChild(tbody);
-  return tbl;
-}
-
-// ── modal ─────────────────────────────────────────────────────────────────────
-const modalRuntime = createModalRuntime({
-  document,
-  setStatus,
-});
-const {
-  requestModal,
-  openModal,
-  requestTextModal,
-  requestSelectModal,
-  requestConfirmModal,
-} = modalRuntime;
-
-const classBrowserAppRuntime = createClassBrowserAppRuntime({
-  createWindow,
-  exactWriteSessionChannel,
-  api,
-  apiPost,
-  apiWithParams,
-  apiTransaction,
-  upsertWindowState,
-  buildClassBrowserWindowHtml,
-  createClassBrowserShellRuntime,
-  createClassBrowserWindowRuntime,
+appWindowsRuntime = createAppWindowsRuntime({
   window,
   document,
+  roots,
   windowState,
-  paneOrder: CLASS_BROWSER_PANE_ORDER,
-  initialActivePaneKey,
-  buildClassBrowserActionState,
-  applyClassBrowserActionState,
-  setStatus,
-  buildBrowserCacheKey,
-  parseStoredPaneWidths,
-  clampPaneWidths,
-  normalizeFilterText: normalizeClassBrowserFilterText,
-  getVisiblePaneItems,
-  nextPaneKey,
-  currentPaneItem,
-  relativePaneItem,
-  boundaryPaneItem,
-  filterMatchesValue,
-  buildClassSourceRequest,
-  bindClassBrowserToolbarActions,
-  requestSelectModal,
-  requestTextModal,
-  requestConfirmModal,
-  requestModal,
-  openMethodQueryWindow,
-  openHierarchyWindow,
-  openVersionsWindow,
-  openLinkedObjectWindow,
-  focusWin,
-  hierarchyScopeLabel,
-  buildMethodsRequest,
-  normalizeMethodsState,
-  buildCategoriesRequest,
-  normalizeProtocolsState,
-  buildClassesRequest,
-  normalizeClassesState,
-  buildDictionariesRequest,
-  normalizeDictionariesState,
-  buildClassLocationRequest,
-  normalizeClassLocationMatches,
-  buildLocateClassState,
-  snapshotBrowserSelection,
-  ownerLabel,
-  buildCategoryQueryResults,
-  buildSelectorQueryRequest,
-  buildReferenceQueryRequest,
-  buildMethodTextQueryRequest,
-  buildHierarchyRequest,
-  buildVersionsRequest,
-  buildFileOutRequest,
-  buildCompileRequest,
-  applyCompileResponse,
-  buildTransactionActionSpec,
-  escHtml,
-});
-
-const workspaceAppRuntime = createWorkspaceAppRuntime({
-  createWindow,
-  api,
-  apiEvaluate,
-  apiTransaction,
-  upsertWindowState,
-  createWorkspaceWindowRuntime,
-  bindWorkspaceWindowActions,
-  buildWorkspaceWindowHtml,
-  setStatus,
-  maybeOpenEvalDebugger,
-  isLeafBasetype,
-  makeChip,
-  openLinkedObjectWindow,
-  readRoots: () => roots,
-  readStartupIds: () => startupIds,
+  liveWindowRenderers,
   maglevReportDefs: MAGLEV_REPORT_DEFS,
+  objectBrowserModel: ObjectBrowserModel,
+  createModalRuntime,
+  createObjectBrowserAppRuntime,
+  createClassBrowserAppRuntime,
+  createWorkspaceAppRuntime,
+  createSupportWindowsAppRuntime,
+  createDeveloperToolsAppRuntime,
+  createObjectBrowserWindowRuntime,
+  createObjectBrowserActionsRuntime,
+  createObjectBrowserContentRuntime,
+  createClassBrowserShellRuntime,
+  createClassBrowserWindowRuntime,
+  createWorkspaceWindowRuntime,
   createMaglevReportWindowRuntime,
   createWebBrowserWindowRuntime,
-  escHtml,
-});
-
-const supportWindowsAppRuntime = createSupportWindowsAppRuntime({
-  createWindow,
   createConnectionWindowRuntime,
   createAboutWindowRuntime,
   createWindowLinksWindowRuntime,
   createWindowGroupsWindowRuntime,
   createStatusLogWindowRuntime,
-  buildConnectionPayloadModel,
-  buildConnectionFixShell,
-  startupBootstrapped: () => startupBootstrapped,
-  persistConnectionOverride,
+  createDebuggerWindowRuntime,
+  createSymbolListWindowRuntime,
+  createMethodQueryWindowRuntime,
+  createHierarchyWindowRuntime,
+  createVersionsWindowRuntime,
+  createWindow,
+  exactWriteSessionChannel,
+  api,
+  apiPost,
+  apiEvaluate,
+  apiTransaction,
+  apiWithParams,
+  upsertWindowState,
+  maybeOpenEvalDebugger,
+  isLeafBasetype,
+  makeChip,
   setStatus,
+  refreshHaltedThreadsBar,
+  escHtml,
+  attachObjectButtonBehavior,
+  syncObjectWindowArrows,
+  copyTextToClipboard,
+  closeWindow,
+  shortLabel,
+  sourceRelativeWindowPosition,
+  resolveConnectionPreflight,
+  persistConnectionOverride,
   summarizeConnectionOverride,
   buildShellForOverride,
-  copyTextToClipboard,
   sanitizeConnectionCheckResult,
-  connectionOverrideKey,
   sanitizeConnectionOverride,
-  api,
   captureConnectionCheckResult,
-  resolveConnectionPreflight,
   describeConnectionCheckFreshness,
+  downloadDataFile,
   getVisibleConnectionCheckEntriesModel,
   isFilteredConnectionChecksViewModel,
   buildConnectionCheckBundle,
-  downloadDataFile,
-  requestModal,
   mergeConnectionCheckBundle,
   suggestedConnectionOverrideFromPayloadModel,
   buildConfiguredConnectionOverrideSeedModel,
@@ -3514,39 +2782,27 @@ const supportWindowsAppRuntime = createSupportWindowsAppRuntime({
   readDefaultFavoriteConnectionProfile,
   readLastSuccessfulConnectionOverride,
   readRecentConnectionOverrides,
-  escHtml,
-  shortLabel,
   isDefaultFavoriteConnectionOverride,
-  buildConnectionWindowView,
-  bindConnectionWindowCardActions,
-  normalizeConnectionCheckViewMode,
   moveFavoriteConnectionOverride,
   setDefaultFavoriteConnectionOverride,
   clearDefaultFavoriteConnectionOverride,
   removeFavoriteConnectionOverride,
   clearLastSuccessfulConnectionOverride,
   removeRecentConnectionOverride,
-  requestConfirmModal,
   clearConnectionOverride,
   clearFavoriteConnectionProfiles,
   clearRecentConnectionOverrides,
-  bindConnectionWindowToolbarActions,
-  liveWindowRenderers,
-  upsertWindowState,
   buildConnectionProfileBundle,
   importConnectionProfileBundle,
   replaceConnectionProfileBundle,
   init,
   retryStartupRecovery: StartupBootstrapController.retryStartupRecovery,
   getManagedWindows,
-  windowState,
   restoreSavedLayout,
   openDefaultStartupLayout,
   startThreadPoller,
   markStartupBootstrapped,
   persistWindowLayout,
-  closeWindow,
-  applyConnectionWindowToolbarState,
   rememberLastSuccessfulConnectionOverride,
   readRuntimeVersionInfo: () => runtimeVersionInfo,
   setRuntimeVersionInfo(value) {
@@ -3596,19 +2852,88 @@ const supportWindowsAppRuntime = createSupportWindowsAppRuntime({
   resolveStatusEntrySourceWindow,
   formatStatusTimestampModel,
   clearStatusHistory,
-});
-
-const developerToolsAppRuntime = createDeveloperToolsAppRuntime({
-  createWindow,
-  sourceRelativeWindowPosition,
-  exactWriteSessionChannel,
-  api,
-  apiPost,
-  apiWithParams,
-  apiTransaction,
-  windowState,
-  upsertWindowState,
-  createDebuggerWindowRuntime,
+  buildObjectBrowserWindowHtml,
+  buildInspectorTabsHtml,
+  prepareObjectBrowserTitlebar,
+  updateObjectBrowserTitlebar,
+  populateObjectBrowserRootsList,
+  renderObjectBrowserBreadcrumb,
+  bindObjectBrowserCoreActions,
+  bindObjectBrowserMethodBrowserActions,
+  loadObjectBrowserObject,
+  showObjectBrowserInspectorTab,
+  renderObjectBrowserInstances,
+  renderObjectBrowserConstants,
+  renderObjectBrowserModules,
+  renderObjectBrowserControlPanel,
+  buildAssociationRenderState,
+  buildCustomTabRenderState,
+  buildObjectCardState,
+  buildValueRenderState,
+  buildInstancesCollectionState,
+  buildConstantsCollectionState,
+  buildModulesCollectionState,
+  appendObjectBrowserValueChips,
+  renderObjectBrowserAssociationPairs,
+  makeObjectBrowserValCellFromState,
+  renderObjectBrowserCustomTab,
+  renderObjectBrowserCard,
+  openObjectBrowserMethodBrowser,
+  buildMethodBrowserCategoriesHtml,
+  buildMethodBrowserSelectorsHtml,
+  buildClassBrowserWindowHtml,
+  buildClassBrowserActionState,
+  applyClassBrowserActionState,
+  bindClassBrowserToolbarActions,
+  focusWin,
+  classBrowserPaneOrder: CLASS_BROWSER_PANE_ORDER,
+  initialActivePaneKey,
+  buildBrowserCacheKey,
+  parseStoredPaneWidths,
+  clampPaneWidths,
+  normalizeClassBrowserFilterText,
+  getVisiblePaneItems,
+  nextPaneKey,
+  currentPaneItem,
+  relativePaneItem,
+  boundaryPaneItem,
+  filterMatchesValue,
+  buildClassSourceRequest,
+  hierarchyScopeLabel,
+  buildMethodsRequest,
+  normalizeMethodsState,
+  buildCategoriesRequest,
+  normalizeProtocolsState,
+  buildClassesRequest,
+  normalizeClassesState,
+  buildDictionariesRequest,
+  normalizeDictionariesState,
+  buildClassLocationRequest,
+  normalizeClassLocationMatches,
+  buildLocateClassState,
+  snapshotBrowserSelection,
+  ownerLabel,
+  buildCategoryQueryResults,
+  buildSelectorQueryRequest,
+  buildReferenceQueryRequest,
+  buildMethodTextQueryRequest,
+  buildHierarchyRequest,
+  buildVersionsRequest,
+  buildFileOutRequest,
+  buildCompileRequest,
+  applyCompileResponse,
+  buildTransactionActionSpec,
+  buildWorkspaceWindowHtml,
+  bindWorkspaceWindowActions,
+  buildConnectionPayloadModel,
+  buildConnectionFixShell,
+  startupBootstrapped: () => startupBootstrapped,
+  connectionOverrideKey,
+  buildConnectionWindowView,
+  bindConnectionWindowCardActions,
+  normalizeConnectionCheckViewMode,
+  bindConnectionWindowToolbarActions,
+  applyConnectionWindowToolbarState,
   buildDebuggerWindowHtml,
   buildDebuggerSummaryState,
   buildDebuggerFramesListHtml,
@@ -3624,51 +2949,41 @@ const developerToolsAppRuntime = createDeveloperToolsAppRuntime({
   applyDebuggerTabState,
   applyDebuggerFrameSelection,
   applyDebuggerToolbarState,
-  copyTextToClipboard,
-  refreshHaltedThreadsBar,
-  closeWindow,
-  setStatus,
-  makeChip,
-  shortLabel,
-  isLeafBasetype,
-  escHtml,
-  createSymbolListWindowRuntime,
-  requestModal,
-  requestConfirmModal,
   buildQueryHelperWindowHtml,
   bindQueryHelperToolbarActions,
   applyQueryHelperActionState,
-  createMethodQueryWindowRuntime,
-  createHierarchyWindowRuntime,
-  createVersionsWindowRuntime,
-  openClassBrowser,
   openLinkedObjectWindow,
-  sanitizeSelectionIndex,
   resolveClassBrowserRuntime: QueryHelperWindowModel.resolveClassBrowserRuntime,
   openClassBrowserRuntime: QueryHelperWindowModel.openClassBrowserRuntime,
+  buildWindowLinksWindowView,
+  applyWindowLinksToolbarState,
+  bindWindowLinksToolbarActions,
+  bindWindowLinkListActions,
+  buildWindowGroupsWindowView,
+  applyWindowGroupsToolbarState,
+  bindWindowGroupsToolbarActions,
+  bindWindowGroupListActions,
+  buildStatusLogWindowView,
+  applyStatusLogToolbarState,
+  bindStatusLogToolbarActions,
+  bindStatusLogSourceButtons,
+  buildAboutWindowView,
+  applyAboutWindowToolbarDisabledState,
+  bindAboutWindowToolbarActions,
+  readRoots: () => roots,
+  readStartupIds: () => startupIds,
 });
 
-// ── startup ───────────────────────────────────────────────────────────────────
-async function startup() {
-  await StartupBootstrapController.runStartupSequence({
-    fetchIds: () => api('/ids'),
-    readConnectionOverride,
-    rememberLastSuccessfulConnectionOverride,
-    setStartupState,
-    setStatus,
-    loadRuntimeVersionInfo,
-    resolveConnectionPreflight,
-    openConnectionWindow,
-    getManagedWindows,
-    getWindowState: id => windowState.get(id),
-    restoreSavedLayout,
-    openDefaultStartupLayout,
-    startThreadPoller,
-    markStartupBootstrapped,
-    persistWindowLayout,
-  });
-}
-startup();
+const {
+  requestModal,
+  openModal,
+  requestTextModal,
+  requestSelectModal,
+  requestConfirmModal,
+} = appWindowsRuntime;
+
+appWindowsRuntime.exposeWindowBindings(window);
+boot(window);
 </script>
 </body>
 </html>
