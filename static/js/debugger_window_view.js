@@ -136,12 +136,160 @@
     return {line, column};
   }
 
+  function resolveDebuggerSourceOffset(frameData = {}) {
+    const stepPoint = Number(frameData.stepPoint || 0);
+    const sourceOffsets = Array.isArray(frameData.sourceOffsets) ? frameData.sourceOffsets : [];
+    if (stepPoint > 0 && sourceOffsets.length) {
+      const clampedIndex = Math.min(stepPoint, sourceOffsets.length) - 1;
+      const mappedOffset = Number(sourceOffsets[clampedIndex] || 0);
+      if (mappedOffset > 0) return mappedOffset;
+    }
+    return Number(frameData.sourceOffset || 0);
+  }
+
+  function isExecutedCodeFrame(frameData = {}) {
+    if (frameData.isExecutedCode === true) return true;
+    const methodName = String(frameData.methodName || '');
+    if (/^Executed code @/i.test(methodName)) return true;
+    const className = String(frameData.className || '');
+    const selectorName = String(frameData.selectorName || '');
+    const sourceText = String(frameData.source || '');
+    return className === 'SigWorkspaceEvaluator'
+      && selectorName.startsWith('sigWorkspace')
+      && !!sourceText
+      && !sourceText.includes('^ [');
+  }
+
+  function resolveDebuggerSourceOffsetForStepPoint(frameData = {}, stepPoint = 0) {
+    const sourceOffsets = Array.isArray(frameData.sourceOffsets) ? frameData.sourceOffsets : [];
+    const point = Number(stepPoint || 0);
+    if (!(point > 0) || !sourceOffsets.length) return 0;
+    const clampedIndex = Math.min(point, sourceOffsets.length) - 1;
+    const mappedOffset = Number(sourceOffsets[clampedIndex] || 0);
+    return mappedOffset > 0 ? mappedOffset : 0;
+  }
+
+  function debuggerStatementBoundaryExists(sourceText, startOffset, endOffset) {
+    const text = String(sourceText || '');
+    const start = Number(startOffset || 0);
+    const end = Number(endOffset || 0);
+    if (!text || !(start > 0) || !(end > 0) || start >= end) return false;
+    let inComment = false;
+    let inString = false;
+    let current = Math.max(1, start);
+    const limit = Math.min(end, text.length);
+    while (current <= limit) {
+      const ch = text[current - 1];
+      if (inComment) {
+        if (ch === '"') inComment = false;
+      } else if (inString) {
+        if (ch === '\'') inString = false;
+      } else if (ch === '"') {
+        inComment = true;
+      } else if (ch === '\'') {
+        inString = true;
+      } else if (ch === '.') {
+        return true;
+      }
+      current += 1;
+    }
+    return false;
+  }
+
+  function debuggerStepPointStartsNewStatement(frameData = {}, stepPoint = 0, sourceText = '') {
+    const point = Number(stepPoint || 0);
+    if (!(point > 1)) return true;
+    const currentOffset = resolveDebuggerSourceOffsetForStepPoint(frameData, point);
+    const previousOffset = resolveDebuggerSourceOffsetForStepPoint(frameData, point - 1);
+    if (!(currentOffset > 0) || !(previousOffset > 0)) return false;
+    const currentLocation = computeDebuggerCursorLocation(sourceText, currentOffset);
+    const previousLocation = computeDebuggerCursorLocation(sourceText, previousOffset);
+    if (!currentLocation || !previousLocation) return false;
+    if (currentLocation.line !== previousLocation.line) return true;
+    return debuggerStatementBoundaryExists(sourceText, previousOffset, currentOffset - 1);
+  }
+
+  function debuggerNextStatementCursorLocation(frameData = {}, stepPoint = 0, sourceText = '') {
+    const sourceOffsets = Array.isArray(frameData.sourceOffsets) ? frameData.sourceOffsets : [];
+    let nextStep = Number(stepPoint || 0) + 1;
+    while (nextStep <= sourceOffsets.length) {
+      if (debuggerStepPointStartsNewStatement(frameData, nextStep, sourceText)) {
+        const nextOffset = resolveDebuggerSourceOffsetForStepPoint(frameData, nextStep);
+        const nextLocation = computeDebuggerCursorLocation(sourceText, nextOffset);
+        if (nextLocation) return nextLocation;
+      }
+      nextStep += 1;
+    }
+    return null;
+  }
+
   function clampDebuggerLineNumber(lineNumber, sourceText) {
     const resolved = Number(lineNumber || 0);
     const normalized = String(sourceText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = normalized ? normalized.split('\n') : ['(no source)'];
     if (!(resolved > 0)) return 0;
     return Math.max(1, Math.min(lines.length, resolved));
+  }
+
+  function debuggerExecutableCursorColumnForLine(lineText = '') {
+    const text = String(lineText || '');
+    const size = text.length;
+    let index = 0;
+    while (index < size) {
+      while (index < size && /\s/.test(text[index])) index += 1;
+      if (index >= size) return 0;
+      if (text[index] === '"') {
+        index += 1;
+        while (index < size && text[index] !== '"') index += 1;
+        if (index < size) index += 1;
+        continue;
+      }
+      return index + 1;
+    }
+    return 0;
+  }
+
+  function debuggerExecutableLineNumberNear(lineNumber, lines = []) {
+    const resolved = Number(lineNumber || 0);
+    if (!(resolved > 0) || !Array.isArray(lines) || !lines.length) return 0;
+    const startIndex = Math.max(1, Math.min(resolved, lines.length));
+    for (let index = startIndex - 1; index < lines.length; index += 1) {
+      if (debuggerExecutableCursorColumnForLine(lines[index]) > 0) return index + 1;
+    }
+    for (let index = startIndex - 2; index >= 0; index -= 1) {
+      if (debuggerExecutableCursorColumnForLine(lines[index]) > 0) return index + 1;
+    }
+    return 0;
+  }
+
+  function resolveDebuggerSourceLocation(frameData = {}, sourceText = '') {
+    const normalized = String(sourceText || '');
+    const lines = normalized ? normalized.split('\n') : [''];
+    const stepPoint = Number(frameData.stepPoint || 0);
+    const resolvedSourceOffset = resolveDebuggerSourceOffset(frameData);
+    let cursorLocation = computeDebuggerCursorLocation(normalized, resolvedSourceOffset);
+    if (isExecutedCodeFrame(frameData) && stepPoint > 1 && !debuggerStepPointStartsNewStatement(frameData, stepPoint, normalized)) {
+      const nextLocation = debuggerNextStatementCursorLocation(frameData, stepPoint, normalized);
+      if (nextLocation) cursorLocation = nextLocation;
+    }
+    let rawLine = cursorLocation ? cursorLocation.line : 0;
+    if (!(rawLine > 0)) rawLine = Number(frameData.lineNumber || 0);
+    let resolvedLine = isExecutedCodeFrame(frameData)
+      ? debuggerExecutableLineNumberNear(rawLine, lines)
+      : rawLine;
+    if (!(resolvedLine > 0) && rawLine > 0) resolvedLine = rawLine;
+    if (!(resolvedLine > 0)) return null;
+    let cursorColumn = 1;
+    if (isExecutedCodeFrame(frameData)) {
+      const executableColumn = debuggerExecutableCursorColumnForLine(lines[resolvedLine - 1] || '');
+      cursorColumn = executableColumn > 0 ? executableColumn : 1;
+      if (cursorLocation && cursorLocation.line === resolvedLine) {
+        cursorColumn = Math.max(cursorColumn, Number(cursorLocation.column || 1));
+      }
+    } else if (cursorLocation && cursorLocation.line === resolvedLine) {
+      cursorColumn = Number(cursorLocation.column || 1);
+    }
+    return {line: resolvedLine, column: cursorColumn};
   }
 
   function buildDebuggerSourceTextHtml(lineText, cursorColumn, escHtml = fallbackEscHtml) {
@@ -161,10 +309,15 @@
     const sourceText = fallbackSourceText(frameData, thread, frameIndex);
     const normalized = String(sourceText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = normalized ? normalized.split('\n') : ['(no source)'];
-    const rawActiveLine = Number(frameData.lineNumber || 0) || computeDebuggerLineNumber(sourceText, frameData.sourceOffset);
+    const resolvedSourceOffset = resolveDebuggerSourceOffset(frameData);
+    const resolvedSourceLocation = resolveDebuggerSourceLocation(frameData, normalized);
+    const rawActiveLine = (resolvedSourceLocation && resolvedSourceLocation.line)
+      || Number(frameData.lineNumber || 0)
+      || computeDebuggerLineNumber(sourceText, resolvedSourceOffset)
+      || computeDebuggerLineNumber(sourceText, frameData.sourceOffset);
     const activeLine = clampDebuggerLineNumber(rawActiveLine, normalized);
     const stepPoint = Number(frameData.stepPoint || 0);
-    const sourceOffset = Number(frameData.sourceOffset || 0);
+    const sourceOffset = resolvedSourceOffset;
     const ipOffset = Number(frameData.ipOffset || 0);
     const status = String(frameData.status || '').trim().toLowerCase();
     const framePosition = Number(options.framePosition || 0);
@@ -177,7 +330,7 @@
     if (ipOffset > 0) metaBits.push(`PC ${ipOffset}`);
     if (sourceOffset > 0) metaBits.push(`Offset ${sourceOffset}`);
 
-    let cursorLocation = computeDebuggerCursorLocation(normalized, sourceOffset);
+    let cursorLocation = resolvedSourceLocation || computeDebuggerCursorLocation(normalized, sourceOffset);
     if (!cursorLocation && activeLine > 0 && stepPoint > 0) {
       cursorLocation = {line: activeLine, column: 1};
     }
@@ -232,7 +385,16 @@
     fallbackSourceText,
     computeDebuggerLineNumber,
     computeDebuggerCursorLocation,
+    resolveDebuggerSourceOffset,
+    isExecutedCodeFrame,
+    resolveDebuggerSourceOffsetForStepPoint,
+    debuggerStatementBoundaryExists,
+    debuggerStepPointStartsNewStatement,
+    debuggerNextStatementCursorLocation,
     clampDebuggerLineNumber,
+    debuggerExecutableCursorColumnForLine,
+    debuggerExecutableLineNumberNear,
+    resolveDebuggerSourceLocation,
     buildDebuggerSourceTextHtml,
     buildDebuggerSourceView,
     buildDebuggerFramesExportText,

@@ -1926,6 +1926,7 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(frame_data["methodName"], "Executed code @1 line 1")
         self.assertEqual(frame_data["source"], "1+1.\n1/0")
         self.assertEqual(frame_data["sourceOffset"], 1)
+        self.assertEqual(frame_data["sourceOffsets"], [1])
         self.assertEqual(frame_data["stepPoint"], 1)
         self.assertEqual(frame_data["lineNumber"], 1)
 
@@ -2083,6 +2084,8 @@ class TestRoutes(unittest.TestCase):
                 if index == 9:
                     return wrapper_source
                 return None
+            if receiver in {802, 822} and selector == "size":
+                return 4
             if receiver in {802, 822} and selector == "at:":
                 return 31 if decoded_args[0] == 4 else None
             if receiver == 812 and selector == "at:":
@@ -2195,10 +2198,166 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(frame_response.status_code, 200)
         frame_data = json.loads(frame_response.data)
         self.assertTrue(frame_data["success"])
-        self.assertEqual(frame_data["methodName"], "Executed code @4 line 3")
+        self.assertEqual(frame_data["methodName"], "Executed code @2 line 3")
         self.assertEqual(frame_data["source"], "1+1.\n3*3.\n1/0")
         self.assertEqual(frame_data["sourceOffset"], 11)
+        self.assertEqual(frame_data["sourceOffsets"], [1, 11])
+        self.assertEqual(frame_data["stepPoint"], 2)
         self.assertEqual(frame_data["lineNumber"], 3)
+
+    @patch("gemstone_p.app.object_view")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_frame_live_moves_workspace_line_to_next_statement_when_step_is_mid_statement(self, mock_rs, mock_object_view):
+        session = _mock_session()
+        mock_rs.return_value = _mock_request_session(session)
+        mock_object_view.return_value = {"oop": 310, "inspection": "an Object", "basetype": "object", "loaded": False}
+        wrapper_source = "sigWorkspaceTop\n^ [\n1+1.\n\n3*3. 6+5.\n\n0/0\n] value"
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            decoded_args = tuple(decode_smallint(arg) for arg in args)
+            if receiver == 700 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return OopRef(702, session)
+            if receiver == 702 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(310, session)
+            if receiver == 702 and selector == "receiver":
+                return OopRef(320, session)
+            if receiver == 310 and selector == "class":
+                return OopRef(311, session)
+            if receiver == 320 and selector == "class":
+                return OopRef(321, session)
+            if receiver == 311 and selector == "name":
+                return "SigWorkspaceEvaluator"
+            if receiver == 321 and selector == "name":
+                return "Behavior"
+            if receiver == 701 and selector == "method":
+                return OopRef(711, session)
+            if receiver == 702 and selector == "method":
+                return OopRef(721, session)
+            if receiver == 711 and selector == "selector":
+                return "sigWorkspaceTop"
+            if receiver == 721 and selector == "selector":
+                return "helper"
+            if receiver == 700 and selector == "_gsiDebuggerDetailedReportAt:":
+                return OopRef(801 if decoded_args[0] == 1 else 811, session)
+            if receiver == 801 and selector == "at:":
+                index = decoded_args[0]
+                if index == 5:
+                    return 3
+                if index == 6:
+                    return OopRef(802, session)
+                if index == 9:
+                    return wrapper_source
+                return None
+            if receiver == 802 and selector == "size":
+                return 4
+            if receiver == 802 and selector == "at:":
+                mapping = {1: 21, 2: 22, 3: 23, 4: 27}
+                return mapping.get(decoded_args[0])
+            if receiver == 811 and selector == "at:":
+                index = decoded_args[0]
+                if index == 5:
+                    return 2
+                if index == 6:
+                    return OopRef(812, session)
+                if index == 9:
+                    return "helper ^ #done"
+                return None
+            if receiver == 812 and selector == "at:":
+                return 10 if decoded_args[0] == 2 else None
+            if selector == "printString":
+                return ""
+            return None
+
+        session.perform.side_effect = perform
+
+        with patch.dict("gemstone_p.app._DEBUG_SOURCE_HINTS", {700: "1+1.\n\n3*3. 6+5.\n\n0/0"}, clear=True):
+            frame_response = self.client.get("/debug/frame/700?index=0")
+
+        self.assertEqual(frame_response.status_code, 200)
+        frame_data = json.loads(frame_response.data)
+        self.assertTrue(frame_data["success"])
+        self.assertEqual(frame_data["methodName"], "Executed code @3 line 3")
+        self.assertEqual(frame_data["source"], "1+1.\n\n3*3. 6+5.\n\n0/0")
+        self.assertEqual(frame_data["sourceOffset"], 7)
+        self.assertEqual(frame_data["sourceOffsets"], [1, 3, 7])
+        self.assertEqual(frame_data["lineNumber"], 3)
+
+    @patch("gemstone_p.app.object_view")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_frame_live_prefers_suspended_context_over_terminated_print_string(self, mock_rs, mock_object_view):
+        session = _mock_session()
+        mock_rs.return_value = _mock_request_session(session)
+        mock_object_view.return_value = {"oop": 310, "inspection": "an Object", "basetype": "object", "loaded": False}
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            decoded_args = tuple(decode_smallint(arg) for arg in args)
+            if receiver == 700 and selector == "serverProcess":
+                return OopRef(750, session)
+            if receiver == 750 and selector == "printString":
+                return "GsProcess(oop=750, status=terminated, priority=15)"
+            if receiver == 750 and selector == "status":
+                return "terminated"
+            if receiver == 750 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(310, session)
+            if receiver == 310 and selector == "class":
+                return OopRef(311, session)
+            if receiver == 311 and selector == "name":
+                return "SigWorkspaceEvaluator"
+            if receiver == 701 and selector == "method":
+                return OopRef(711, session)
+            if receiver == 711 and selector == "selector":
+                return "sigWorkspaceDoIt"
+            if receiver == 701 and selector in {"sourceCode", "sourceString"}:
+                return "1+1.\n1/0"
+            if receiver == 750 and selector == "_gsiDebuggerDetailedReportAt:":
+                return OopRef(801, session)
+            if receiver == 801 and selector == "at:":
+                index = decoded_args[0]
+                if index == 5:
+                    return 2
+                if index == 6:
+                    return OopRef(802, session)
+                if index == 9:
+                    return "sigWorkspaceTop\n^ [\n1+1.\n1/0\n] value"
+                return None
+            if receiver == 802 and selector == "size":
+                return 2
+            if receiver == 802 and selector == "at:":
+                return {0: 26, 1: 21, 2: 26}.get(decoded_args[0])
+            if selector == "printString":
+                return ""
+            return None
+
+        session.perform.side_effect = perform
+
+        with patch.dict("gemstone_p.app._DEBUG_SOURCE_HINTS", {700: "1+1.\n1/0"}, clear=True):
+            frame_response = self.client.get("/debug/frame/700?index=0")
+
+        self.assertEqual(frame_response.status_code, 200)
+        frame_data = json.loads(frame_response.data)
+        self.assertTrue(frame_data["success"])
+        self.assertEqual(frame_data["status"], "suspended")
+        self.assertTrue(frame_data["hasFrame"])
+        self.assertEqual(frame_data["methodName"], "Executed code @2 line 2")
+        self.assertEqual(frame_data["lineNumber"], 2)
 
     @patch("gemstone_p.app.object_view")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -2303,14 +2462,14 @@ class TestRoutes(unittest.TestCase):
         session.eval.return_value = "false"
         mock_rs.return_value = _mock_request_session(session)
 
-        r = self.client.post("/debug/step/700", json={"index": 2})
+        r = self.client.post("/debug/step/700", json={"index": 0})
 
         self.assertEqual(r.status_code, 400)
         data = json.loads(r.data)
         self.assertFalse(data["success"])
         self.assertEqual(data["action"], "step")
         self.assertEqual(data["threadOop"], 700)
-        self.assertEqual(data["frameIndex"], 2)
+        self.assertEqual(data["frameIndex"], 0)
         self.assertEqual(data["status"], "terminated")
         self.assertFalse(data["liveProcess"])
         self.assertEqual(
@@ -2334,6 +2493,106 @@ class TestRoutes(unittest.TestCase):
         self.assertIn("stepLevel := 1", script)
         self.assertIn("respondsTo: #stepIntoFromLevel:", script)
         self.assertIn("perform: #stepIntoFromLevel: with: stepLevel", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_live_uses_first_supported_selector_in_seaside_order(self, mock_rs):
+        session = _mock_session()
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "serverProcess":
+                return OopRef(750, session)
+            if receiver == 750 and selector == "printString":
+                return "GsProcess(oop=750, status=suspended, priority=15)"
+            if receiver == 750 and selector == "status":
+                return "suspended"
+            if receiver == 750 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(710, session)
+            if receiver == 710 and selector == "class":
+                return OopRef(711, session)
+            if receiver == 711 and selector == "name":
+                return "Behavior"
+            if receiver == 701 and selector == "method":
+                return OopRef(712, session)
+            if receiver == 712 and selector == "selector":
+                return "helper"
+            return None
+
+        session.perform.side_effect = perform
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/step/700", json={"index": 2})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("stepLevel := 1", script)
+        self.assertLess(script.index("respondsTo: #step:"), script.index("respondsTo: #stepIntoFromLevel:"))
+        self.assertLess(script.index("respondsTo: #stepIntoFromLevel:"), script.index("respondsTo: #_stepIntoInFrame:"))
+        self.assertLess(script.index("respondsTo: #_stepIntoInFrame:"), script.index("respondsTo: #gciStepIntoFromLevel:"))
+        self.assertNotIn("result := [proc perform", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_live_uses_workspace_executed_frame_level_not_wrapper_level(self, mock_rs):
+        session = _mock_session()
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "serverProcess":
+                return OopRef(750, session)
+            if receiver == 750 and selector == "printString":
+                return "GsProcess(oop=750, status=suspended, priority=15)"
+            if receiver == 750 and selector == "status":
+                return "suspended"
+            if receiver == 750 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return OopRef(702, session)
+            if receiver == 702 and selector == "sender":
+                return OopRef(703, session)
+            if receiver == 703 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(710, session)
+            if receiver in {702, 703} and selector == "receiver":
+                return OopRef(720, session)
+            if receiver == 710 and selector == "class":
+                return OopRef(711, session)
+            if receiver == 720 and selector == "class":
+                return OopRef(721, session)
+            if receiver == 711 and selector == "name":
+                return "SmallInteger"
+            if receiver == 721 and selector == "name":
+                return "SigWorkspaceEvaluator"
+            if receiver == 701 and selector == "method":
+                return OopRef(712, session)
+            if receiver in {702, 703} and selector == "method":
+                return OopRef(722, session)
+            if receiver == 712 and selector == "selector":
+                return "/"
+            if receiver == 722 and selector == "selector":
+                return "sigWorkspaceDoIt"
+            if receiver in {702, 703} and selector in {"sourceString", "sourceCode"}:
+                return "1+1.\n1/0"
+            return None
+
+        session.perform.side_effect = perform
+        session.eval.return_value = "true"
+        mock_rs.return_value = _mock_request_session(session)
+
+        with patch.dict("gemstone_p.app._DEBUG_SOURCE_HINTS", {700: "1+1.\n1/0"}, clear=True):
+            r = self.client.post("/debug/step/700", json={"index": 0})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("stepLevel := 2", script)
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_debug_step_over_uses_selected_frame_level(self, mock_rs):
@@ -2585,12 +2844,64 @@ class TestRoutes(unittest.TestCase):
         self.assertTrue(data["success"])
         script = session.eval.call_args[0][0]
         self.assertIn("ctx := [proc suspendedContext]", script)
-        self.assertIn("respondsTo: #trimTo:", script)
-        self.assertIn("result := [proc trimTo: ctx]", script)
+        self.assertIn("respondsTo: #trimStackToLevel:", script)
+        self.assertIn("publicResult := [proc trimStackToLevel: restartLevel]", script)
         self.assertIn("respondsTo: #_trimStackToLevel:", script)
         self.assertIn("_trimStackToLevel: restartLevel", script)
+        self.assertIn("quickStep > 1 ifTrue:", script)
+        self.assertIn("respondsTo: #_gsiStepAtLevel:step:", script)
         self.assertIn("restartLevel := 3", script)
-        self.assertIn("restarted := [proc restart]", script)
+        self.assertNotIn("proc restart", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_restart_live_prefers_level_trim_before_trim_to(self, mock_rs):
+        session = _mock_session()
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "serverProcess":
+                return OopRef(750, session)
+            if receiver == 750 and selector == "_gsiDebuggerDetailedReportAt:":
+                return OopRef(801, session)
+            if receiver == 801 and selector == "at:":
+                return 1 if int(args[0]) in {5, 42} else None
+            if receiver == 750 and selector == "printString":
+                return "GsProcess(oop=750, status=suspended, priority=15)"
+            if receiver == 750 and selector == "status":
+                return "suspended"
+            if receiver == 750 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(710, session)
+            if receiver == 710 and selector == "class":
+                return OopRef(711, session)
+            if receiver == 711 and selector == "name":
+                return "Behavior"
+            if receiver == 701 and selector == "method":
+                return OopRef(712, session)
+            if receiver == 712 and selector == "selector":
+                return "helper"
+            return None
+
+        session.perform.side_effect = perform
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/restart/700", json={"index": 0})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        script = session.eval.call_args[0][0]
+        self.assertIn("restartLevel := 1", script)
+        self.assertIn("respondsTo: #trimStackToLevel:", script)
+        self.assertNotIn("trimTo:", script)
+        self.assertNotIn("proc restart", script)
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -2852,7 +3163,6 @@ class TestRoutes(unittest.TestCase):
     @patch("gemstone_p.app.gs_session.request_session")
     def test_debug_restart_uses_deepest_workspace_frame_for_restart_trim(self, mock_rs, mock_eval_in_context):
         session = _mock_session()
-        trim_targets = []
         source = "1+1.\n3*3.\n1/0"
         app_module._remember_debug_source_hint(700, source)
         self.addCleanup(app_module._forget_debug_source_hint, 700)
@@ -2922,9 +3232,6 @@ class TestRoutes(unittest.TestCase):
                 return None
             if receiver in {802, 812, 822} and selector == "at:":
                 return 1 if decoded_args[0] == 1 else None
-            if receiver == 700 and selector == "trimTo:":
-                trim_targets.append(decoded_args[0])
-                return True
             if receiver == 700 and selector in {"_gsiStepAtLevel:step:", "jumpToStepPoint:", "runToStepPoint:", "jumpTo:", "terminate"}:
                 return True
             if selector == "printString":
@@ -2947,14 +3254,111 @@ class TestRoutes(unittest.TestCase):
         data = json.loads(r.data)
         self.assertTrue(data["success"])
         self.assertTrue(data["completed"])
-        self.assertEqual(trim_targets, [703])
+        self.assertIn("restartLevel := 3", session.eval.call_args[0][0])
+        self.assertEqual(mock_eval_in_context.call_args[0], (session, 900, source, "smalltalk"))
+
+    @patch("gemstone_p.routes_debugger.eval_in_context")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_restart_replay_decision_uses_primary_visible_frame_even_with_deeper_wrapper(self, mock_rs, mock_eval_in_context):
+        session = _mock_session()
+        source = "1+1.\n3*3.\n1/0"
+        app_module._remember_debug_source_hint(700, source)
+        self.addCleanup(app_module._forget_debug_source_hint, 700)
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            decoded_args = tuple(decode_smallint(arg) for arg in args)
+            if receiver == 700 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return OopRef(702, session)
+            if receiver == 702 and selector == "sender":
+                return OopRef(703, session)
+            if receiver == 703 and selector == "sender":
+                return None
+            if receiver in {701, 702, 703} and selector == "receiver":
+                return OopRef(900, session)
+            if receiver == 900 and selector == "class":
+                return OopRef(901, session)
+            if receiver == 901 and selector == "name":
+                return "SigWorkspaceEvaluator"
+            if receiver == 701 and selector == "method":
+                return OopRef(711, session)
+            if receiver == 702 and selector == "method":
+                return OopRef(721, session)
+            if receiver == 703 and selector == "method":
+                return OopRef(731, session)
+            if receiver == 711 and selector == "selector":
+                return "sigWorkspaceTop"
+            if receiver == 721 and selector == "selector":
+                return "helper"
+            if receiver == 731 and selector == "selector":
+                return "sigWorkspaceWrapper"
+            if receiver == 700 and selector == "_gsiDebuggerDetailedReportAt:":
+                level = decoded_args[0]
+                return OopRef({1: 801, 2: 811, 3: 821}.get(level, 801), session)
+            if receiver == 801 and selector == "at:":
+                index = decoded_args[0]
+                if index == 5:
+                    return 4
+                if index == 6:
+                    return OopRef(802, session)
+                if index == 9:
+                    return source
+                return None
+            if receiver == 811 and selector == "at:":
+                index = decoded_args[0]
+                if index == 5:
+                    return 2
+                if index == 6:
+                    return OopRef(812, session)
+                if index == 9:
+                    return "helper ^ #done"
+                return None
+            if receiver == 821 and selector == "at:":
+                index = decoded_args[0]
+                if index == 5:
+                    return 1
+                if index == 6:
+                    return OopRef(822, session)
+                if index == 9:
+                    return source
+                return None
+            if receiver in {802, 812, 822} and selector == "at:":
+                return 1 if decoded_args[0] == 1 else None
+            if receiver == 700 and selector in {"_gsiStepAtLevel:step:", "jumpToStepPoint:", "runToStepPoint:", "jumpTo:", "terminate"}:
+                return True
+            if selector == "printString":
+                return ""
+            return None
+
+        session.perform.side_effect = perform
+        mock_eval_in_context.return_value = {
+            "isException": False,
+            "resultOop": 9,
+            "errorText": "",
+            "debugThreadOop": None,
+            "exceptionOop": None,
+        }
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/restart/700", json={"index": 0})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["completed"])
+        self.assertIn("restartLevel := 3", session.eval.call_args[0][0])
         self.assertEqual(mock_eval_in_context.call_args[0], (session, 900, source, "smalltalk"))
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
     def test_debug_restart_uses_workspace_selector_when_wrapper_source_is_unavailable(self, mock_rs, mock_eval_in_context):
         session = _mock_session()
-        trim_targets = []
         source = "1+1.\n3*3.\n1/0"
         app_module._remember_debug_source_hint(700, source)
         self.addCleanup(app_module._forget_debug_source_hint, 700)
@@ -3024,9 +3428,6 @@ class TestRoutes(unittest.TestCase):
                 return None
             if receiver in {802, 812, 822} and selector == "at:":
                 return 1 if decoded_args[0] == 1 else None
-            if receiver == 700 and selector == "trimTo:":
-                trim_targets.append(decoded_args[0])
-                return True
             if receiver == 700 and selector in {"_gsiStepAtLevel:step:", "jumpToStepPoint:", "runToStepPoint:", "jumpTo:", "terminate"}:
                 return True
             if selector == "printString":
@@ -3049,7 +3450,7 @@ class TestRoutes(unittest.TestCase):
         data = json.loads(r.data)
         self.assertTrue(data["success"])
         self.assertTrue(data["completed"])
-        self.assertEqual(trim_targets, [703])
+        self.assertIn("restartLevel := 3", session.eval.call_args[0][0])
         self.assertEqual(mock_eval_in_context.call_args[0], (session, 900, source, "smalltalk"))
 
     @patch("gemstone_p.app.gs_session.request_session")
@@ -3142,6 +3543,125 @@ class TestRoutes(unittest.TestCase):
         self.assertIn("ctx := proc suspendedContext", script)
         self.assertIn("ctx := ctx sender. idx := idx + 1", script)
         self.assertIn("[proc trimTo: ctx] on: Error do: [:e | false]", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_trim_live_falls_back_to_private_trim_when_public_trim_returns_nil(self, mock_rs):
+        session = _mock_session()
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        calls = []
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "printString":
+                return "GsProcess(oop=700, status=debug, priority=15)"
+            if receiver == 700 and selector == "status":
+                return "debug"
+            if receiver == 700 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return OopRef(702, session)
+            if receiver == 702 and selector == "sender":
+                return OopRef(703, session)
+            if receiver == 703 and selector == "sender":
+                return OopRef(704, session)
+            if receiver == 704 and selector == "sender":
+                return OopRef(705, session)
+            if receiver == 705 and selector == "sender":
+                return OopRef(706, session)
+            if receiver == 706 and selector == "sender":
+                return OopRef(707, session)
+            if receiver == 707 and selector == "sender":
+                return OopRef(708, session)
+            if receiver == 708 and selector == "sender":
+                return None
+            if receiver == 700 and selector == "trimTo:":
+                calls.append(("trimTo", int(args[0].oop)))
+                return None
+            if receiver == 700 and selector == "trimStackToLevel:":
+                calls.append(("trimStackToLevel", decode_smallint(args[0])))
+                return None
+            if receiver == 700 and selector == "_trimStackToLevel:":
+                calls.append(("_trimStackToLevel", decode_smallint(args[0])))
+                return OopRef(900, session)
+            return None
+
+        session.perform.side_effect = perform
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/trim/700", json={"index": 7})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(calls, [("trimStackToLevel", 8), ("_trimStackToLevel", 8)])
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_restart_live_falls_back_to_private_trim_when_public_trim_returns_nil(self, mock_rs):
+        session = _mock_session()
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "printString":
+                return "GsProcess(oop=700, status=debug, priority=15)"
+            if receiver == 700 and selector == "status":
+                return "debug"
+            if receiver == 700 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return OopRef(702, session)
+            if receiver == 702 and selector == "sender":
+                return OopRef(703, session)
+            if receiver == 703 and selector == "sender":
+                return OopRef(704, session)
+            if receiver == 704 and selector == "sender":
+                return OopRef(705, session)
+            if receiver == 705 and selector == "sender":
+                return OopRef(706, session)
+            if receiver == 706 and selector == "sender":
+                return OopRef(707, session)
+            if receiver == 707 and selector == "sender":
+                return OopRef(708, session)
+            if receiver == 708 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(710, session)
+            if receiver == 710 and selector == "class":
+                return OopRef(711, session)
+            if receiver == 711 and selector == "name":
+                return "Behavior"
+            if receiver == 701 and selector == "method":
+                return OopRef(712, session)
+            if receiver == 712 and selector == "selector":
+                return "helper"
+            if receiver == 700 and selector == "_gsiDebuggerDetailedReportAt:":
+                return OopRef(801, session)
+            if receiver == 801 and selector == "at:":
+                return 1 if decode_smallint(args[0]) in {5, 42} else None
+            return None
+
+        session.perform.side_effect = perform
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/restart/700", json={"index": 7})
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["threadOop"], 700)
+        script = session.eval.call_args[0][0]
+        self.assertIn("restartLevel := 8", script)
+        self.assertIn("publicTried := true", script)
+        self.assertIn("publicResult := [proc trimStackToLevel: restartLevel]", script)
+        self.assertIn("publicResult isNil or: [publicResult == false]", script)
+        self.assertIn("_trimStackToLevel: restartLevel", script)
 
     @patch("gemstone_p.app.object_view")
     @patch("gemstone_p.app.gs_session.request_session")

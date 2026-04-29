@@ -142,6 +142,45 @@ test('workspace 1/0 opens a live debugger with an execution marker', async ({ pa
   await expect(debuggerWin).toHaveCount(0);
 });
 
+test('workspace multiline 0/0 keeps the live executed-code marker on the current statement', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#status-txt')).toContainText('connected');
+
+  await launchDockApp(page, 'Workspace');
+  const workspace = windowByTitle(page, 'Workspace');
+  await expect(workspace).toBeVisible();
+
+  await workspace.locator('.ws-code-area').fill('1+1.\n\n3*3. 6+5.\n\n0/0');
+  await workspace.getByRole('button', { name: 'Do it' }).click();
+
+  const debuggerWin = windowByTitle(page, 'Debugger');
+  await expect(debuggerWin).toBeVisible();
+
+  const liveFrame = await page.evaluate(async () => {
+    const debuggerWindow = [...document.querySelectorAll('.win')]
+      .find(each => each.querySelector('.win-title')?.textContent?.includes('Debugger'));
+    if (!debuggerWindow) return null;
+    const activeFrame = debuggerWindow.querySelector('.dbg-frame-item.active');
+    const state = windowState.get(debuggerWindow.id);
+    if (!state || !state.threadOop) return { error: 'missing-debugger-state', state };
+    const activeIndex = Number(activeFrame?.dataset?.idx || state.frameIndex || 0);
+    const response = await fetch(`/debug/frame/${state.threadOop}?index=${activeIndex}`, {
+      headers: state.sessionChannel ? { 'X-GS-Channel': String(state.sessionChannel) } : {},
+    });
+    return response.json();
+  });
+
+  expect(liveFrame?.success).toBeTruthy();
+  expect(String(liveFrame?.methodName || '')).toMatch(/^Executed code\s+@5 line 5$/i);
+  expect(Number(liveFrame?.lineNumber || 0)).toBe(5);
+  expect(Array.isArray(liveFrame?.sourceOffsets)).toBeTruthy();
+  expect((liveFrame?.sourceOffsets || []).length).toBeGreaterThan(1);
+  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText(/Executed code/i);
+  await expect(debuggerWin.locator('.dbg-source-line.active')).toHaveAttribute('data-line', '5');
+  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-step-cursor')).toBeVisible();
+  await expect(debuggerWin.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
+});
+
 test('multiple live debuggers stay independent across refresh restart and terminate', async ({ page }) => {
   test.setTimeout(90000);
   const clickDebuggerButton = async (windowLocator, name, options = {}) => {

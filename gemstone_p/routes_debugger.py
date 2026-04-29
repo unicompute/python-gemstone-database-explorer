@@ -92,6 +92,32 @@ def register_debugger_routes(
             return result not in {0, int(OOP_FALSE), int(OOP_NIL)}
         return True
 
+    def _coerce_boolean_result(result, default: bool | None = None) -> bool | None:
+        if result is None:
+            return default
+        if isinstance(result, bool):
+            return result
+        if isinstance(result, OopRef):
+            raw = int(result.oop)
+            if raw == int(OOP_TRUE):
+                return True
+            if raw in {int(OOP_FALSE), int(OOP_NIL)}:
+                return False
+            return default
+        if isinstance(result, int):
+            if result == int(OOP_TRUE):
+                return True
+            if result in {int(OOP_FALSE), int(OOP_NIL)}:
+                return False
+            return default
+        if isinstance(result, str):
+            value = result.strip().lower()
+            if value in {"true", "1"}:
+                return True
+            if value in {"false", "0", "nil"}:
+                return False
+        return default
+
     def _safe_print_string(session, value, fallback: str = "") -> str:
         if value is None:
             return fallback
@@ -103,6 +129,48 @@ def register_debugger_routes(
             return str(rendered) if isinstance(rendered, str) else str(value)
         rendered = _send_safe(session, value, "printString", default=None)
         return str(rendered) if isinstance(rendered, str) else fallback
+
+    def _looks_like_debug_process(session, value) -> bool:
+        ref = _ensure_oop_ref(session, value)
+        if ref is None:
+            return False
+        ps = _send_safe(session, ref, "printString", default="")
+        if isinstance(ps, str) and ps.startswith("GsProcess("):
+            return True
+        if isinstance(_send_safe(session, ref, "suspendedContext", default=None), OopRef):
+            return True
+        detail = _send_safe(session, ref, "_gsiDebuggerDetailedReportAt:", 1, default=Ellipsis)
+        return detail is not Ellipsis
+
+    def _resolved_debug_process_ref(session, process_oop: int) -> OopRef | None:
+        obj = _ensure_oop_ref(session, process_oop)
+        if obj is None:
+            return None
+
+        def first_process_like(*candidates):
+            for candidate in candidates:
+                ref = _ensure_oop_ref(session, candidate)
+                if ref is not None and _looks_like_debug_process(session, ref):
+                    return ref
+            return None
+
+        direct = first_process_like(
+            _send_safe(session, obj, "serverProcess", default=None),
+            _send_safe(session, obj, "process", default=None),
+        )
+        if direct is not None:
+            return direct
+
+        top = _send_safe(session, obj, "topContext", default=None)
+        via_top = first_process_like(_send_safe(session, top, "process", default=None))
+        if via_top is not None:
+            return via_top
+
+        via_sender = first_process_like(_send_safe(session, obj, "process", default=None))
+        if via_sender is not None:
+            return via_sender
+
+        return obj
 
     def _collection_size(session, value) -> int:
         size = _send_safe(session, value, "size", default=0)
@@ -197,6 +265,22 @@ def register_debugger_routes(
         except Exception:
             return 0
 
+    def _source_offsets_from_detail(session, detail, step_point: int) -> list[int]:
+        offsets = _collection_at(session, detail, 6, default=None)
+        total = _collection_size(session, offsets)
+        if total <= 0:
+            total = max(0, int(step_point or 0))
+        if total <= 0:
+            return []
+        resolved_offsets: list[int] = []
+        for index in range(1, total + 1):
+            raw_offset = _collection_at(session, offsets, index, default=0)
+            try:
+                resolved_offsets.append(max(0, int(raw_offset)))
+            except Exception:
+                resolved_offsets.append(0)
+        return resolved_offsets
+
     def _variable_entries_from_detail(session, detail, debug_object_ref_fn) -> list[dict]:
         names = _collection_at(session, detail, 7, default=None)
         values = _collection_at(session, detail, 8, default=None)
@@ -231,7 +315,12 @@ def register_debugger_routes(
         return _safe_print_string(session, ctx, fallback)
 
     def _context_chain(session, process_oop: int, max_frames: int = 50) -> list[tuple[int, OopRef]]:
-        start = _send_safe(session, process_oop, "suspendedContext", default=None)
+        resolved_process = _resolved_debug_process_ref(session, process_oop)
+        start = _send_safe(session, resolved_process, "suspendedContext", default=None)
+        if start is None:
+            start = _send_safe(session, process_oop, "suspendedContext", default=None)
+        if start is None:
+            start = _send_safe(session, resolved_process, "topContext", default=None)
         if start is None:
             start = _send_safe(session, process_oop, "topContext", default=None)
         if start is None:
@@ -283,35 +372,49 @@ def register_debugger_routes(
             return "terminated"
         return status
 
-    def _has_live_debugger_process(session, process_oop: int) -> bool:
-        ps = _send_safe(session, process_oop, "printString", default="")
-        if _debug_process_print_string_status(ps) == "terminated":
-            return False
-        if isinstance(_send_safe(session, process_oop, "suspendedContext", default=None), OopRef):
-            return True
-        return isinstance(ps, str) and ps.startswith("GsProcess(")
-
-    def _debug_process_status(session, process_oop: int) -> str:
-        status = str(_send_safe(session, process_oop, "status", default="") or "").strip().lower()
+    def _debug_process_state(session, process_oop: int) -> str:
+        process_ref = _resolved_debug_process_ref(session, process_oop)
+        terminated = _coerce_boolean_result(_send_safe(session, process_ref, "isTerminated", default=None), None)
+        suspended = _coerce_boolean_result(_send_safe(session, process_ref, "isSuspended", default=None), None)
+        suspended_context = _send_safe(session, process_ref, "suspendedContext", default=None)
+        has_context = isinstance(suspended_context, OopRef)
+        if suspended is True or has_context:
+            return "suspended"
+        detail = _send_safe(session, process_ref, "_gsiDebuggerDetailedReportAt:", 1, default=Ellipsis)
+        has_detail = detail is not Ellipsis and detail is not None
+        if terminated is True and not has_detail:
+            return "terminated"
+        status = str(_send_safe(session, process_ref, "status", default="") or "").strip().lower()
         if status == "halted":
             return "suspended"
-        if status in {"suspended", "running", "terminated"}:
+        if status in {"suspended", "running"}:
             return status
-        ps = _send_safe(session, process_oop, "printString", default="")
-        print_status = _debug_process_print_string_status(ps)
-        if print_status == "terminated":
+        if status == "terminated" and not has_detail:
             return "terminated"
-        if isinstance(_send_safe(session, process_oop, "suspendedContext", default=None), OopRef):
+        ps = _send_safe(session, process_ref, "printString", default="")
+        print_status = _debug_process_print_string_status(ps)
+        if print_status == "suspended":
             return "suspended"
-        if print_status:
-            return "running" if print_status == "terminated" else print_status
+        if print_status == "terminated" and not has_detail:
+            return "terminated"
+        if has_detail:
+            return "suspended"
         if isinstance(ps, str) and ps.startswith("GsProcess("):
             return "running"
+        if terminated is True:
+            return "terminated"
         return "terminated"
+
+    def _has_live_debugger_process(session, process_oop: int) -> bool:
+        return _debug_process_state(session, process_oop) != "terminated"
+
+    def _debug_process_status(session, process_oop: int) -> str:
+        return _debug_process_state(session, process_oop)
 
     def _live_debug_frame_payload(session, process_oop: int, frame_index: int, debug_object_ref_fn) -> dict:
         chain = _context_chain(session, process_oop)
         target = next((ctx for level, ctx in chain if level == frame_index), None)
+        process_ref = _resolved_debug_process_ref(session, process_oop)
         if target is None:
             return {
                 "methodName": "(no frame)",
@@ -322,6 +425,7 @@ def register_debugger_routes(
                 "selfObject": debug_object_ref_fn(session, None, ""),
                 "source": "",
                 "sourceOffset": 0,
+                "sourceOffsets": [],
                 "stepPoint": 0,
                 "lineNumber": 0,
                 "hasFrame": False,
@@ -342,11 +446,12 @@ def register_debugger_routes(
         receiver = _send_safe(session, target, "receiver", default=None)
         receiver_oop = _marshal_to_oop(session, receiver)
         self_ps = _safe_print_string(session, receiver, "")
-        detail = _send_safe(session, process_oop, "_gsiDebuggerDetailedReportAt:", frame_index + 1, default=None)
+        detail = _send_safe(session, process_ref, "_gsiDebuggerDetailedReportAt:", frame_index + 1, default=None)
         source = (
+            _safe_print_string(session, _collection_at(session, detail, 9, default=None), "")
+            or
             _safe_print_string(session, _send_safe(session, target, "sourceCode", default=None), "")
             or _safe_print_string(session, _send_safe(session, target, "sourceString", default=None), "")
-            or _safe_print_string(session, _collection_at(session, detail, 9, default=None), "")
             or _safe_print_string(session, _send_safe(session, method, "sourceString", default=None), "")
             or _safe_print_string(session, _send_safe(session, _send_safe(session, target, "homeMethod", default=None), "sourceString", default=None), "")
         )
@@ -355,6 +460,7 @@ def register_debugger_routes(
             step_point = max(0, int(step_point))
         except Exception:
             step_point = 0
+        source_offsets = _source_offsets_from_detail(session, detail, step_point)
         source_offset = _source_offset_from_detail(session, detail, step_point)
         variables = _variable_entries_from_detail(session, detail, debug_object_ref_fn)
         self_object = debug_object_ref_fn(session, receiver_oop, self_ps)
@@ -371,6 +477,7 @@ def register_debugger_routes(
             "selfObject": self_object,
             "source": source,
             "sourceOffset": source_offset,
+            "sourceOffsets": source_offsets,
             "stepPoint": step_point,
             "lineNumber": line_number,
             "status": status,
@@ -411,9 +518,22 @@ def register_debugger_routes(
     def _direct_debug_action(session, process_oop: int, calls: list[tuple[str, list[int]]]) -> bool | None:
         if not _has_live_debugger_process(session, process_oop):
             return None
+        process_ref = _resolved_debug_process_ref(session, process_oop)
         for selector, args in calls:
-            result = _send_safe(session, process_oop, selector, *args, default=Ellipsis)
-            if result is not Ellipsis and _debug_action_succeeded(result):
+            result = _send_safe(session, process_ref, selector, *args, default=Ellipsis)
+            if result is not Ellipsis:
+                return _debug_action_succeeded(result)
+        return False
+
+    def _fallback_debug_action(session, process_oop: int, calls: list[tuple[str, list[int]]]) -> bool | None:
+        if not _has_live_debugger_process(session, process_oop):
+            return None
+        process_ref = _resolved_debug_process_ref(session, process_oop)
+        for selector, args in calls:
+            result = _send_safe(session, process_ref, selector, *args, default=Ellipsis)
+            if result is Ellipsis:
+                continue
+            if _debug_action_succeeded(result):
                 return True
         return False
 
@@ -421,12 +541,13 @@ def register_debugger_routes(
         chain = _context_chain(session, process_oop)
         if not chain and not _has_live_debugger_process(session, process_oop):
             return None
+        process_ref = _resolved_debug_process_ref(session, process_oop)
         target = next((ctx for level, ctx in chain if level == frame_index), None)
         if target is not None:
-            result = _send_safe(session, process_oop, "trimTo:", target, default=Ellipsis)
+            result = _send_safe(session, process_ref, "trimTo:", target, default=Ellipsis)
             if result is not Ellipsis and _debug_action_succeeded(result):
                 return True
-        return _direct_debug_action(
+        return _fallback_debug_action(
             session,
             process_oop,
             [
@@ -460,8 +581,20 @@ def register_debugger_routes(
             return 1
 
     def _debug_process_quick_step_point(session, process_oop: int, frame_level: int) -> int:
-        detail = _send_safe(session, process_oop, "_gsiDebuggerDetailedReportAt:", int(frame_level), default=None)
-        step_point = _collection_at(session, detail, 5, default=0)
+        process_ref = _resolved_debug_process_ref(session, process_oop)
+        stack_report = _send_safe(
+            session,
+            process_ref,
+            "_gsiStackReportFromLevel:toLevel:",
+            int(frame_level),
+            int(frame_level),
+            default=None,
+        )
+        full_entry = _collection_at(session, stack_report, 2, default=None)
+        step_point = _collection_at(session, full_entry, 5, default=None)
+        if step_point is None:
+            detail = _send_safe(session, process_ref, "_gsiDebuggerDetailedReportAt:", int(frame_level), default=None)
+            step_point = _collection_at(session, detail, 5, default=0)
         try:
             return max(0, int(step_point))
         except Exception:
@@ -478,13 +611,14 @@ def register_debugger_routes(
             _send_safe(session, context, selector, 1, default=Ellipsis)
 
     def _rewind_debug_process_to_step_one_if_needed(session, process_oop: int, frame_level: int) -> int:
+        process_ref = _resolved_debug_process_ref(session, process_oop)
         quick_step_point = _debug_process_quick_step_point(session, process_oop, frame_level)
         if quick_step_point <= 1:
             return quick_step_point
-        _send_safe(session, process_oop, "_gsiStepAtLevel:step:", int(frame_level), 1, default=Ellipsis)
-        _send_safe(session, process_oop, "jumpToStepPoint:", 1, default=Ellipsis)
-        _send_safe(session, process_oop, "runToStepPoint:", 1, default=Ellipsis)
-        _send_safe(session, process_oop, "jumpTo:", 1, default=Ellipsis)
+        _send_safe(session, process_ref, "_gsiStepAtLevel:step:", int(frame_level), 1, default=Ellipsis)
+        _send_safe(session, process_ref, "jumpToStepPoint:", 1, default=Ellipsis)
+        _send_safe(session, process_ref, "runToStepPoint:", 1, default=Ellipsis)
+        _send_safe(session, process_ref, "jumpTo:", 1, default=Ellipsis)
         _rewind_debug_context_to_step_one(session, _debug_process_context_for_level(session, process_oop, frame_level))
         return _debug_process_quick_step_point(session, process_oop, frame_level)
 
@@ -492,8 +626,8 @@ def register_debugger_routes(
         source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
         if not source_hint:
             return False
-        restart_level = max(1, int(_restart_frame_index(session, process_oop, frame_index)) + 1)
-        return _debug_process_quick_step_point(session, process_oop, restart_level) > 1
+        primary_level = _primary_debug_frame_level(session, process_oop)
+        return _debug_process_quick_step_point(session, process_oop, primary_level) > 1
 
     def _workspace_selector_name(frame_payload: dict | None) -> str | None:
         if not isinstance(frame_payload, dict):
@@ -676,8 +810,9 @@ def register_debugger_routes(
         return fallback_index
 
     def _terminate_debug_process(session, process_oop: int) -> None:
+        process_ref = _resolved_debug_process_ref(session, process_oop)
         for selector in ("terminate", "terminateProcess"):
-            result = _send_safe(session, process_oop, selector, default=Ellipsis)
+            result = _send_safe(session, process_ref, selector, default=Ellipsis)
             if result is not Ellipsis:
                 return
 
@@ -723,17 +858,20 @@ def register_debugger_routes(
         chain = _context_chain(session, process_oop)
         if not chain and not _has_live_debugger_process(session, process_oop):
             return False
+        process_ref = _resolved_debug_process_ref(session, process_oop)
         restart_frame_index = _restart_frame_index(session, process_oop, frame_index)
         target = next((ctx for level, ctx in chain if level == restart_frame_index), None)
         restart_level = max(1, int(restart_frame_index) + 1)
         trim_result = Ellipsis
-        if target is not None:
-            trim_result = _send_safe(session, process_oop, "trimTo:", target, default=Ellipsis)
-        if trim_result is Ellipsis or not _debug_action_succeeded(trim_result):
-            for selector in ("trimStackToLevel:", "_trimStackToLevel:"):
-                trim_result = _send_safe(session, process_oop, selector, restart_level, default=Ellipsis)
-                if trim_result is not Ellipsis and _debug_action_succeeded(trim_result):
-                    break
+        for selector in ("trimStackToLevel:", "_trimStackToLevel:"):
+            candidate = _send_safe(session, process_ref, selector, restart_level, default=Ellipsis)
+            if candidate is Ellipsis:
+                continue
+            trim_result = candidate
+            if _debug_action_succeeded(candidate):
+                break
+        if (trim_result is Ellipsis or not _debug_action_succeeded(trim_result)) and target is not None:
+            trim_result = _send_safe(session, process_ref, "trimTo:", target, default=Ellipsis)
         if trim_result is Ellipsis or not _debug_action_succeeded(trim_result):
             if restart_level != 1:
                 return False
@@ -788,25 +926,26 @@ def register_debugger_routes(
     def _debug_step_script(oop: int, selectors: list[str], level: int) -> str:
         safe_level = max(1, int(level or 1))
         selector_lines = "".join(
-            f"(result isNil and: [proc respondsTo: #{selector}]) ifTrue: [\n"
-            f"  result := [proc perform: #{selector} with: stepLevel] on: Error do: [:e | nil]\n"
+            f"(supported not and: [proc respondsTo: #{selector}]) ifTrue: [\n"
+            f"  proc perform: #{selector} with: stepLevel.\n"
+            f"  supported := true\n"
             f"].\n"
             for selector in selectors
         )
         return (
-            f"[ | obj proc result stepLevel |\n"
+            f"[ | obj proc stepLevel supported |\n"
             f"{_debug_process_resolver(oop)}"
             f"stepLevel := {safe_level}.\n"
-            f"result := nil.\n"
+            f"supported := false.\n"
             f"{selector_lines}"
-            f"(result isNil or: [result == false]) ifTrue: ['false'] ifFalse: [result printString]\n"
+            f"supported ifTrue: ['true'] ifFalse: ['false']\n"
             f"] value"
         )
 
     def _debug_restart_script(oop: int, level: int) -> str:
         safe_level = max(1, int(level or 1))
         return (
-            f"[ | obj proc result restartLevel ctx idx restarted |\n"
+            f"[ | obj proc result restartLevel ctx idx detail quickStep publicResult publicTried |\n"
             f"{_debug_process_resolver(oop)}"
             f"restartLevel := {safe_level}.\n"
             f"ctx := [proc suspendedContext] on: Error do: [:e | nil].\n"
@@ -815,21 +954,35 @@ def register_debugger_routes(
             f"  ctx := [ctx sender] on: Error do: [:e | nil].\n"
             f"  idx := idx + 1\n"
             f"].\n"
-            f"result := nil.\n"
-            f"(ctx notNil and: [proc respondsTo: #trimTo:]) ifTrue: [\n"
-            f"  result := [proc trimTo: ctx] on: Error do: [:e | nil]\n"
+            f"result := false.\n"
+            f"publicResult := nil.\n"
+            f"publicTried := false.\n"
+            f"(proc respondsTo: #trimStackToLevel:) ifTrue: [\n"
+            f"  publicTried := true.\n"
+            f"  publicResult := [proc trimStackToLevel: restartLevel] on: Error do: [:e | nil].\n"
+            f"  result := true\n"
             f"].\n"
-            f"(result isNil and: [proc respondsTo: #trimStackToLevel:]) ifTrue: [\n"
-            f"  result := [proc trimStackToLevel: restartLevel] on: Error do: [:e | nil]\n"
+            f"((proc respondsTo: #_trimStackToLevel:) and: [publicTried not or: [publicResult isNil or: [publicResult == false]]]) ifTrue: [\n"
+            f"  [proc _trimStackToLevel: restartLevel] on: Error do: [:e | nil].\n"
+            f"  result := true\n"
             f"].\n"
-            f"(result isNil and: [proc respondsTo: #_trimStackToLevel:]) ifTrue: [\n"
-            f"  result := [proc _trimStackToLevel: restartLevel] on: Error do: [:e | nil]\n"
+            f"quickStep := 0.\n"
+            f"result ifTrue: [\n"
+            f"  detail := [proc _gsiDebuggerDetailedReportAt: restartLevel] on: Error do: [:e | nil].\n"
+            f"  quickStep := [[[detail at: 5] on: Error do: [:e | 0]] asInteger] on: Error do: [:e | 0].\n"
+            f"  quickStep > 1 ifTrue: [\n"
+            f"    (proc respondsTo: #_gsiStepAtLevel:step:) ifTrue: [ [proc _gsiStepAtLevel: restartLevel step: 1] on: Error do: [:e | nil] ].\n"
+            f"    (proc respondsTo: #jumpToStepPoint:) ifTrue: [ [proc jumpToStepPoint: 1] on: Error do: [:e | nil] ].\n"
+            f"    (proc respondsTo: #runToStepPoint:) ifTrue: [ [proc runToStepPoint: 1] on: Error do: [:e | nil] ].\n"
+            f"    (proc respondsTo: #jumpTo:) ifTrue: [ [proc jumpTo: 1] on: Error do: [:e | nil] ].\n"
+            f"    ctx notNil ifTrue: [\n"
+            f"      (ctx respondsTo: #jumpToStepPoint:) ifTrue: [ [ctx jumpToStepPoint: 1] on: Error do: [:e | nil] ].\n"
+            f"      (ctx respondsTo: #runToStepPoint:) ifTrue: [ [ctx runToStepPoint: 1] on: Error do: [:e | nil] ].\n"
+            f"      (ctx respondsTo: #jumpTo:) ifTrue: [ [ctx jumpTo: 1] on: Error do: [:e | nil] ]\n"
+            f"    ]\n"
+            f"  ]\n"
             f"].\n"
-            f"restarted := nil.\n"
-            f"(result notNil and: [proc respondsTo: #restart]) ifTrue: [\n"
-            f"  restarted := [proc restart] on: Error do: [:e | nil]\n"
-            f"].\n"
-            f"(result isNil or: [restarted isNil or: [restarted == false]]) ifTrue: ['false'] ifFalse: [restarted printString]\n"
+            f"result ifTrue: ['true'] ifFalse: ['false']\n"
             f"] value"
         )
 
@@ -860,8 +1013,10 @@ def register_debugger_routes(
         is_true_result_fn=_is_true_result,
         direct_debug_action_fn=_direct_debug_action,
         direct_trim_action_fn=_direct_trim_action,
-        direct_restart_action_fn=_direct_restart_action,
         effective_debug_action_frame_index_fn=_effective_debug_action_frame_index,
+        restart_frame_index_fn=_restart_frame_index,
+        restart_needs_workspace_replay_fn=_restart_needs_workspace_replay,
+        restart_workspace_debug_process_fn=_restart_workspace_debug_process,
         debug_process_quick_step_point_fn=_debug_process_quick_step_point,
         debug_step_script_fn=_debug_step_script,
         debug_restart_script_fn=_debug_restart_script,

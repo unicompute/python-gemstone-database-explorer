@@ -72,6 +72,32 @@ test('debugger window view inserts an inline cursor at the next instruction', ()
   assert.match(sourceView.sourceHtml, /<span class="dbg-source-text"><span class="dbg-inline-cursor" aria-label="Next instruction">\|<\/span>1\/0<\/span>/);
 });
 
+test('debugger window view resolves active line and cursor from sourceOffsets when step data is richer than the flattened offset', () => {
+  const sourceView = debuggerWindowView.buildDebuggerSourceView({
+    source: '1+1.\n3*3.\n1/0',
+    lineNumber: 1,
+    sourceOffset: 0,
+    sourceOffsets: [1, 5, 10, 11],
+    stepPoint: 4,
+  }, {
+    frameIndex: 0,
+    framePosition: 1,
+    frameCount: 1,
+  });
+
+  assert.equal(debuggerWindowView.resolveDebuggerSourceOffset({
+    sourceOffset: 0,
+    sourceOffsets: [1, 5, 10, 11],
+    stepPoint: 4,
+  }), 11);
+  assert.equal(sourceView.activeLine, 3);
+  assert.deepEqual(sourceView.cursorLocation, {line: 3, column: 1});
+  assert.match(sourceView.metaText, /Line 3/);
+  assert.match(sourceView.metaText, /Offset 11/);
+  assert.match(sourceView.sourceHtml, /<span class="dbg-source-line active" data-line="3">/);
+  assert.match(sourceView.sourceHtml, /dbg-inline-cursor/);
+});
+
 test('debugger window view prefers explicit line numbers for highlighting', () => {
   const sourceView = debuggerWindowView.buildDebuggerSourceView({
     source: 'line1\nline2\nline3',
@@ -95,6 +121,8 @@ test('debugger window view prefers explicit line numbers for highlighting', () =
 
 test('debugger window view clamps stale line numbers to the visible executed source', () => {
   const sourceView = debuggerWindowView.buildDebuggerSourceView({
+    methodName: 'Executed code @4 line 7',
+    isExecutedCode: true,
     source: '1+1.\n1/0',
     lineNumber: 7,
     sourceOffset: 0,
@@ -111,6 +139,29 @@ test('debugger window view clamps stale line numbers to the visible executed sou
   assert.match(sourceView.sourceHtml, /data-line="2"/);
   assert.match(sourceView.sourceHtml, /dbg-inline-cursor/);
   assert.match(sourceView.sourceHtml, /<span class="dbg-source-line active" data-line="2">/);
+});
+
+test('debugger window view advances executed-code cursor to the next statement when the current step is mid-statement', () => {
+  const sourceView = debuggerWindowView.buildDebuggerSourceView({
+    methodName: 'Executed code @3 line 3',
+    isExecutedCode: true,
+    source: '1+1.\n\n3*3. 6+5.\n\n0/0',
+    lineNumber: 3,
+    sourceOffset: 3,
+    sourceOffsets: [1, 2, 3, 7],
+    stepPoint: 3,
+  }, {
+    frameIndex: 0,
+    framePosition: 1,
+    frameCount: 6,
+  });
+
+  assert.equal(sourceView.activeLine, 3);
+  assert.deepEqual(sourceView.cursorLocation, {line: 3, column: 1});
+  assert.match(sourceView.metaText, /Step 3/);
+  assert.match(sourceView.metaText, /Line 3/);
+  assert.match(sourceView.sourceHtml, /<span class="dbg-source-line active" data-line="3">/);
+  assert.match(sourceView.sourceHtml, /dbg-inline-cursor/);
 });
 
 test('debugger window view builds plain-text exports for stack and source', () => {

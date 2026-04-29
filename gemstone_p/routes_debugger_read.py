@@ -101,6 +101,214 @@ def register_debugger_read_routes(
             or method_name.startswith("[] in SigWorkspaceEvaluator>>sigWorkspace")
         )
 
+    def _workspace_executed_code_body_bounds(source_text: object) -> tuple[int, int] | None:
+        text = str(source_text or "")
+        lines: list[tuple[int, int, int]] = []
+        start = 0
+        index = 0
+        while index < len(text):
+            ch = text[index]
+            if ch == "\n":
+                lines.append((start + 1, index, index + 1))
+                index += 1
+                start = index
+                continue
+            if ch == "\r":
+                end = index
+                index += 1
+                if index < len(text) and text[index] == "\n":
+                    index += 1
+                lines.append((start + 1, end, index))
+                start = index
+                continue
+            index += 1
+        lines.append((start + 1, len(text), len(text)))
+        if len(lines) < 4:
+            return None
+        second_line = text[lines[1][0] - 1:lines[1][1]].strip()
+        last_line = text[lines[-1][0] - 1:lines[-1][1]].strip()
+        if second_line != "^ [" or last_line != "] value":
+            return None
+        return (lines[2][0], lines[-2][1])
+
+    def _workspace_executed_code_display_offsets(source_text: object, raw_offsets: object) -> list[int]:
+        bounds = _workspace_executed_code_body_bounds(source_text)
+        if raw_offsets is None:
+            return [1]
+        adjusted_offsets: list[int] = []
+        try:
+            values = list(raw_offsets)
+        except Exception:
+            values = []
+        if bounds is not None:
+            body_start, body_end = bounds
+            for raw_offset in values:
+                try:
+                    offset = int(raw_offset or 0)
+                except Exception:
+                    offset = 0
+                if body_start <= offset <= body_end:
+                    adjusted_offsets.append(offset - body_start + 1)
+        if not adjusted_offsets or adjusted_offsets[0] != 1:
+            adjusted_offsets.insert(0, 1)
+        return adjusted_offsets
+
+    def _source_cursor_location(source_text: object, source_offset: int) -> tuple[int, int] | None:
+        text = str(source_text or "")
+        try:
+            offset = int(source_offset or 0)
+        except Exception:
+            offset = 0
+        if not text or offset <= 0:
+            return None
+        resolved_offset = min(offset, len(text) + 1)
+        line_number = 1
+        column_number = 1
+        index = 0
+        while index < (resolved_offset - 1) and index < len(text):
+            ch = text[index]
+            if ch == "\n":
+                line_number += 1
+                column_number = 1
+            elif ch == "\r":
+                line_number += 1
+                column_number = 1
+                if (index + 1) < len(text) and text[index + 1] == "\n":
+                    index += 1
+            else:
+                column_number += 1
+            index += 1
+        return (line_number, column_number)
+
+    def _debugger_statement_boundary_exists(source_text: object, start_offset: int, end_offset: int) -> bool:
+        text = str(source_text or "")
+        if not text:
+            return False
+        try:
+            start = int(start_offset or 0)
+            end = int(end_offset or 0)
+        except Exception:
+            return False
+        if start >= end:
+            return False
+        in_comment = False
+        in_string = False
+        current = max(1, start)
+        limit = min(end, len(text))
+        while current <= limit:
+            ch = text[current - 1]
+            if in_comment:
+                if ch == '"':
+                    in_comment = False
+            else:
+                if in_string:
+                    if ch == "'":
+                        in_string = False
+                else:
+                    if ch == '"':
+                        in_comment = True
+                    elif ch == "'":
+                        in_string = True
+                    elif ch == ".":
+                        return True
+            current += 1
+        return False
+
+    def _debugger_step_point_starts_new_statement(source_text: object, source_offsets: list[int], step_point: int) -> bool:
+        try:
+            point = int(step_point or 0)
+        except Exception:
+            point = 0
+        if point <= 1:
+            return True
+        current_offset = _step_point_source_offset(point, source_offsets)
+        previous_offset = _step_point_source_offset(point - 1, source_offsets)
+        if current_offset <= 0 or previous_offset <= 0:
+            return False
+        current_location = _source_cursor_location(source_text, current_offset)
+        previous_location = _source_cursor_location(source_text, previous_offset)
+        if current_location is None or previous_location is None:
+            return False
+        if current_location[0] != previous_location[0]:
+            return True
+        return _debugger_statement_boundary_exists(source_text, previous_offset, current_offset - 1)
+
+    def _debugger_next_statement_line_number(source_text: object, source_offsets: list[int], step_point: int) -> int:
+        next_step = int(step_point or 0) + 1
+        while next_step <= len(source_offsets):
+            if _debugger_step_point_starts_new_statement(source_text, source_offsets, next_step):
+                next_offset = _step_point_source_offset(next_step, source_offsets)
+                next_location = _source_cursor_location(source_text, next_offset)
+                if next_location is not None:
+                    return next_location[0]
+            next_step += 1
+        return 0
+
+    def _debugger_executable_cursor_column_for_line(line_text: object) -> int:
+        text = str(line_text or "")
+        size = len(text)
+        index = 0
+        while index < size:
+            while index < size and text[index].isspace():
+                index += 1
+            if index >= size:
+                return 0
+            if text[index] == '"':
+                index += 1
+                while index < size and text[index] != '"':
+                    index += 1
+                if index < size:
+                    index += 1
+                continue
+            return index + 1
+        return 0
+
+    def _debugger_executable_line_number_near(line_number: int, source_text: object) -> int:
+        lines = str(source_text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        if not lines:
+            return 0
+        try:
+            start_index = int(line_number or 0)
+        except Exception:
+            start_index = 0
+        if start_index <= 0:
+            return 0
+        start_index = max(1, min(start_index, len(lines)))
+        for index in range(start_index - 1, len(lines)):
+            if _debugger_executable_cursor_column_for_line(lines[index]) > 0:
+                return index + 1
+        for index in range(start_index - 2, -1, -1):
+            if _debugger_executable_cursor_column_for_line(lines[index]) > 0:
+                return index + 1
+        return 0
+
+    def _resolved_workspace_executed_line_number(source_text: object, source_offsets: list[int], step_point: int, fallback_line: int) -> int:
+        raw_offset = _step_point_source_offset(step_point, source_offsets)
+        cursor_location = _source_cursor_location(source_text, raw_offset)
+        if cursor_location is None:
+            return _debugger_executable_line_number_near(fallback_line, source_text) or fallback_line
+        resolved_line = cursor_location[0]
+        if step_point > 1 and not _debugger_step_point_starts_new_statement(source_text, source_offsets, step_point):
+            next_line = _debugger_next_statement_line_number(source_text, source_offsets, step_point)
+            if next_line > 0:
+                resolved_line = next_line
+        return _debugger_executable_line_number_near(resolved_line, source_text) or resolved_line
+
+    def _step_point_source_offset(step_point: int, source_offsets: list[int]) -> int:
+        if not source_offsets:
+            return 0
+        try:
+            point = int(step_point or 0)
+        except Exception:
+            point = 0
+        if point <= 0:
+            point = 1
+        index = min(point, len(source_offsets)) - 1
+        try:
+            return max(0, int(source_offsets[index] or 0))
+        except Exception:
+            return 0
+
     def _normalize_workspace_debug_payload(thread_oop: int, payload: dict, *, is_top_visible: bool) -> dict:
         source_hint = _debug_source_hint_text(thread_oop)
         if not source_hint or not payload.get("hasFrame", False):
@@ -116,14 +324,27 @@ def register_debugger_read_routes(
             return payload
         step_point = int_arg_fn(normalized.get("stepPoint", 0), 0) or 1
         raw_source_offset = int_arg_fn(normalized.get("sourceOffset", 0), 0)
+        raw_source_offsets = normalized.get("sourceOffsets")
         source = workspace_source
-        source_offset = workspace_executed_code_display_offset_fn(raw_source, raw_source_offset, step_point)
+        source_offsets = _workspace_executed_code_display_offsets(raw_source, raw_source_offsets)
+        if source_offsets:
+            step_point = max(1, min(step_point, len(source_offsets)))
+        source_offset = _step_point_source_offset(step_point, source_offsets)
+        if source_offset <= 0:
+            source_offset = workspace_executed_code_display_offset_fn(raw_source, raw_source_offset, step_point)
         if source and source_offset <= 0 and step_point <= 1:
             source_offset = 1
         line_number = _clamp_debug_line_number(
             reported_or_offset_line_number_fn(source, source_offset, ""),
             source,
         )
+        if source_offsets and step_point > 0:
+            resolved_line_number = _clamp_debug_line_number(
+                _resolved_workspace_executed_line_number(source, source_offsets, step_point, line_number or 1),
+                source,
+            )
+            if resolved_line_number > 0:
+                line_number = resolved_line_number
         status = str(normalized.get("status", "") or "").strip().lower() or ("suspended" if normalized.get("hasFrame", False) else "terminated")
         can_control = bool(normalized.get("hasFrame", False))
         if status == "terminated":
@@ -138,6 +359,7 @@ def register_debugger_read_routes(
             methodName=_executed_code_label(step_point, line_number),
             source=source,
             sourceOffset=source_offset,
+            sourceOffsets=source_offsets,
             stepPoint=step_point,
             lineNumber=line_number,
             status=status,
@@ -359,6 +581,7 @@ def register_debugger_read_routes(
                     self_object = payload["selfObject"]
                     source = payload["source"]
                     source_offset = payload["sourceOffset"]
+                    source_offsets = list(payload.get("sourceOffsets", []) or [])
                     step_point = payload["stepPoint"]
                     line_number = payload["lineNumber"]
                     variables = payload["variables"]
@@ -522,6 +745,7 @@ def register_debugger_read_routes(
                     method_name = str(top_payload.get("methodName", method_name))
                     source = str(top_payload.get("source", source))
                     source_offset = int_arg_fn(top_payload.get("sourceOffset", source_offset), source_offset)
+                    source_offsets = list(top_payload.get("sourceOffsets", []) or [])
                     step_point = int_arg_fn(top_payload.get("stepPoint", step_point), step_point)
                     line_number = int_arg_fn(top_payload.get("lineNumber", line_number), line_number)
                     class_name, selector_name = _split_frame_method_name(method_name)
@@ -565,6 +789,7 @@ def register_debugger_read_routes(
             selfObject=self_object,
             source=source,
             sourceOffset=source_offset,
+            sourceOffsets=source_offsets,
             stepPoint=step_point,
             lineNumber=line_number,
             status=status,

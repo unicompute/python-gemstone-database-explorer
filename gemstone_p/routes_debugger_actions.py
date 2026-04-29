@@ -15,8 +15,10 @@ def register_debugger_action_routes(
     is_true_result_fn,
     direct_debug_action_fn,
     direct_trim_action_fn,
-    direct_restart_action_fn,
     effective_debug_action_frame_index_fn,
+    restart_frame_index_fn,
+    restart_needs_workspace_replay_fn,
+    restart_workspace_debug_process_fn,
     debug_process_quick_step_point_fn,
     debug_step_script_fn,
     debug_restart_script_fn,
@@ -111,10 +113,9 @@ def register_debugger_action_routes(
                 last_status = str(debug_process_status_fn(session, oop) or "terminated")
             except Exception:
                 last_status = "terminated"
-            if not is_live:
-                if time.monotonic() >= deadline:
-                    return "terminated"
-            elif last_status != "running":
+            if last_status != "running":
+                return last_status
+            if not is_live and time.monotonic() >= deadline:
                 return last_status
             if time.monotonic() >= deadline:
                 return last_status
@@ -155,41 +156,27 @@ def register_debugger_action_routes(
     def debug_step(oop: int):
         frame_index = int((request.get_json(force=True) or {}).get("index", 0))
         selectors = ["step:", "stepIntoFromLevel:", "_stepIntoInFrame:", "gciStepIntoFromLevel:"]
+        effective_frame_index = frame_index
         try:
             with request_session_factory(read_only=False) as session:
                 effective_frame_index = effective_debug_action_frame_index_fn(session, oop, frame_index)
-                direct = direct_debug_action_fn(
-                    session,
-                    oop,
-                    [(selector, [effective_frame_index + 1]) for selector in selectors],
-                )
-                if direct is False:
+                effective_level = effective_frame_index + 1
+                result = session.eval(debug_step_script_fn(oop, selectors, effective_level))
+                if not is_true_result_fn(result):
                     return _action_error(
                         "step",
                         oop,
                         "Debugger step is not supported for this process",
                         400,
-                        frame_index=frame_index,
+                        frame_index=effective_frame_index,
                         session=session,
                         selectors=selectors,
                     )
-                if direct is None:
-                    result = session.eval(debug_step_script_fn(oop, selectors, effective_frame_index + 1))
-                    if not is_true_result_fn(result):
-                        return _action_error(
-                            "step",
-                            oop,
-                            "Debugger step is not supported for this process",
-                            400,
-                            frame_index=frame_index,
-                            session=session,
-                            selectors=selectors,
-                        )
                 status = _stopped_action_status("step", oop, frame_index=frame_index, session=session, selectors=selectors)
                 if isinstance(status, tuple):
                     return status
         except Exception as exc:
-            return _action_error("step", oop, exc, 500, frame_index=frame_index, selectors=selectors)
+            return _action_error("step", oop, exc, 500, frame_index=effective_frame_index, selectors=selectors)
         return _action_success("step", oop, frame_index=frame_index, message="stepped", status=status)
 
     @app.post("/debug/step-into/<int:oop>")
@@ -365,8 +352,12 @@ def register_debugger_action_routes(
         frame_index = int((request.get_json(force=True) or {}).get("index", 0))
         try:
             with request_session_factory(read_only=False) as session:
-                direct = direct_restart_action_fn(session, oop, frame_index)
-                if direct is False:
+                if has_live_debugger_process_fn(session, oop):
+                    effective_frame_index = restart_frame_index_fn(session, oop, frame_index)
+                else:
+                    effective_frame_index = max(0, int(frame_index or 0))
+                result = session.eval(debug_restart_script_fn(oop, effective_frame_index + 1))
+                if not is_true_result_fn(result):
                     return _action_error(
                         "restart",
                         oop,
@@ -375,9 +366,9 @@ def register_debugger_action_routes(
                         frame_index=frame_index,
                         session=session,
                     )
-                if direct is None:
-                    result = session.eval(debug_restart_script_fn(oop, frame_index + 1))
-                    if not is_true_result_fn(result):
+                if has_live_debugger_process_fn(session, oop) and restart_needs_workspace_replay_fn(session, oop, effective_frame_index):
+                    replay = restart_workspace_debug_process_fn(session, oop)
+                    if replay is False:
                         return _action_error(
                             "restart",
                             oop,
@@ -386,43 +377,42 @@ def register_debugger_action_routes(
                             frame_index=frame_index,
                             session=session,
                         )
-                if direct is None:
-                    status = _stopped_action_status("restart", oop, frame_index=frame_index, session=session)
-                    if isinstance(status, tuple):
-                        return status
-                    return _action_success(
-                        "restart",
-                        oop,
-                        frame_index=0,
-                        message="restarted",
-                        status=status,
-                        completed=False,
-                    )
-                if isinstance(direct, dict):
-                    try:
-                        thread_oop = int(direct.get("thread_oop") or 0)
-                    except Exception:
-                        thread_oop = 0
-                    target_thread_oop = thread_oop if thread_oop > 0 else oop
-                    status = "terminated" if direct.get("completed") is True else _wait_for_debugger_stop(session, target_thread_oop)
-                    if status == "running":
-                        return _action_error(
+                    if isinstance(replay, dict):
+                        try:
+                            thread_oop = int(replay.get("thread_oop") or 0)
+                        except Exception:
+                            thread_oop = 0
+                        target_thread_oop = thread_oop if thread_oop > 0 else oop
+                        status = "terminated" if replay.get("completed") is True else _wait_for_debugger_stop(session, target_thread_oop)
+                        if status == "running":
+                            return _action_error(
+                                "restart",
+                                target_thread_oop,
+                                "Debugger action 'restart' did not settle before timeout",
+                                409,
+                                frame_index=frame_index,
+                                session=session,
+                            )
+                        return _action_success(
                             "restart",
-                            target_thread_oop,
-                            "Debugger action 'restart' did not settle before timeout",
-                            409,
-                            frame_index=frame_index,
-                            session=session,
+                            oop,
+                            frame_index=0,
+                            thread_oop=target_thread_oop,
+                            message="restarted to completion" if replay.get("completed") is True else "restarted",
+                            status=status,
+                            completed=replay.get("completed") is True,
                         )
-                    return _action_success(
-                        "restart",
-                        oop,
-                        frame_index=0,
-                        thread_oop=target_thread_oop,
-                        message="restarted to completion" if direct.get("completed") is True else "restarted",
-                        status=status,
-                        completed=direct.get("completed") is True,
-                    )
+                status = _stopped_action_status("restart", oop, frame_index=frame_index, session=session)
+                if isinstance(status, tuple):
+                    return status
+                return _action_success(
+                    "restart",
+                    oop,
+                    frame_index=0,
+                    message="restarted",
+                    status=status,
+                    completed=False,
+                )
         except Exception as exc:
             return _action_error("restart", oop, exc, 500, frame_index=frame_index)
         return _action_success("restart", oop, frame_index=0, message="restarted", status="suspended", completed=False)

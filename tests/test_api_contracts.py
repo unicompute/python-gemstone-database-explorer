@@ -770,6 +770,7 @@ class TestApiContracts(unittest.TestCase):
                 "selfObject",
                 "source",
                 "sourceOffset",
+                "sourceOffsets",
                 "stepPoint",
                 "lineNumber",
                 "status",
@@ -798,6 +799,7 @@ class TestApiContracts(unittest.TestCase):
         self.assertIsInstance(data["selfObject"], dict)
         self.assertIsInstance(data["source"], str)
         self.assertIsInstance(data["sourceOffset"], int)
+        self.assertIsInstance(data["sourceOffsets"], list)
         self.assertIsInstance(data["stepPoint"], int)
         self.assertIsInstance(data["status"], str)
         self.assertIsInstance(data["isLiveSession"], bool)
