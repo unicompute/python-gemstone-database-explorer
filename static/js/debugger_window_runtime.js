@@ -106,13 +106,19 @@
     if (!list.length) return null;
     const requestedIndex = Number.isFinite(Number(requestedFrameIndex)) ? Number(requestedFrameIndex) : 0;
     const preferExecutedCode = options?.preferExecutedCode !== false;
+    if (requestedIndex === 0) {
+      const exactZero = list.find(frame => Number(frame?.index) === 0) || null;
+      if (exactZero) {
+        if (!preferExecutedCode || isExecutedCodeFrameName(exactZero?.name)) return exactZero;
+        const firstExecuted = list.find(frame => isExecutedCodeFrameName(frame?.name));
+        return firstExecuted || exactZero;
+      }
+    }
     if (selectedIdentity) {
       const exactIdentityMatch = list.find(frame => debuggerFrameMatchesIdentity(frame, selectedIdentity));
       if (exactIdentityMatch) return exactIdentityMatch;
     }
-    if (requestedIndex === 0) {
-      return (preferExecutedCode ? list.find(frame => isExecutedCodeFrameName(frame?.name)) : null) || list[0];
-    }
+    if (requestedIndex === 0) return (preferExecutedCode ? list.find(frame => isExecutedCodeFrameName(frame?.name)) : null) || list[0];
     const exact = list.find(frame => Number(frame?.index) === requestedIndex);
     if (exact) return exact;
     const numericFrames = list

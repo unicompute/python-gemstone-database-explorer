@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import uuid
 from typing import Any
 
 from gemstone_py import GemStoneError, GemStoneSession, GciErrSType, OOP_ILLEGAL, OOP_NIL
@@ -15,6 +16,15 @@ def _escape_st(code: str) -> str:
 
 def _eval_str(session: GemStoneSession, smalltalk: str) -> str:
     return _str(session.eval(smalltalk))
+
+
+def _workspace_method_source(selector: str, source_string: str) -> str:
+    body = source_string or ""
+    if not body:
+        body = "^ nil"
+    if body == "^ nil":
+        return f"{selector}\n{body}"
+    return f"{selector}\n^ [\n{body}\n] value"
 
 
 def _browser_target_label(class_name: str, meta: bool) -> str:
@@ -107,7 +117,7 @@ def _behavior_browser_targets(session: GemStoneSession, *oops: int) -> dict[int,
 
 
 def eval_in_context(
-    session: GemStoneSession, oop: int, code: str, language: str
+    session: GemStoneSession, oop: int, code: str, language: str, *, workspace_debug: bool = False
 ) -> dict[str, Any]:
     def valid_remote_oop(raw: object) -> int | None:
         try:
@@ -117,18 +127,127 @@ def eval_in_context(
         return value if value > OOP_NIL else None
 
     escaped = _escape_st(code)
-    obj_expr = object_for_oop_expr(oop)
-    source = (
-        f"| receiver |\n"
-        f"receiver := {obj_expr}.\n"
-        f"receiver evaluate: '{escaped}'"
-    )
+    if workspace_debug and language == "smalltalk":
+        selector = f"sigWorkspace{uuid.uuid4().hex}"
+        method_source = _workspace_method_source(selector, code)
+        source = (
+            "[ | completionSemaphore completionSignaled outcome |\n"
+            f"{_ENCODE_SRC}\n"
+            "completionSemaphore := Semaphore new.\n"
+            "completionSignaled := Array with: false.\n"
+            "outcome := Dictionary new.\n"
+            "[\n"
+            "  | evaluatorClass selector source result |\n"
+            "  [\n"
+            "    evaluatorClass := SigWorkspaceEvaluator.\n"
+            f"    selector := #{selector}.\n"
+            f"    source := '{_escape_st(method_source)}'.\n"
+            "    [\n"
+            "      evaluatorClass compileMethod: source category: 'workspace-temporary' asSymbol.\n"
+            "      result := evaluatorClass new perform: selector.\n"
+            "    ] ensure: [\n"
+            "      (evaluatorClass includesSelector: selector)\n"
+            "        ifTrue: [ evaluatorClass removeSelector: selector ]\n"
+            "    ].\n"
+            "    outcome at: #success put: true.\n"
+            "    outcome at: #resultOop put: ([ result asOop ] on: Error do: [:e | nil ]).\n"
+            "  ] on: (Halt , Error) do: [ :error |\n"
+            "    outcome at: #success put: false.\n"
+            "    outcome at: #resultOop put: ([ error asOop ] on: Error do: [:e | nil ]).\n"
+            "    outcome at: #debugThreadOop put: Processor activeProcess asOop.\n"
+            "    outcome at: #exceptionOop put: ([ error asOop ] on: Error do: [:e | nil ]).\n"
+            "    outcome at: #errorText put: (([ error description ] on: Error do: [:e | error printString ]) asString).\n"
+            "    (completionSignaled at: 1) ifFalse: [\n"
+            "      completionSignaled at: 1 put: true.\n"
+            "      completionSemaphore signal\n"
+            "    ].\n"
+            "    Processor activeProcess suspend.\n"
+            "    error resume\n"
+            "  ].\n"
+            "  (completionSignaled at: 1) ifFalse: [\n"
+            "    completionSignaled at: 1 put: true.\n"
+            "    completionSemaphore signal\n"
+            "  ]\n"
+            "] fork.\n"
+            "(completionSemaphore waitTimeoutMSecs: 10000)\n"
+            "  ifFalse: [ 'TIMEOUT' ]\n"
+            "  ifTrue: [\n"
+            "    (outcome at: #success ifAbsent: [ false ])\n"
+            "      ifTrue: [\n"
+            "        'OK|', ((outcome at: #resultOop ifAbsent: [ nil ]) ifNil: [ '' ] ifNotNil: [ :oopValue | oopValue printString ])\n"
+            "      ]\n"
+            "      ifFalse: [\n"
+            "        'ERR|',\n"
+            "          ((outcome at: #debugThreadOop ifAbsent: [ nil ]) ifNil: [ '' ] ifNotNil: [ :oopValue | oopValue printString ]), '|',\n"
+            "          ((outcome at: #exceptionOop ifAbsent: [ nil ]) ifNil: [ '' ] ifNotNil: [ :oopValue | oopValue printString ]), '|',\n"
+            "          (encode value: (outcome at: #errorText ifAbsent: [ 'GemStone execution failed' ]))\n"
+            "      ]\n"
+            "  ]\n"
+            "] value"
+        )
+    else:
+        obj_expr = object_for_oop_expr(oop)
+        source = (
+            f"| receiver |\n"
+            f"receiver := {obj_expr}.\n"
+            f"receiver evaluate: '{escaped}'"
+        )
     try:
         if language != "smalltalk":
             return {
                 "isException": False,
                 "resultOop": session.eval_oop(source),
                 "errorText": "",
+                "debugThreadOop": None,
+                "exceptionOop": None,
+            }
+        if workspace_debug:
+            raw = _eval_str(session, source)
+            if raw == "TIMEOUT":
+                return {
+                    "isException": True,
+                    "resultOop": None,
+                    "errorText": "Workspace restart timed out before debugger capture completed.",
+                    "debugThreadOop": None,
+                    "exceptionOop": None,
+                }
+            if raw.startswith("OK|"):
+                result_text = raw.split("|", 1)[1] if "|" in raw else ""
+                try:
+                    result_oop = int(result_text) if result_text else None
+                except Exception:
+                    result_oop = None
+                return {
+                    "isException": False,
+                    "resultOop": result_oop,
+                    "errorText": "",
+                    "debugThreadOop": None,
+                    "exceptionOop": None,
+                }
+            if raw.startswith("ERR|"):
+                parts = raw.split("|", 3)
+                thread_text = parts[1] if len(parts) > 1 else ""
+                exception_text = parts[2] if len(parts) > 2 else ""
+                error_text = _decode(parts[3]) if len(parts) > 3 else "GemStone execution failed"
+                try:
+                    debug_thread_oop = int(thread_text) if thread_text else None
+                except Exception:
+                    debug_thread_oop = None
+                try:
+                    exception_oop = int(exception_text) if exception_text else None
+                except Exception:
+                    exception_oop = None
+                return {
+                    "isException": True,
+                    "resultOop": exception_oop,
+                    "errorText": error_text,
+                    "debugThreadOop": debug_thread_oop,
+                    "exceptionOop": exception_oop,
+                }
+            return {
+                "isException": True,
+                "resultOop": None,
+                "errorText": raw or "GemStone execution failed",
                 "debugThreadOop": None,
                 "exceptionOop": None,
             }

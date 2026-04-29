@@ -268,10 +268,6 @@
     const stepPoint = Number(frameData.stepPoint || 0);
     const resolvedSourceOffset = resolveDebuggerSourceOffset(frameData);
     let cursorLocation = computeDebuggerCursorLocation(normalized, resolvedSourceOffset);
-    if (isExecutedCodeFrame(frameData) && stepPoint > 1 && !debuggerStepPointStartsNewStatement(frameData, stepPoint, normalized)) {
-      const nextLocation = debuggerNextStatementCursorLocation(frameData, stepPoint, normalized);
-      if (nextLocation) cursorLocation = nextLocation;
-    }
     let rawLine = cursorLocation ? cursorLocation.line : 0;
     if (!(rawLine > 0)) rawLine = Number(frameData.lineNumber || 0);
     let resolvedLine = isExecutedCodeFrame(frameData)

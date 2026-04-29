@@ -128,6 +128,42 @@ test('buildDebuggerToolbarState disables frame actions when no selected frame is
   );
 });
 
+test('preferredDebuggerFrame keeps the normalized top executed-code row selected at index 0', () => {
+  const frames = [
+    {
+      index: 0,
+      name: 'Executed code @5 line 5',
+      className: '',
+      selectorName: '',
+      frameKey: 'method:Executed code @5 line 5',
+      isExecutedCode: true,
+    },
+    {
+      index: 7,
+      name: 'Executed code @5 line 5',
+      className: 'SigWorkspaceEvaluator',
+      selectorName: 'sigWorkspaceDoIt',
+      frameKey: 'class:SigWorkspaceEvaluator>>sigWorkspaceDoIt',
+      isExecutedCode: true,
+    },
+  ];
+
+  const selected = runtime.preferredDebuggerFrame(
+    frames,
+    0,
+    {
+      methodName: 'Executed code @5 line 5',
+      className: 'SigWorkspaceEvaluator',
+      selectorName: 'sigWorkspaceDoIt',
+      frameKey: 'class:SigWorkspaceEvaluator>>sigWorkspaceDoIt',
+      isExecutedCode: true,
+    },
+    {preferExecutedCode: true},
+  );
+
+  assert.equal(selected.index, 0);
+});
+
 test('buildDebuggerToolbarState only leaves terminate enabled while the process is running', () => {
   assert.deepEqual(
     runtime.buildDebuggerToolbarState({

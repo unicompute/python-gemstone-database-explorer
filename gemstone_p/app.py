@@ -476,6 +476,7 @@ def _cb_error_payload_message(payload: object, fallback: str) -> str | None:
 
 _DEBUG_SOURCE_HINTS: dict[int, str] = {}
 _DEBUG_REPLAY_RECEIVERS: dict[int, int] = {}
+_DEBUG_EXECUTED_FRAME_STATES: dict[int, dict[str, object]] = {}
 
 
 def _remember_debug_source_hint(thread_oop: object, source: str) -> None:
@@ -506,6 +507,43 @@ def _remember_debug_replay_receiver(thread_oop: object, receiver_oop: object) ->
         _DEBUG_REPLAY_RECEIVERS[oop] = receiver
 
 
+def _remember_debug_executed_frame_state(thread_oop: object, state: dict[str, object] | None) -> None:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return
+    if oop <= 20 or not isinstance(state, dict):
+        return
+    source = str(state.get("source", "") or "").strip()
+    if not source:
+        return
+    raw_offsets = state.get("sourceOffsets")
+    try:
+        source_offsets = [max(0, int(each or 0)) for each in list(raw_offsets or [])]
+    except Exception:
+        source_offsets = []
+    if not source_offsets:
+        return
+    _DEBUG_EXECUTED_FRAME_STATES[oop] = {
+        "source": source,
+        "sourceOffsets": source_offsets,
+        "className": str(state.get("className", "") or "").strip(),
+        "selectorName": str(state.get("selectorName", "") or "").strip(),
+        "lineNumber": max(0, int(state.get("lineNumber", 0) or 0)),
+        "stepPoint": max(0, int(state.get("stepPoint", 0) or 0)),
+        "frameIndex": int(state.get("frameIndex", 0) or 0),
+    }
+
+
+def _debug_executed_frame_state(thread_oop: object) -> dict[str, object]:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return {}
+    state = _DEBUG_EXECUTED_FRAME_STATES.get(oop)
+    return dict(state) if isinstance(state, dict) else {}
+
+
 def _debug_replay_receiver(thread_oop: object) -> int | None:
     try:
         oop = int(thread_oop)
@@ -521,6 +559,7 @@ def _forget_debug_source_hint(thread_oop: object) -> None:
     except Exception:
         return
     _DEBUG_SOURCE_HINTS.pop(oop, None)
+    _DEBUG_EXECUTED_FRAME_STATES.pop(oop, None)
 
 
 def _forget_debug_replay_receiver(thread_oop: object) -> None:
@@ -529,6 +568,7 @@ def _forget_debug_replay_receiver(thread_oop: object) -> None:
     except Exception:
         return
     _DEBUG_REPLAY_RECEIVERS.pop(oop, None)
+    _DEBUG_EXECUTED_FRAME_STATES.pop(oop, None)
 
 
 def create_app() -> Flask:
@@ -632,6 +672,8 @@ def create_app() -> Flask:
         decode_field_fn=_decode_field,
         int_arg_fn=_int_arg,
         debug_source_hint_fn=_debug_source_hint,
+        debug_executed_frame_state_fn=_debug_executed_frame_state,
+        remember_debug_executed_frame_state_fn=_remember_debug_executed_frame_state,
         debug_replay_receiver_fn=_debug_replay_receiver,
         remember_debug_source_hint_fn=_remember_debug_source_hint,
         remember_debug_replay_receiver_fn=_remember_debug_replay_receiver,

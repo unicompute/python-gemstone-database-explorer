@@ -141,7 +141,7 @@ test('debugger window view clamps stale line numbers to the visible executed sou
   assert.match(sourceView.sourceHtml, /<span class="dbg-source-line active" data-line="2">/);
 });
 
-test('debugger window view advances executed-code cursor to the next statement when the current step is mid-statement', () => {
+test('debugger window view keeps the executed-code cursor on the current server step position', () => {
   const sourceView = debuggerWindowView.buildDebuggerSourceView({
     methodName: 'Executed code @3 line 3',
     isExecutedCode: true,
@@ -156,11 +156,11 @@ test('debugger window view advances executed-code cursor to the next statement w
     frameCount: 6,
   });
 
-  assert.equal(sourceView.activeLine, 3);
-  assert.deepEqual(sourceView.cursorLocation, {line: 3, column: 1});
+  assert.equal(sourceView.activeLine, 1);
+  assert.deepEqual(sourceView.cursorLocation, {line: 1, column: 3});
   assert.match(sourceView.metaText, /Step 3/);
-  assert.match(sourceView.metaText, /Line 3/);
-  assert.match(sourceView.sourceHtml, /<span class="dbg-source-line active" data-line="3">/);
+  assert.match(sourceView.metaText, /Line 1/);
+  assert.match(sourceView.sourceHtml, /<span class="dbg-source-line active" data-line="1">/);
   assert.match(sourceView.sourceHtml, /dbg-inline-cursor/);
 });
 

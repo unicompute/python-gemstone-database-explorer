@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from flask import jsonify, request
 
 
@@ -12,6 +14,8 @@ def register_debugger_read_routes(
     encode_src: str,
     decode_field_fn,
     debug_source_hint_fn,
+    debug_executed_frame_state_fn,
+    remember_debug_executed_frame_state_fn,
     debug_object_ref_fn,
     int_arg_fn,
     has_live_debugger_process_fn,
@@ -24,8 +28,58 @@ def register_debugger_read_routes(
     workspace_executed_code_source_fn,
     workspace_executed_code_display_offset_fn,
 ) -> None:
+    def _is_executed_code_method_name(value: object) -> bool:
+        return bool(re.match(r"^executed\s+code\s*@", str(value or "").strip(), re.IGNORECASE))
+
     def _debug_source_hint_text(thread_oop: int) -> str:
         return str(debug_source_hint_fn(thread_oop) or "").strip()
+
+    def _debug_executed_frame_state(thread_oop: int) -> dict:
+        raw = debug_executed_frame_state_fn(thread_oop)
+        if not isinstance(raw, dict):
+            return {}
+        source = str(raw.get("source", "") or "").strip()
+        try:
+            source_offsets = [max(0, int(each or 0)) for each in list(raw.get("sourceOffsets", []) or [])]
+        except Exception:
+            source_offsets = []
+        source_offsets = _workspace_executed_code_display_offsets(source, source_offsets)
+        return {
+            "source": source,
+            "sourceOffsets": source_offsets,
+            "className": str(raw.get("className", "") or "").strip(),
+            "selectorName": str(raw.get("selectorName", "") or "").strip(),
+            "lineNumber": max(0, int(raw.get("lineNumber", 0) or 0)),
+            "stepPoint": max(0, int(raw.get("stepPoint", 0) or 0)),
+            "frameIndex": int(raw.get("frameIndex", 0) or 0),
+        }
+
+    def _remember_workspace_executed_frame_state(thread_oop: int, payload: dict) -> None:
+        if not isinstance(payload, dict):
+            return
+        source_hint = _debug_source_hint_text(thread_oop)
+        source = _normalized_debug_source_text(payload.get("source", ""))
+        if not source_hint or not source or not _source_matches_debug_hint(source, source_hint):
+            return
+        try:
+            source_offsets = [max(0, int(each or 0)) for each in list(payload.get("sourceOffsets", []) or [])]
+        except Exception:
+            source_offsets = []
+        source_offsets = _workspace_executed_code_display_offsets(source, source_offsets)
+        if not source_offsets:
+            return
+        remember_debug_executed_frame_state_fn(
+            thread_oop,
+            {
+                "source": source,
+                "sourceOffsets": source_offsets,
+                "className": str(payload.get("className", "") or "").strip(),
+                "selectorName": str(payload.get("selectorName", "") or "").strip(),
+                "lineNumber": max(0, int(payload.get("lineNumber", 0) or 0)),
+                "stepPoint": max(0, int(payload.get("stepPoint", 0) or 0)),
+                "frameIndex": max(0, int(payload.get("frameIndex", 0) or 0)),
+            },
+        )
 
     def _normalized_debug_source_text(source: object) -> str:
         return "\n".join(str(source or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
@@ -41,15 +95,21 @@ def register_debugger_read_routes(
         return max(1, min(_debug_source_line_count(source), resolved))
 
     def _source_matches_debug_hint(source: object, hint: str) -> bool:
-        candidate = _normalized_debug_source_text(source)
         normalized_hint = _normalized_debug_source_text(hint)
-        if not candidate or not normalized_hint:
+        if not normalized_hint:
             return False
-        return (
-            candidate == normalized_hint
-            or normalized_hint in candidate
-            or candidate in normalized_hint
-        )
+
+        raw_candidate = _normalized_debug_source_text(source)
+        executed_candidate = _normalized_debug_source_text(workspace_executed_code_source_fn(source))
+        if raw_candidate and raw_candidate == normalized_hint:
+            return True
+        if executed_candidate and executed_candidate != raw_candidate:
+            return (
+                executed_candidate == normalized_hint
+                or normalized_hint in executed_candidate
+                or executed_candidate in normalized_hint
+            )
+        return False
 
     def _executed_code_label(step_point: int, line_number: int) -> str:
         return f"Executed code @{max(1, int(step_point or 1))} line {max(1, int(line_number or 1))}"
@@ -65,7 +125,7 @@ def register_debugger_read_routes(
         method_text = str(method_name or "").strip()
         class_text = str(class_name or "").strip()
         selector_text = str(selector_name or "").strip()
-        is_executed_code = method_text.lower().startswith("executed code @")
+        is_executed_code = _is_executed_code_method_name(method_text)
         if is_executed_code:
             if class_text and selector_text:
                 return f"executed:{class_text}>>{selector_text}", True
@@ -96,6 +156,8 @@ def register_debugger_read_routes(
         selector_name = str(payload.get("selectorName", "") or "")
         method_name = str(payload.get("methodName", "") or "")
         return (
+            _is_executed_code_method_name(method_name)
+            or
             (class_name == "SigWorkspaceEvaluator" and selector_name.startswith("sigWorkspace"))
             or "SigWorkspaceEvaluator>>sigWorkspace" in method_name
             or method_name.startswith("[] in SigWorkspaceEvaluator>>sigWorkspace")
@@ -136,6 +198,7 @@ def register_debugger_read_routes(
         if raw_offsets is None:
             return [1]
         adjusted_offsets: list[int] = []
+        last_positive = 1
         try:
             values = list(raw_offsets)
         except Exception:
@@ -148,10 +211,95 @@ def register_debugger_read_routes(
                 except Exception:
                     offset = 0
                 if body_start <= offset <= body_end:
-                    adjusted_offsets.append(offset - body_start + 1)
+                    resolved = offset - body_start + 1
+                    if resolved <= 0:
+                        resolved = last_positive
+                    adjusted_offsets.append(resolved)
+                    last_positive = resolved
+        else:
+            for raw_offset in values:
+                try:
+                    offset = int(raw_offset or 0)
+                except Exception:
+                    offset = 0
+                if offset <= 0:
+                    offset = last_positive
+                adjusted_offsets.append(offset)
+                last_positive = offset
         if not adjusted_offsets or adjusted_offsets[0] != 1:
             adjusted_offsets.insert(0, 1)
         return adjusted_offsets
+
+    def _workspace_statement_start_offsets(source_text: object) -> list[int]:
+        text = str(source_text or "")
+        if not text:
+            return []
+
+        def find_next_executable(start_index: int) -> int:
+            index = max(0, int(start_index or 0))
+            size = len(text)
+            while index < size:
+                ch = text[index]
+                if ch.isspace():
+                    index += 1
+                    continue
+                if ch == '"':
+                    index += 1
+                    while index < size and text[index] != '"':
+                        index += 1
+                    if index < size:
+                        index += 1
+                    continue
+                return index + 1
+            return 0
+
+        offsets: list[int] = []
+        first_offset = find_next_executable(0)
+        if first_offset > 0:
+            offsets.append(first_offset)
+
+        in_comment = False
+        in_string = False
+        index = 0
+        size = len(text)
+        while index < size:
+            ch = text[index]
+            if in_comment:
+                if ch == '"':
+                    in_comment = False
+            elif in_string:
+                if ch == "'":
+                    in_string = False
+            else:
+                if ch == '"':
+                    in_comment = True
+                elif ch == "'":
+                    in_string = True
+                elif ch == ".":
+                    next_offset = find_next_executable(index + 1)
+                    if next_offset > 0 and next_offset != offsets[-1]:
+                        offsets.append(next_offset)
+            index += 1
+        return offsets
+
+    def _pad_source_offsets_to_step_point(source_offsets: list[int], step_point: int) -> list[int]:
+        adjusted: list[int] = []
+        for raw_offset in list(source_offsets or []):
+            try:
+                offset = int(raw_offset or 0)
+            except Exception:
+                offset = 0
+            if offset > 0:
+                adjusted.append(max(1, offset))
+        try:
+            point = int(step_point or 0)
+        except Exception:
+            point = 0
+        if point <= 0 or not adjusted:
+            return adjusted
+        while len(adjusted) < point:
+            adjusted.append(adjusted[-1])
+        return adjusted
 
     def _source_cursor_location(source_text: object, source_offset: int) -> tuple[int, int] | None:
         text = str(source_text or "")
@@ -288,10 +436,6 @@ def register_debugger_read_routes(
         if cursor_location is None:
             return _debugger_executable_line_number_near(fallback_line, source_text) or fallback_line
         resolved_line = cursor_location[0]
-        if step_point > 1 and not _debugger_step_point_starts_new_statement(source_text, source_offsets, step_point):
-            next_line = _debugger_next_statement_line_number(source_text, source_offsets, step_point)
-            if next_line > 0:
-                resolved_line = next_line
         return _debugger_executable_line_number_near(resolved_line, source_text) or resolved_line
 
     def _step_point_source_offset(step_point: int, source_offsets: list[int]) -> int:
@@ -315,9 +459,50 @@ def register_debugger_read_routes(
             return payload
         normalized = dict(payload)
         raw_source = str(normalized.get("source", "") or "")
+        state = _debug_executed_frame_state(thread_oop) if is_top_visible else {}
         if not _looks_like_workspace_frame(normalized):
             if not (is_top_visible and _source_matches_debug_hint(raw_source, source_hint)):
-                return payload
+                source = str(state.get("source", "") or "")
+                source_offsets = list(state.get("sourceOffsets", []) or [])
+                if not source or not source_offsets:
+                    return payload
+                state_step_point = int_arg_fn(state.get("stepPoint", 0), 0)
+                step_point = state_step_point or int_arg_fn(normalized.get("stepPoint", 0), 0) or 1
+                step_point = max(1, min(step_point, len(source_offsets)))
+                source_offset = _step_point_source_offset(step_point, source_offsets)
+                if source_offset <= 0 and step_point <= 1:
+                    source_offset = 1
+                line_number = _clamp_debug_line_number(
+                    reported_or_offset_line_number_fn(source, source_offset, ""),
+                    source,
+                ) or _clamp_debug_line_number(int(state.get("lineNumber", 0) or 1), source)
+                status = str(normalized.get("status", "") or "").strip().lower() or (
+                    "suspended" if normalized.get("hasFrame", False) else "terminated"
+                )
+                can_control = bool(normalized.get("hasFrame", False)) and status != "terminated"
+                can_step = (status == "suspended") and (bool(normalized.get("canStep")) or step_point > 0)
+                normalized.update(
+                    methodName=_executed_code_label(step_point, line_number),
+                    className=str(state.get("className", "") or ""),
+                    selectorName=str(state.get("selectorName", "") or ""),
+                    source=source,
+                    sourceOffset=source_offset,
+                    sourceOffsets=source_offsets,
+                    stepPoint=step_point,
+                    lineNumber=line_number,
+                    status=status,
+                    isLiveSession=bool(normalized.get("isLiveSession", can_control)),
+                    canStep=can_step,
+                    canProceed=bool(normalized.get("canProceed", status == "suspended")),
+                    canRestart=bool(normalized.get("canRestart", status == "suspended")),
+                    canTrim=bool(normalized.get("canTrim", status == "suspended")),
+                    canTerminate=bool(normalized.get("canTerminate", status in {"suspended", "running"})),
+                    canStepInto=bool(normalized.get("canStepInto")) or can_step,
+                    canStepOver=bool(normalized.get("canStepOver")) or can_step,
+                    canStepReturn=bool(normalized.get("canStepReturn")) or can_step,
+                    hasFrame=True,
+                )
+                return normalized
         executed_source = workspace_executed_code_source_fn(raw_source)
         workspace_source = executed_source or source_hint
         if raw_source and not _source_matches_debug_hint(workspace_source, source_hint):
@@ -327,6 +512,19 @@ def register_debugger_read_routes(
         raw_source_offsets = normalized.get("sourceOffsets")
         source = workspace_source
         source_offsets = _workspace_executed_code_display_offsets(raw_source, raw_source_offsets)
+        if len(source_offsets) <= 1 and step_point > 1:
+            fallback_offsets = _workspace_statement_start_offsets(source)
+            fallback_offsets = _pad_source_offsets_to_step_point(fallback_offsets, step_point)
+            if fallback_offsets:
+                source_offsets = fallback_offsets
+        state_source = str(state.get("source", "") or "")
+        state_source_offsets = list(state.get("sourceOffsets", []) or [])
+        state_step_point = int_arg_fn(state.get("stepPoint", 0), 0)
+        if is_top_visible and state_source and state_source_offsets and _source_matches_debug_hint(state_source, source_hint):
+            source = state_source
+            source_offsets = state_source_offsets
+            if state_step_point > step_point:
+                step_point = state_step_point
         if source_offsets:
             step_point = max(1, min(step_point, len(source_offsets)))
         source_offset = _step_point_source_offset(step_point, source_offsets)
@@ -357,6 +555,8 @@ def register_debugger_read_routes(
             )
         normalized.update(
             methodName=_executed_code_label(step_point, line_number),
+            className=str(state.get("className", normalized.get("className", "")) or ""),
+            selectorName=str(state.get("selectorName", normalized.get("selectorName", "")) or ""),
             source=source,
             sourceOffset=source_offset,
             sourceOffsets=source_offsets,
@@ -374,7 +574,55 @@ def register_debugger_read_routes(
             canStepReturn=bool(normalized.get("canStepReturn")) or can_step,
             hasFrame=True,
         )
+        _remember_workspace_executed_frame_state(thread_oop, normalized)
         return normalized
+
+    def _preferred_workspace_frame_payload(session, thread_oop: int, frames: list[dict], top_index: int | None) -> dict | None:
+        source_hint = _debug_source_hint_text(thread_oop)
+        if not source_hint or not frames:
+            return None
+        candidate_indices: list[int] = []
+        state = _debug_executed_frame_state(thread_oop)
+        state_source = str(state.get("source", "") or "")
+        remembered_index = int_arg_fn(state.get("frameIndex", -1), -1)
+        if remembered_index >= 0:
+            candidate_indices.append(remembered_index)
+        for frame in frames:
+            frame_index = int_arg_fn(frame.get("index", -1), -1)
+            if frame_index < 0 or frame_index == remembered_index:
+                continue
+            candidate_indices.append(frame_index)
+
+        best_payload = None
+        best_score = None
+        for frame_index in candidate_indices:
+            try:
+                payload = live_debug_frame_payload_fn(session, thread_oop, frame_index, debug_object_ref_fn)
+            except Exception:
+                payload = None
+            if not isinstance(payload, dict) or not payload.get("hasFrame", False):
+                continue
+            if not _looks_like_workspace_frame(payload):
+                continue
+            method_name = str(payload.get("methodName", "") or "")
+            source = str(payload.get("source", "") or "")
+            matches_source = _source_matches_debug_hint(source, source_hint)
+            if not matches_source and state_source:
+                matches_source = _source_matches_debug_hint(source, state_source)
+            if not matches_source and not (not source and _is_executed_code_method_name(method_name)):
+                continue
+            step_point = int_arg_fn(payload.get("stepPoint", 0), 0)
+            line_number = int_arg_fn(payload.get("lineNumber", 0), 0)
+            score = (
+                int(_is_executed_code_method_name(method_name)),
+                step_point,
+                line_number,
+                frame_index,
+            )
+            if best_score is None or score > best_score:
+                best_score = score
+                best_payload = payload
+        return best_payload
 
     @app.get("/debug/threads")
     def debug_threads():
@@ -469,13 +717,18 @@ def register_debugger_read_routes(
                     frames = visible_debug_frames_fn(session, oop)
                     if frames and _debug_source_hint_text(oop):
                         top_index = int_arg_fn(frames[0].get("index", 0), 0)
+                        preferred_top_payload = _preferred_workspace_frame_payload(session, oop, frames, top_index)
                         normalized_frames = []
                         for frame in frames:
                             frame_index = int_arg_fn(frame.get("index", 0), 0)
-                            try:
-                                payload = live_debug_frame_payload_fn(session, oop, frame_index, debug_object_ref_fn)
-                            except Exception:
-                                payload = None
+                            payload = None
+                            if frame_index == top_index and isinstance(preferred_top_payload, dict):
+                                payload = dict(preferred_top_payload)
+                            else:
+                                try:
+                                    payload = live_debug_frame_payload_fn(session, oop, frame_index, debug_object_ref_fn)
+                                except Exception:
+                                    payload = None
                             if isinstance(payload, dict):
                                 if not payload.get("source") and frame_index == top_index:
                                     payload["source"] = _debug_source_hint_text(oop)
@@ -489,9 +742,10 @@ def register_debugger_read_routes(
                                     payload,
                                     is_top_visible=(frame_index == top_index),
                                 )
+                                rendered_index = 0 if frame_index == top_index else frame_index
                                 normalized_frames.append(
                                     _frame_entry(
-                                        frame_index,
+                                        rendered_index,
                                         str(payload.get("methodName") or frame.get("name") or ""),
                                         class_name=payload.get("className", ""),
                                         selector_name=payload.get("selectorName", ""),
@@ -558,12 +812,20 @@ def register_debugger_read_routes(
         try:
             with request_session_factory() as session:
                 if has_live_debugger_process_fn(session, oop):
-                    payload = live_debug_frame_payload_fn(session, oop, frame_index, debug_object_ref_fn)
                     top_index = None
                     frames = visible_debug_frames_fn(session, oop)
                     if frames:
                         top_index = int_arg_fn(frames[0].get("index", 0), 0)
-                    if not payload.get("source") and frame_index == (0 if top_index is None else top_index):
+                    resolved_frame_index = frame_index
+                    if top_index is not None and frame_index == 0:
+                        resolved_frame_index = top_index
+                    payload = live_debug_frame_payload_fn(session, oop, resolved_frame_index, debug_object_ref_fn)
+                    requested_top_visible = top_index is not None and frame_index in {0, top_index}
+                    if requested_top_visible:
+                        preferred_top_payload = _preferred_workspace_frame_payload(session, oop, frames, top_index)
+                        if isinstance(preferred_top_payload, dict):
+                            payload = dict(preferred_top_payload)
+                    if not payload.get("source") and requested_top_visible:
                         payload["source"] = _debug_source_hint_text(oop)
                         payload["lineNumber"] = reported_or_offset_line_number_fn(
                             str(payload.get("source", "")),
@@ -573,7 +835,7 @@ def register_debugger_read_routes(
                     payload = _normalize_workspace_debug_payload(
                         oop,
                         payload,
-                        is_top_visible=(top_index is not None and frame_index == top_index),
+                        is_top_visible=requested_top_visible,
                     )
                     method_name = payload["methodName"]
                     ip_offset = payload["ipOffset"]

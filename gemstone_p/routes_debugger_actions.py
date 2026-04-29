@@ -15,11 +15,14 @@ def register_debugger_action_routes(
     is_true_result_fn,
     direct_debug_action_fn,
     direct_trim_action_fn,
+    direct_restart_action_fn,
     effective_debug_action_frame_index_fn,
     restart_frame_index_fn,
     restart_needs_workspace_replay_fn,
     restart_workspace_debug_process_fn,
     debug_process_quick_step_point_fn,
+    debug_server_step_script_fn,
+    debug_advance_step_point_script_fn,
     debug_step_script_fn,
     debug_restart_script_fn,
     has_live_debugger_process_fn,
@@ -84,7 +87,7 @@ def register_debugger_action_routes(
                 pass
         return jsonify(**payload), status_code
 
-    def _wait_for_debugger_termination(session, oop: int, timeout_ms: int = 250) -> bool:
+    def _wait_for_debugger_termination(session, oop: int, timeout_ms: int = 3000) -> bool:
         deadline = time.monotonic() + (max(0, int(timeout_ms)) / 1000.0)
         while True:
             try:
@@ -161,14 +164,14 @@ def register_debugger_action_routes(
             with request_session_factory(read_only=False) as session:
                 effective_frame_index = effective_debug_action_frame_index_fn(session, oop, frame_index)
                 effective_level = effective_frame_index + 1
-                result = session.eval(debug_step_script_fn(oop, selectors, effective_level))
+                result = session.eval(debug_server_step_script_fn(oop, effective_level))
                 if not is_true_result_fn(result):
                     return _action_error(
                         "step",
                         oop,
                         "Debugger step is not supported for this process",
                         400,
-                        frame_index=effective_frame_index,
+                        frame_index=frame_index,
                         session=session,
                         selectors=selectors,
                     )
@@ -352,12 +355,29 @@ def register_debugger_action_routes(
         frame_index = int((request.get_json(force=True) or {}).get("index", 0))
         try:
             with request_session_factory(read_only=False) as session:
-                if has_live_debugger_process_fn(session, oop):
-                    effective_frame_index = restart_frame_index_fn(session, oop, frame_index)
-                else:
-                    effective_frame_index = max(0, int(frame_index or 0))
+                is_live = has_live_debugger_process_fn(session, oop)
+                effective_frame_index = restart_frame_index_fn(session, oop, frame_index) if is_live else max(0, int(frame_index or 0))
                 result = session.eval(debug_restart_script_fn(oop, effective_frame_index + 1))
                 if not is_true_result_fn(result):
+                    already_at_first_step = False
+                    if is_live:
+                        try:
+                            visible_frame_level = effective_debug_action_frame_index_fn(session, oop, 0) + 1
+                            already_at_first_step = debug_process_quick_step_point_fn(session, oop, visible_frame_level) <= 1
+                        except Exception:
+                            already_at_first_step = False
+                    if already_at_first_step:
+                        status = _stopped_action_status("restart", oop, frame_index=frame_index, session=session)
+                        if isinstance(status, tuple):
+                            return status
+                        return _action_success(
+                            "restart",
+                            oop,
+                            frame_index=0,
+                            message="restarted",
+                            status=status,
+                            completed=False,
+                        )
                     return _action_error(
                         "restart",
                         oop,
@@ -366,7 +386,7 @@ def register_debugger_action_routes(
                         frame_index=frame_index,
                         session=session,
                     )
-                if has_live_debugger_process_fn(session, oop) and restart_needs_workspace_replay_fn(session, oop, effective_frame_index):
+                if is_live and restart_needs_workspace_replay_fn(session, oop, effective_frame_index):
                     replay = restart_workspace_debug_process_fn(session, oop)
                     if replay is False:
                         return _action_error(
@@ -431,20 +451,23 @@ def register_debugger_action_routes(
                 )
                 if direct is not True:
                     session.eval(
-                        f"| proc result ctx |\n"
+                        f"| proc attempted ctx |\n"
                         f"proc := {object_for_oop_expr_fn(oop)}.\n"
-                        f"result := nil.\n"
-                        f"(result isNil and: [proc respondsTo: #terminate]) ifTrue: [\n"
-                        f"  result := [proc terminate] on: Error do: [:e | nil]\n"
+                        f"attempted := false.\n"
+                        f"(proc respondsTo: #terminate) ifTrue: [\n"
+                        f"  attempted := true.\n"
+                        f"  [proc terminate] on: Error do: [:e | nil]\n"
                         f"].\n"
-                        f"(result isNil and: [proc respondsTo: #terminateProcess]) ifTrue: [\n"
-                        f"  result := [proc terminateProcess] on: Error do: [:e | nil]\n"
+                        f"(attempted not and: [proc respondsTo: #terminateProcess]) ifTrue: [\n"
+                        f"  attempted := true.\n"
+                        f"  [proc terminateProcess] on: Error do: [:e | nil]\n"
                         f"].\n"
                         f"ctx := [proc suspendedContext] on: Error do: [:e | nil].\n"
-                        f"(result isNil and: [ctx notNil and: [ctx respondsTo: #terminateProcess]]) ifTrue: [\n"
-                        f"  result := [ctx terminateProcess] on: Error do: [:e | nil]\n"
+                        f"(attempted not and: [ctx notNil and: [ctx respondsTo: #terminateProcess]]) ifTrue: [\n"
+                        f"  attempted := true.\n"
+                        f"  [ctx terminateProcess] on: Error do: [:e | nil]\n"
                         f"].\n"
-                        f"(result isNil or: [result == false]) ifTrue: ['false'] ifFalse: ['true']"
+                        f"attempted ifTrue: ['true'] ifFalse: ['false']"
                     )
                 if not _wait_for_debugger_termination(session, oop):
                     if direct is not True:
