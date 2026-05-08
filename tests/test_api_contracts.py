@@ -5,6 +5,8 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
+import gemstone_p.app as app_module
+
 
 def _mock_session():
     session = MagicMock()
@@ -24,6 +26,9 @@ def _mock_request_session(session, **kwargs):
 
 class TestApiContracts(unittest.TestCase):
     def setUp(self):
+        app_module._DEBUG_SOURCE_HINTS.clear()
+        app_module._DEBUG_REPLAY_RECEIVERS.clear()
+        app_module._DEBUG_EXECUTED_FRAME_STATES.clear()
         patcher = patch("gemstone_p.session.GemStoneConfig")
         mock_config_cls = patcher.start()
         mock_config_cls.from_env.return_value = MagicMock()

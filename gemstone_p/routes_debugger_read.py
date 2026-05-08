@@ -121,6 +121,30 @@ def register_debugger_read_routes(
         owner_name, selector_name = text.split(">>", 1)
         return owner_name.strip(), selector_name.strip()
 
+    def _workspace_method_identity(method_name: object) -> tuple[str, str]:
+        match = re.search(r"SigWorkspaceEvaluator\s*>>\s*(sigWorkspace[^\s@]*)", str(method_name or ""))
+        if not match:
+            return "", ""
+        return "SigWorkspaceEvaluator", match.group(1).strip()
+
+    def _apply_workspace_identity(payload: dict, *method_names: object) -> dict:
+        if not isinstance(payload, dict):
+            return payload
+        has_class = bool(str(payload.get("className", "") or "").strip())
+        has_selector = bool(str(payload.get("selectorName", "") or "").strip())
+        if has_class and has_selector:
+            return payload
+        for method_name in method_names:
+            class_name, selector_name = _workspace_method_identity(method_name)
+            if not selector_name:
+                continue
+            if not has_class:
+                payload["className"] = class_name
+            if not has_selector:
+                payload["selectorName"] = selector_name
+            return payload
+        return payload
+
     def _frame_identity_for(method_name: object, class_name: object = "", selector_name: object = "") -> tuple[str, bool]:
         method_text = str(method_name or "").strip()
         class_text = str(class_name or "").strip()
@@ -458,6 +482,11 @@ def register_debugger_read_routes(
         if not source_hint or not payload.get("hasFrame", False):
             return payload
         normalized = dict(payload)
+        parsed_class_name, parsed_selector_name = _workspace_method_identity(normalized.get("methodName", ""))
+        if parsed_class_name and not str(normalized.get("className", "") or "").strip():
+            normalized["className"] = parsed_class_name
+        if parsed_selector_name and not str(normalized.get("selectorName", "") or "").strip():
+            normalized["selectorName"] = parsed_selector_name
         raw_source = str(normalized.get("source", "") or "")
         state = _debug_executed_frame_state(thread_oop) if is_top_visible else {}
         if not _looks_like_workspace_frame(normalized):
@@ -730,6 +759,7 @@ def register_debugger_read_routes(
                                 except Exception:
                                     payload = None
                             if isinstance(payload, dict):
+                                _apply_workspace_identity(payload, frame.get("name") or "")
                                 if not payload.get("source") and frame_index == top_index:
                                     payload["source"] = _debug_source_hint_text(oop)
                                     payload["lineNumber"] = reported_or_offset_line_number_fn(
@@ -742,6 +772,7 @@ def register_debugger_read_routes(
                                     payload,
                                     is_top_visible=(frame_index == top_index),
                                 )
+                                _apply_workspace_identity(payload, frame.get("name") or "")
                                 rendered_index = 0 if frame_index == top_index else frame_index
                                 normalized_frames.append(
                                     _frame_entry(
@@ -819,12 +850,20 @@ def register_debugger_read_routes(
                     resolved_frame_index = frame_index
                     if top_index is not None and frame_index == 0:
                         resolved_frame_index = top_index
+                    selected_frame = next(
+                        (frame for frame in frames if int_arg_fn(frame.get("index", -1), -1) == resolved_frame_index),
+                        None,
+                    )
                     payload = live_debug_frame_payload_fn(session, oop, resolved_frame_index, debug_object_ref_fn)
+                    if selected_frame is not None:
+                        _apply_workspace_identity(payload, selected_frame.get("name") or "")
                     requested_top_visible = top_index is not None and frame_index in {0, top_index}
                     if requested_top_visible:
                         preferred_top_payload = _preferred_workspace_frame_payload(session, oop, frames, top_index)
                         if isinstance(preferred_top_payload, dict):
                             payload = dict(preferred_top_payload)
+                            if selected_frame is not None:
+                                _apply_workspace_identity(payload, selected_frame.get("name") or "")
                     if not payload.get("source") and requested_top_visible:
                         payload["source"] = _debug_source_hint_text(oop)
                         payload["lineNumber"] = reported_or_offset_line_number_fn(
@@ -837,6 +876,8 @@ def register_debugger_read_routes(
                         payload,
                         is_top_visible=requested_top_visible,
                     )
+                    if selected_frame is not None:
+                        _apply_workspace_identity(payload, selected_frame.get("name") or "")
                     method_name = payload["methodName"]
                     ip_offset = payload["ipOffset"]
                     self_ps = payload["selfPrintString"]

@@ -24,6 +24,7 @@ def register_debugger_routes(
     debug_source_hint_fn,
     debug_executed_frame_state_fn,
     remember_debug_executed_frame_state_fn,
+    forget_debug_executed_frame_state_fn,
     debug_replay_receiver_fn,
     remember_debug_source_hint_fn,
     remember_debug_replay_receiver_fn,
@@ -799,6 +800,16 @@ def register_debugger_routes(
                     "frameIndex": frame_index,
                 }
         if candidate is not None:
+            previous = debug_executed_frame_state_fn(process_oop)
+            if isinstance(previous, dict):
+                previous_source = str(previous.get("source", "") or "")
+                previous_step = int_arg_fn(previous.get("stepPoint", 0), 0)
+                if (
+                    previous_source
+                    and _source_matches_debug_hint(previous_source, source_hint)
+                    and previous_step > int_arg_fn(candidate.get("stepPoint", 0), 0)
+                ):
+                    return
             remember_debug_executed_frame_state_fn(process_oop, candidate)
 
     def _remembered_executed_frame_index(process_oop: int) -> int | None:
@@ -831,7 +842,11 @@ def register_debugger_routes(
         if suspended is True or has_context:
             return "suspended"
         detail = _send_safe(session, process_ref, "_gsiDebuggerDetailedReportAt:", 1, default=Ellipsis)
-        has_detail = detail is not Ellipsis and detail is not None
+        has_detail = (
+            detail is not Ellipsis
+            and detail is not None
+            and _collection_size(session, detail) > 0
+        )
         if terminated is True and not has_detail:
             return "terminated"
         status = str(_send_safe(session, process_ref, "status", default="") or "").strip().lower()
@@ -1041,8 +1056,10 @@ def register_debugger_routes(
         process_ref = _resolved_debug_process_ref(session, process_oop)
         for selector, args in calls:
             result = _send_safe(session, process_ref, selector, *args, default=Ellipsis)
-            if result is not Ellipsis:
-                return _debug_action_succeeded(result)
+            if result is Ellipsis:
+                continue
+            if _debug_action_succeeded(result):
+                return True
         return False
 
     def _fallback_debug_action(session, process_oop: int, calls: list[tuple[str, list[int]]]) -> bool | None:
@@ -1106,7 +1123,7 @@ def register_debugger_routes(
         except Exception:
             return 1
 
-    def _debug_process_quick_step_point(session, process_oop: int, frame_level: int) -> int:
+    def _debug_process_quick_step_point_or_none(session, process_oop: int, frame_level: int) -> int | None:
         process_ref = _resolved_debug_process_ref(session, process_oop)
         stack_report = _send_safe(
             session,
@@ -1120,11 +1137,16 @@ def register_debugger_routes(
         step_point = _collection_at(session, full_entry, 5, default=None)
         if step_point is None:
             detail = _send_safe(session, process_ref, "_gsiDebuggerDetailedReportAt:", int(frame_level), default=None)
-            step_point = _collection_at(session, detail, 5, default=0)
+            step_point = _collection_at(session, detail, 5, default=None)
+        if step_point is None:
+            return None
         try:
             return max(0, int(step_point))
         except Exception:
-            return 0
+            return None
+
+    def _debug_process_quick_step_point(session, process_oop: int, frame_level: int) -> int:
+        return _debug_process_quick_step_point_or_none(session, process_oop, frame_level) or 0
 
     def _debug_process_context_for_level(session, process_oop: int, frame_level: int) -> OopRef | None:
         zero_based_level = max(0, int(frame_level) - 1)
@@ -1166,7 +1188,11 @@ def register_debugger_routes(
         source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
         if not source_hint:
             return False
-        return _debug_process_quick_step_point(session, process_oop, 1) > 1
+        frame_level = max(1, int_arg_fn(frame_index, 0) + 1)
+        quick_step_point = _debug_process_quick_step_point_or_none(session, process_oop, frame_level)
+        if quick_step_point is None and frame_level != 1:
+            quick_step_point = _debug_process_quick_step_point_or_none(session, process_oop, 1)
+        return quick_step_point is not None and quick_step_point > 1
 
     def _workspace_selector_name(frame_payload: dict | None) -> str | None:
         if not isinstance(frame_payload, dict):
@@ -1175,9 +1201,9 @@ def register_debugger_routes(
         if selector_name.startswith("sigWorkspace"):
             return selector_name
         method_name = str(frame_payload.get("methodName", "") or "")
-        marker = "SigWorkspaceEvaluator>>"
-        if marker in method_name:
-            candidate = method_name.split(marker, 1)[1].strip()
+        match = re.search(r"SigWorkspaceEvaluator\s*>>\s*(sigWorkspace[^\s@]*)", method_name)
+        if match:
+            candidate = match.group(1).strip()
             if candidate.startswith("sigWorkspace"):
                 return candidate
         return None
@@ -1235,7 +1261,7 @@ def register_debugger_routes(
     ) -> tuple[int | None, dict | None]:
         records = list(frames or _visible_debug_frames(session, process_oop) or [])
         source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
-        if not source_hint or not records:
+        if not records:
             return (None, None)
         state = debug_executed_frame_state_fn(process_oop)
         state_source = str(state.get("source", "") or "")
@@ -1266,12 +1292,15 @@ def register_debugger_routes(
                 continue
             method_name = str(payload.get("methodName", "") or "")
             source = str(payload.get("source", "") or "")
-            matches_source = _source_matches_debug_hint(source, source_hint)
-            if not matches_source and state_source:
-                matches_source = _source_matches_debug_hint(source, state_source)
-            if not matches_source and not source and _workspace_selector_name(payload):
-                matches_source = True
-            if not matches_source and not (not source and _is_executed_code_method_name(method_name)):
+            if source_hint:
+                matches_source = _source_matches_debug_hint(source, source_hint)
+                if not matches_source and state_source:
+                    matches_source = _source_matches_debug_hint(source, state_source)
+                if not matches_source and not source and _workspace_selector_name(payload):
+                    matches_source = True
+                if not matches_source and not (not source and _is_executed_code_method_name(method_name)):
+                    continue
+            elif not (_is_workspace_executed_frame(payload) or _is_executed_code_method_name(method_name)):
                 continue
             step_point = int_arg_fn(payload.get("stepPoint", 0), 0)
             line_number = int_arg_fn(payload.get("lineNumber", 0), 0)
@@ -1426,7 +1455,11 @@ def register_debugger_routes(
             new_process_oop = int(new_process_oop)
         except Exception:
             new_process_oop = None
-        if not replay.get("isException") or not new_process_oop:
+        if replay.get("isException") and not new_process_oop:
+            return {
+                "error": replay.get("errorText") or "Workspace restart did not capture a suspended debugger",
+            }
+        if not replay.get("isException"):
             forget_debug_source_hint_fn(process_oop)
             forget_debug_replay_receiver_fn(process_oop)
             return {"completed": True}
@@ -1527,19 +1560,19 @@ def register_debugger_routes(
             f"supported := false.\n"
             f"actionResult := nil.\n"
             f"(proc respondsTo: #step:) ifTrue: [\n"
-            f"  actionResult := [proc step: stepLevel. true] on: Error do: [:e | nil].\n"
+            f"  actionResult := [[proc step: stepLevel]. true] on: Error do: [:e | nil].\n"
             f"  supported := actionResult == true\n"
             f"].\n"
             f"(supported not and: [proc respondsTo: #stepIntoFromLevel:]) ifTrue: [\n"
-            f"  actionResult := [proc stepIntoFromLevel: stepLevel. true] on: Error do: [:e | nil].\n"
+            f"  actionResult := [[proc stepIntoFromLevel: stepLevel]. true] on: Error do: [:e | nil].\n"
             f"  supported := actionResult == true\n"
             f"].\n"
             f"(supported not and: [proc respondsTo: #_stepIntoInFrame:]) ifTrue: [\n"
-            f"  actionResult := [proc _stepIntoInFrame: stepLevel. true] on: Error do: [:e | nil].\n"
+            f"  actionResult := [[proc _stepIntoInFrame: stepLevel]. true] on: Error do: [:e | nil].\n"
             f"  supported := actionResult == true\n"
             f"].\n"
             f"(supported not and: [proc respondsTo: #gciStepIntoFromLevel:]) ifTrue: [\n"
-            f"  actionResult := [proc gciStepIntoFromLevel: stepLevel. true] on: Error do: [:e | nil].\n"
+            f"  actionResult := [[proc gciStepIntoFromLevel: stepLevel]. true] on: Error do: [:e | nil].\n"
             f"  supported := actionResult == true\n"
             f"].\n"
             f"supported ifTrue: ['true'] ifFalse: ['false']\n"
@@ -1699,8 +1732,10 @@ def register_debugger_routes(
     action_shared = dict(
         request_session_factory=request_session_factory,
         object_for_oop_expr_fn=object_for_oop_expr_fn,
+        debug_source_hint_fn=debug_source_hint_fn,
         forget_debug_source_hint_fn=forget_debug_source_hint_fn,
         forget_debug_replay_receiver_fn=forget_debug_replay_receiver_fn,
+        forget_debug_executed_frame_state_fn=forget_debug_executed_frame_state_fn,
         is_true_result_fn=_is_true_result,
         direct_debug_action_fn=_direct_debug_action,
         direct_trim_action_fn=_direct_trim_action,

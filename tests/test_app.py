@@ -31,6 +31,9 @@ def _mock_request_session(session, **kwargs):
 
 class TestRoutes(unittest.TestCase):
     def setUp(self):
+        app_module._DEBUG_SOURCE_HINTS.clear()
+        app_module._DEBUG_REPLAY_RECEIVERS.clear()
+        app_module._DEBUG_EXECUTED_FRAME_STATES.clear()
         # Patch GemStoneConfig so init_app doesn't need real env vars
         patcher = patch("gemstone_p.session.GemStoneConfig")
         mock_config_cls = patcher.start()
@@ -1666,7 +1669,6 @@ class TestRoutes(unittest.TestCase):
 
         self.assertEqual(frame_response.status_code, 200)
         frame_data = json.loads(frame_response.data)
-        print("DEBUG frame_data", frame_data)
         self.assertTrue(frame_data["success"])
         self.assertEqual(frame_data["methodName"], "Executed code @1 line 1")
         self.assertEqual(frame_data["className"], "SigWorkspaceEvaluator")
@@ -1757,7 +1759,7 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(frames_response.status_code, 200)
         frames_data = json.loads(frames_response.data)
         self.assertTrue(frames_data["success"])
-        self.assertEqual(frames_data["frames"][0]["name"], "Executed code @1 line 1")
+        self.assertEqual(frames_data["frames"][0]["name"], "Executed code @2 line 2")
         self.assertTrue(frames_data["frames"][0]["isExecutedCode"])
         self.assertEqual(frames_data["frames"][1]["name"], "Executed code @2 line 2")
         self.assertEqual(frames_data["frames"][1]["frameKey"], "executed:SigWorkspaceEvaluator>>sigWorkspaceTop")
@@ -2489,8 +2491,8 @@ class TestRoutes(unittest.TestCase):
         self.assertTrue(frame_data["success"])
         self.assertEqual(frame_data["status"], "suspended")
         self.assertTrue(frame_data["hasFrame"])
-        self.assertEqual(frame_data["methodName"], "Executed code @2 line 1")
-        self.assertEqual(frame_data["lineNumber"], 1)
+        self.assertEqual(frame_data["methodName"], "Executed code @2 line 2")
+        self.assertEqual(frame_data["lineNumber"], 2)
 
     @patch("gemstone_p.app.object_view")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -2595,6 +2597,18 @@ class TestRoutes(unittest.TestCase):
     def test_debug_step_unsupported_includes_diagnostics(self, mock_rs):
         session = _mock_session()
         session.eval.return_value = "false"
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "printString":
+                return "GsProcess(oop=700, status=suspended, priority=15)"
+            if receiver == 700 and selector == "status":
+                return "suspended"
+            if receiver == 700 and selector == "suspendedContext":
+                return OopRef(701, session)
+            return None
+
+        session.perform.side_effect = perform
         mock_rs.return_value = _mock_request_session(session)
 
         r = self.client.post("/debug/step/700", json={"index": 0})
@@ -3340,8 +3354,9 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(app_module._debug_source_hint(700), "")
         self.assertEqual(app_module._debug_replay_receiver(990), 900)
         self.assertIsNone(app_module._debug_replay_receiver(700))
-        self.assertGreaterEqual(len(eval_scripts), 2)
-        self.assertTrue(any("_objectForOop: 700" in script for script in eval_scripts))
+        self.assertTrue(
+            all(not ("_objectForOop: 700" in script and "restartLevel :=" in script) for script in eval_scripts)
+        )
         self.assertTrue(any("_objectForOop: 990" in script for script in eval_scripts))
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
@@ -3420,6 +3435,55 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
         self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
 
+    @patch("gemstone_p.routes_debugger.eval_in_context")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_restart_replay_exception_without_debug_thread_does_not_complete(self, mock_rs, mock_eval_in_context):
+        session = _mock_session()
+        source = "1+1.\n1/0"
+        app_module._remember_debug_source_hint(700, source)
+        app_module._remember_debug_replay_receiver(700, 900)
+        self.addCleanup(app_module._forget_debug_source_hint, 700)
+        self.addCleanup(app_module._forget_debug_replay_receiver, 700)
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(900, session)
+            if receiver == 700 and selector == "_gsiDebuggerDetailedReportAt:":
+                return OopRef(801, session)
+            if receiver == 801 and selector == "at:":
+                return 3 if decode_smallint(args[0]) in {5, 42} else None
+            if receiver == 700 and selector in {"terminate", "terminateProcess"}:
+                return True
+            if selector == "printString":
+                return ""
+            return None
+
+        session.perform.side_effect = perform
+        mock_eval_in_context.return_value = {
+            "isException": True,
+            "resultOop": None,
+            "errorText": "ZeroDivide occurred",
+            "debugThreadOop": None,
+            "exceptionOop": None,
+        }
+        mock_rs.return_value = _mock_request_session(session)
+
+        r = self.client.post("/debug/restart/700", json={"index": 0})
+
+        self.assertEqual(r.status_code, 409)
+        data = json.loads(r.data)
+        self.assertFalse(data["success"])
+        self.assertIn("ZeroDivide", data["exception"])
+
     @patch("gemstone_p.app.gs_session.request_session")
     def test_debug_restart_returns_same_thread_when_live_step_is_already_one(self, mock_rs):
         session = _mock_session()
@@ -3453,6 +3517,84 @@ class TestRoutes(unittest.TestCase):
         data = json.loads(r.data)
         self.assertTrue(data["success"])
         self.assertEqual(data["threadOop"], 700)
+
+    @patch("gemstone_p.routes_debugger.eval_in_context")
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_repeated_workspace_restart_stays_at_beginning_and_next_step_advances_to_step_two(
+        self,
+        mock_rs,
+        mock_eval_in_context,
+    ):
+        session = _mock_session()
+        source = "1+1.\n1/0"
+        step_state = {"point": 1}
+        app_module._remember_debug_source_hint(700, source)
+        app_module._remember_debug_replay_receiver(700, 900)
+        self.addCleanup(app_module._forget_debug_source_hint, 700)
+        self.addCleanup(app_module._forget_debug_replay_receiver, 700)
+
+        def decode_smallint(raw):
+            value = int(raw)
+            return int(_smallint_to_python(value)) if _is_smallint(value) else value
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            decoded_args = tuple(decode_smallint(arg) for arg in args)
+            if receiver == 700 and selector == "printString":
+                return "GsProcess(oop=700, status=suspended, priority=15)"
+            if receiver == 700 and selector == "status":
+                return "suspended"
+            if receiver == 700 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return None
+            if receiver == 701 and selector == "receiver":
+                return OopRef(900, session)
+            if receiver == 900 and selector == "class":
+                return OopRef(901, session)
+            if receiver == 901 and selector == "name":
+                return "SigWorkspaceEvaluator"
+            if receiver == 701 and selector == "method":
+                return OopRef(711, session)
+            if receiver == 711 and selector == "selector":
+                return "sigWorkspaceTop"
+            if receiver == 701 and selector in {"sourceString", "sourceCode"}:
+                return source
+            if receiver == 700 and selector == "_gsiDebuggerDetailedReportAt:":
+                return OopRef(801, session)
+            if receiver == 801 and selector == "at:":
+                index = decoded_args[0]
+                if index in {5, 42}:
+                    return step_state["point"]
+                if index == 9:
+                    return source
+                return None
+            if selector == "printString":
+                return ""
+            return None
+
+        def eval_script(script):
+            text = str(script)
+            if "proc step: stepLevel" in text:
+                step_state["point"] = 2
+            return "true"
+
+        session.perform.side_effect = perform
+        session.eval.side_effect = eval_script
+        mock_rs.side_effect = lambda *args, **kwargs: _mock_request_session(session)
+
+        first_restart = self.client.post("/debug/restart/700", json={"index": 0})
+        second_restart = self.client.post("/debug/restart/700", json={"index": 0})
+        step = self.client.post("/debug/step/700", json={"index": 0})
+
+        self.assertEqual(first_restart.status_code, 200, first_restart.data)
+        self.assertEqual(second_restart.status_code, 200, second_restart.data)
+        self.assertEqual(step.status_code, 200, step.data)
+        self.assertEqual(json.loads(first_restart.data)["threadOop"], 700)
+        self.assertEqual(json.loads(second_restart.data)["threadOop"], 700)
+        self.assertFalse(json.loads(second_restart.data)["completed"])
+        self.assertEqual(step_state["point"], 2)
+        mock_eval_in_context.assert_not_called()
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -3525,7 +3667,7 @@ class TestRoutes(unittest.TestCase):
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
-    def test_debug_restart_uses_deepest_workspace_frame_for_restart_trim(self, mock_rs, mock_eval_in_context):
+    def test_debug_restart_replays_when_deepest_workspace_frame_is_past_first_step(self, mock_rs, mock_eval_in_context):
         session = _mock_session()
         source = "1+1.\n3*3.\n1/0"
         app_module._remember_debug_source_hint(700, source)
@@ -3617,10 +3759,16 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         data = json.loads(r.data)
         self.assertTrue(data["success"])
-        self.assertTrue(data["completed"])
-        self.assertIn("restartLevel := 3", session.eval.call_args[0][0])
+        self.assertFalse(data["completed"])
+        self.assertEqual(data["status"], "terminated")
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
         self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        self.assertTrue(
+            all(
+                not ("_objectForOop: 700" in call.args[0] and "restartLevel :=" in call.args[0])
+                for call in session.eval.call_args_list
+            )
+        )
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -3716,10 +3864,9 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         data = json.loads(r.data)
         self.assertTrue(data["success"])
-        self.assertTrue(data["completed"])
+        self.assertFalse(data["completed"])
         self.assertIn("restartLevel := 3", session.eval.call_args[0][0])
-        self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
-        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        mock_eval_in_context.assert_not_called()
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -3815,10 +3962,16 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         data = json.loads(r.data)
         self.assertTrue(data["success"])
-        self.assertTrue(data["completed"])
-        self.assertIn("restartLevel := 3", session.eval.call_args[0][0])
+        self.assertFalse(data["completed"])
+        self.assertEqual(data["status"], "terminated")
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
         self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        self.assertTrue(
+            all(
+                not ("_objectForOop: 700" in call.args[0] and "restartLevel :=" in call.args[0])
+                for call in session.eval.call_args_list
+            )
+        )
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_debug_terminate_uses_process_terminate_selectors_and_clears_hint(self, mock_rs):

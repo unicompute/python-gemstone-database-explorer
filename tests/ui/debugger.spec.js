@@ -106,6 +106,25 @@ test('debugger restart rewinds to executed code regardless of the selected frame
   await debuggerWin.getByRole('button', { name: 'Step', exact: true }).click();
   await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 1');
   await expect(sourceMeta).toContainText('Step 2');
+
+  await page.route('**/debug/restart/700', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        action: 'restart',
+        threadOop: 700,
+        frameIndex: 0,
+        message: 'restart completed without a suspended debugger',
+        status: 'terminated',
+        completed: true,
+      }),
+    });
+  });
+  await debuggerWin.getByRole('button', { name: 'Restart' }).click();
+  await expect(debuggerWin).toBeVisible();
+  await page.unroute('**/debug/restart/700');
 });
 
 test('halted thread bar opens debugger with stack and TLS actions', async ({ page }) => {

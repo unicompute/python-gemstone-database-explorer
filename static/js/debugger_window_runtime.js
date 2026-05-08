@@ -600,9 +600,12 @@
             try {
               const result = await debuggerApiPost(`/debug/restart/${currentThreadOop}`, {index: currentFrameIdx});
               if (result?.completed) {
+                currentFrameIdentity = null;
+                pendingFrameSelectionStrategy = 'executed';
+                applyActionResultState(result, 0);
                 refreshHaltedThreadsBar();
-                setStatus(true, result?.message || 'restarted to completion');
-                closeWindow(win, id);
+                await loadFrames().catch(() => {});
+                setStatus(true, result?.message || 'restart completed without a suspended debugger');
                 return;
               }
               currentFrameIdentity = null;

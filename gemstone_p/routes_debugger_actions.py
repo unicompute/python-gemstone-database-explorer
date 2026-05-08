@@ -10,8 +10,10 @@ def register_debugger_action_routes(
     *,
     request_session_factory,
     object_for_oop_expr_fn,
+    debug_source_hint_fn,
     forget_debug_source_hint_fn,
     forget_debug_replay_receiver_fn,
+    forget_debug_executed_frame_state_fn,
     is_true_result_fn,
     direct_debug_action_fn,
     direct_trim_action_fn,
@@ -138,6 +140,92 @@ def register_debugger_action_routes(
             )
         return status
 
+    def _has_workspace_debug_source(oop: int) -> bool:
+        try:
+            return bool(str(debug_source_hint_fn(oop) or "").strip())
+        except Exception:
+            return False
+
+    def _advance_workspace_debug_preamble_after_action(
+        session,
+        oop: int,
+        action: str,
+        frame_level: int,
+        status: str,
+    ) -> str:
+        if action not in {"step", "stepInto"}:
+            return status
+        if status != "suspended" or not _has_workspace_debug_source(oop):
+            return status
+        attempts = 0
+        current_status = status
+        while attempts < 4:
+            try:
+                quick_step_point = debug_process_quick_step_point_fn(session, oop, frame_level)
+            except Exception:
+                return current_status
+            if quick_step_point != 1:
+                return current_status
+            result = session.eval(debug_server_step_script_fn(oop, frame_level))
+            if not is_true_result_fn(result):
+                return current_status
+            current_status = _wait_for_debugger_stop(session, oop)
+            if current_status != "suspended":
+                return current_status
+            attempts += 1
+        return current_status
+
+    def _workspace_replay_restart_response(session, oop: int, frame_index: int):
+        replay = restart_workspace_debug_process_fn(session, oop)
+        if replay is False:
+            return _action_error(
+                "restart",
+                oop,
+                "Debugger restart is not supported for this process",
+                400,
+                frame_index=frame_index,
+                session=session,
+            )
+        if isinstance(replay, dict):
+            if replay.get("error"):
+                return _action_error(
+                    "restart",
+                    oop,
+                    str(replay.get("error")),
+                    409,
+                    frame_index=frame_index,
+                    session=session,
+                )
+            try:
+                thread_oop = int(replay.get("thread_oop") or 0)
+            except Exception:
+                thread_oop = 0
+            target_thread_oop = thread_oop if thread_oop > 0 else oop
+            replay_completed = replay.get("completed") is True
+            status = "terminated" if replay_completed else _wait_for_debugger_stop(session, target_thread_oop)
+            if status == "running":
+                return _action_error(
+                    "restart",
+                    target_thread_oop,
+                    "Debugger action 'restart' did not settle before timeout",
+                    409,
+                    frame_index=frame_index,
+                    session=session,
+                )
+            forget_debug_executed_frame_state_fn(oop)
+            if target_thread_oop != oop:
+                forget_debug_executed_frame_state_fn(target_thread_oop)
+            return _action_success(
+                "restart",
+                oop,
+                frame_index=0,
+                thread_oop=target_thread_oop,
+                message="restart completed without a suspended debugger" if replay_completed else "restarted",
+                status=status,
+                completed=False,
+            )
+        return None
+
     @app.post("/debug/proceed/<int:oop>")
     def debug_proceed(oop: int):
         try:
@@ -178,6 +266,13 @@ def register_debugger_action_routes(
                 status = _stopped_action_status("step", oop, frame_index=frame_index, session=session, selectors=selectors)
                 if isinstance(status, tuple):
                     return status
+                status = _advance_workspace_debug_preamble_after_action(
+                    session,
+                    oop,
+                    "step",
+                    effective_level,
+                    status,
+                )
         except Exception as exc:
             return _action_error("step", oop, exc, 500, frame_index=effective_frame_index, selectors=selectors)
         return _action_success("step", oop, frame_index=frame_index, message="stepped", status=status)
@@ -219,6 +314,13 @@ def register_debugger_action_routes(
                 status = _stopped_action_status("stepInto", oop, frame_index=frame_index, session=session, selectors=selectors)
                 if isinstance(status, tuple):
                     return status
+                status = _advance_workspace_debug_preamble_after_action(
+                    session,
+                    oop,
+                    "stepInto",
+                    effective_frame_index + 1,
+                    status,
+                )
         except Exception as exc:
             return _action_error("stepInto", oop, exc, 500, frame_index=frame_index, selectors=selectors)
         return _action_success("stepInto", oop, frame_index=frame_index, message="stepped into", status=status)
@@ -357,6 +459,10 @@ def register_debugger_action_routes(
             with request_session_factory(read_only=False) as session:
                 is_live = has_live_debugger_process_fn(session, oop)
                 effective_frame_index = restart_frame_index_fn(session, oop, frame_index) if is_live else max(0, int(frame_index or 0))
+                if is_live and restart_needs_workspace_replay_fn(session, oop, effective_frame_index):
+                    replay_response = _workspace_replay_restart_response(session, oop, frame_index)
+                    if replay_response is not None:
+                        return replay_response
                 result = session.eval(debug_restart_script_fn(oop, effective_frame_index + 1))
                 if not is_true_result_fn(result):
                     already_at_first_step = False
@@ -370,6 +476,7 @@ def register_debugger_action_routes(
                         status = _stopped_action_status("restart", oop, frame_index=frame_index, session=session)
                         if isinstance(status, tuple):
                             return status
+                        forget_debug_executed_frame_state_fn(oop)
                         return _action_success(
                             "restart",
                             oop,
@@ -387,44 +494,13 @@ def register_debugger_action_routes(
                         session=session,
                     )
                 if is_live and restart_needs_workspace_replay_fn(session, oop, effective_frame_index):
-                    replay = restart_workspace_debug_process_fn(session, oop)
-                    if replay is False:
-                        return _action_error(
-                            "restart",
-                            oop,
-                            "Debugger restart is not supported for this process",
-                            400,
-                            frame_index=frame_index,
-                            session=session,
-                        )
-                    if isinstance(replay, dict):
-                        try:
-                            thread_oop = int(replay.get("thread_oop") or 0)
-                        except Exception:
-                            thread_oop = 0
-                        target_thread_oop = thread_oop if thread_oop > 0 else oop
-                        status = "terminated" if replay.get("completed") is True else _wait_for_debugger_stop(session, target_thread_oop)
-                        if status == "running":
-                            return _action_error(
-                                "restart",
-                                target_thread_oop,
-                                "Debugger action 'restart' did not settle before timeout",
-                                409,
-                                frame_index=frame_index,
-                                session=session,
-                            )
-                        return _action_success(
-                            "restart",
-                            oop,
-                            frame_index=0,
-                            thread_oop=target_thread_oop,
-                            message="restarted to completion" if replay.get("completed") is True else "restarted",
-                            status=status,
-                            completed=replay.get("completed") is True,
-                        )
+                    replay_response = _workspace_replay_restart_response(session, oop, frame_index)
+                    if replay_response is not None:
+                        return replay_response
                 status = _stopped_action_status("restart", oop, frame_index=frame_index, session=session)
                 if isinstance(status, tuple):
                     return status
+                forget_debug_executed_frame_state_fn(oop)
                 return _action_success(
                     "restart",
                     oop,

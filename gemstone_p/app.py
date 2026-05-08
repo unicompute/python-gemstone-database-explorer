@@ -544,6 +544,14 @@ def _debug_executed_frame_state(thread_oop: object) -> dict[str, object]:
     return dict(state) if isinstance(state, dict) else {}
 
 
+def _forget_debug_executed_frame_state(thread_oop: object) -> None:
+    try:
+        oop = int(thread_oop)
+    except Exception:
+        return
+    _DEBUG_EXECUTED_FRAME_STATES.pop(oop, None)
+
+
 def _debug_replay_receiver(thread_oop: object) -> int | None:
     try:
         oop = int(thread_oop)
@@ -674,6 +682,7 @@ def create_app() -> Flask:
         debug_source_hint_fn=_debug_source_hint,
         debug_executed_frame_state_fn=_debug_executed_frame_state,
         remember_debug_executed_frame_state_fn=_remember_debug_executed_frame_state,
+        forget_debug_executed_frame_state_fn=_forget_debug_executed_frame_state,
         debug_replay_receiver_fn=_debug_replay_receiver,
         remember_debug_source_hint_fn=_remember_debug_source_hint,
         remember_debug_replay_receiver_fn=_remember_debug_replay_receiver,
