@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-gemstone-database-explorer"
-version = "1.0.0"
+version = "1.0.1"
 description = "Python/Flask web explorer and debugger for GemStone/S databases."
 readme = "README.md"
 license = "MIT"
