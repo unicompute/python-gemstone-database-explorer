@@ -50,6 +50,7 @@ Set the GemStone connection environment before starting the app:
 | `GS_USERNAME` | GemStone login username | `DataCurator` |
 | `GS_PASSWORD` | GemStone login password | `swordfish` |
 | `GS_STONE` | Stone name | `seaside` |
+| `GS_STONE` | Stone name | `gs64stone` |
 | `GS_HOST` | Host running the Stone/NetLDI | `localhost` |
 | `GS_NETLDI` | NetLDI service name or port | `50377` |
 
@@ -64,6 +65,42 @@ If your Stone is named `seaside`, set `GS_STONE=seaside` before starting the app
 See [docs/configuration.md](docs/configuration.md) for the complete environment details.
 
 ## Usage
+
+Set the connection environment, choosing the stone name that matches your local GemStone installation:
+
+```bash
+# Choose one:
+export GS_STONE=seaside
+# export GS_STONE=gs64stone
+
+export GS_HOST=localhost
+export GS_NETLDI=50377
+export GS_USERNAME=DataCurator
+export GS_PASSWORD=swordfish
+
+.venv/bin/python-gemstone-database-explorer
+```
+
+For a fully explicit local run:
+
+```bash
+GEMSTONE=/Users/tariq/GemStone64Bit3.7.5-arm64.Darwin \
+GS_USERNAME=DataCurator \
+GS_PASSWORD=swordfish \
+GS_STONE=gs64stone \
+GS_HOST=localhost \
+GS_NETLDI=50377 \
+DYLD_LIBRARY_PATH=/Users/tariq/GemStone64Bit3.7.5-arm64.Darwin/lib \
+/Users/tariq/src/python-gemstone-database-explorer/.venv/bin/python -m gemstone_p.cli --host 127.0.0.1 --port 9292
+```
+
+If installed from PyPI instead of the local editable checkout:
+
+```bash
+python-gemstone-database-explorer --host 127.0.0.1 --port 9292
+```
+
+For local editable installs, the command is:
 
 ```bash
 .venv/bin/python-gemstone-database-explorer
