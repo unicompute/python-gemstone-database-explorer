@@ -25,6 +25,14 @@ A Python/Flask web application for browsing and inspecting objects in a [GemSton
 
 ## Installation
 
+The package is available on PyPI at [python-gemstone-database-explorer 1.0.0](https://pypi.org/project/python-gemstone-database-explorer/1.0.0/):
+
+```bash
+python3 -m pip install python-gemstone-database-explorer
+```
+
+For local development:
+
 ```bash
 git clone https://github.com/unicompute/python-gemstone-database-explorer
 cd python-gemstone-database-explorer
