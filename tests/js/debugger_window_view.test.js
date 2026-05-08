@@ -98,6 +98,28 @@ test('debugger window view resolves active line and cursor from sourceOffsets wh
   assert.match(sourceView.sourceHtml, /dbg-inline-cursor/);
 });
 
+test('debugger window view shows workspace step 2 at the second executable statement across blank lines', () => {
+  const sourceView = debuggerWindowView.buildDebuggerSourceView({
+    methodName: 'Executed code @2 line 3',
+    isExecutedCode: true,
+    source: '1+1.\n \n4*4.\n \n1/0',
+    lineNumber: 3,
+    sourceOffset: 8,
+    sourceOffsets: [1, 8, 15],
+    stepPoint: 2,
+  }, {
+    frameIndex: 0,
+    framePosition: 1,
+    frameCount: 1,
+  });
+
+  assert.equal(sourceView.activeLine, 3);
+  assert.deepEqual(sourceView.cursorLocation, {line: 3, column: 1});
+  assert.match(sourceView.metaText, /Step 2/);
+  assert.match(sourceView.metaText, /Line 3/);
+  assert.match(sourceView.sourceHtml, /<span class="dbg-source-line active" data-line="3">/);
+});
+
 test('debugger window view prefers explicit line numbers for highlighting', () => {
   const sourceView = debuggerWindowView.buildDebuggerSourceView({
     source: 'line1\nline2\nline3',

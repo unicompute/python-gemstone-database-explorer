@@ -7,6 +7,7 @@ test('workspace window view builds expected shell html', () => {
   const html = workspaceWindowView.buildWorkspaceWindowHtml('ws');
 
   assert.match(html, /ws-wsh/);
+  assert.match(html, /ws-wsr/);
   assert.match(html, /ws-wsc/);
   assert.match(html, /Ctrl\+Enter/);
   assert.match(html, /Transaction:/);

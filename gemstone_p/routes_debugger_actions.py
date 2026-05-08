@@ -22,6 +22,8 @@ def register_debugger_action_routes(
     restart_frame_index_fn,
     restart_needs_workspace_replay_fn,
     restart_workspace_debug_process_fn,
+    workspace_virtual_step_action_fn,
+    workspace_debug_step_action_fn,
     debug_process_quick_step_point_fn,
     debug_server_step_script_fn,
     debug_advance_step_point_script_fn,
@@ -252,8 +254,40 @@ def register_debugger_action_routes(
             with request_session_factory(read_only=False) as session:
                 effective_frame_index = effective_debug_action_frame_index_fn(session, oop, frame_index)
                 effective_level = effective_frame_index + 1
-                result = session.eval(debug_server_step_script_fn(oop, effective_level))
-                if not is_true_result_fn(result):
+                stepped = False
+                virtual_stepped = False
+                if _has_workspace_debug_source(oop):
+                    virtual_step = workspace_virtual_step_action_fn(session, oop, effective_frame_index)
+                    if virtual_step is True:
+                        stepped = True
+                        virtual_stepped = True
+                    current_step_point = 0 if stepped else debug_process_quick_step_point_fn(session, oop, effective_level)
+                    if not stepped and current_step_point > 0:
+                        result = session.eval(
+                            debug_advance_step_point_script_fn(
+                                oop,
+                                effective_level,
+                                current_step_point + 1,
+                            )
+                        )
+                        stepped = is_true_result_fn(result)
+                    workspace_step = None if stepped else workspace_debug_step_action_fn(session, oop, effective_frame_index)
+                    if workspace_step is True:
+                        stepped = True
+                    elif workspace_step is False:
+                        return _action_error(
+                            "step",
+                            oop,
+                            "Workspace debugger step is not supported for this process",
+                            400,
+                            frame_index=frame_index,
+                            session=session,
+                            selectors=["setStepThroughBreaksAtLevel:breakpointLevel:", "resume"],
+                        )
+                if not stepped:
+                    result = session.eval(debug_server_step_script_fn(oop, effective_level))
+                    stepped = is_true_result_fn(result)
+                if not stepped:
                     return _action_error(
                         "step",
                         oop,
@@ -266,13 +300,14 @@ def register_debugger_action_routes(
                 status = _stopped_action_status("step", oop, frame_index=frame_index, session=session, selectors=selectors)
                 if isinstance(status, tuple):
                     return status
-                status = _advance_workspace_debug_preamble_after_action(
-                    session,
-                    oop,
-                    "step",
-                    effective_level,
-                    status,
-                )
+                if not virtual_stepped:
+                    status = _advance_workspace_debug_preamble_after_action(
+                        session,
+                        oop,
+                        "step",
+                        effective_level,
+                        status,
+                    )
         except Exception as exc:
             return _action_error("step", oop, exc, 500, frame_index=effective_frame_index, selectors=selectors)
         return _action_success("step", oop, frame_index=frame_index, message="stepped", status=status)

@@ -17,6 +17,8 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+import sys
+from pathlib import Path
 from flask import Flask, jsonify, request, render_template
 
 from gemstone_p import __version__
@@ -37,6 +39,16 @@ from gemstone_py._smalltalk_batch import (
     escaped_field_encoder_source,
     decode_escaped_field,
 )
+
+
+def _asset_dir(dirname: str, sentinel: str) -> str:
+    source_dir = Path(__file__).resolve().parent.parent / dirname
+    if (source_dir / sentinel).exists():
+        return str(source_dir)
+    installed_dir = Path(sys.prefix) / "share" / "python-gemstone-database-explorer" / dirname
+    if (installed_dir / sentinel).exists():
+        return str(installed_dir)
+    return str(source_dir)
 
 def _indent_st(source: str, prefix: str = "  ") -> str:
     return "\n".join(f"{prefix}{line}" if line else line for line in source.splitlines())
@@ -529,9 +541,11 @@ def _remember_debug_executed_frame_state(thread_oop: object, state: dict[str, ob
         "sourceOffsets": source_offsets,
         "className": str(state.get("className", "") or "").strip(),
         "selectorName": str(state.get("selectorName", "") or "").strip(),
+        "sourceOffset": max(0, int(state.get("sourceOffset", 0) or 0)),
         "lineNumber": max(0, int(state.get("lineNumber", 0) or 0)),
         "stepPoint": max(0, int(state.get("stepPoint", 0) or 0)),
         "frameIndex": int(state.get("frameIndex", 0) or 0),
+        "virtualStep": bool(state.get("virtualStep", False)),
     }
 
 
@@ -582,8 +596,8 @@ def _forget_debug_replay_receiver(thread_oop: object) -> None:
 def create_app() -> Flask:
     app = Flask(
         __name__,
-        static_folder=os.path.join(os.path.dirname(__file__), "..", "static"),
-        template_folder=os.path.join(os.path.dirname(__file__), "..", "templates"),
+        static_folder=_asset_dir("static", "js/app_api_runtime.js"),
+        template_folder=_asset_dir("templates", "index.html"),
     )
 
     gs_session.init_app(app)

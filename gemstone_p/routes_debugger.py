@@ -533,6 +533,26 @@ def register_debugger_routes(
             index += 1
         return offsets
 
+    def _workspace_statement_step_for_offset(statement_offsets: list[int], source_offset: int) -> int:
+        try:
+            offset = int(source_offset or 0)
+        except Exception:
+            offset = 0
+        if offset <= 0 or not statement_offsets:
+            return 0
+        resolved = 0
+        for index, raw_statement_offset in enumerate(statement_offsets, start=1):
+            try:
+                statement_offset = int(raw_statement_offset or 0)
+            except Exception:
+                continue
+            if statement_offset <= 0:
+                continue
+            if statement_offset > offset:
+                break
+            resolved = index
+        return resolved
+
     def _pad_source_offsets_to_step_point(source_offsets: list[int], quick_step_point: int) -> list[int]:
         adjusted = [int_arg_fn(each, 0) for each in list(source_offsets or []) if int_arg_fn(each, 0) > 0]
         try:
@@ -804,6 +824,8 @@ def register_debugger_routes(
             if isinstance(previous, dict):
                 previous_source = str(previous.get("source", "") or "")
                 previous_step = int_arg_fn(previous.get("stepPoint", 0), 0)
+                if previous.get("virtualStep") and previous_source and _source_matches_debug_hint(previous_source, source_hint):
+                    return
                 if (
                     previous_source
                     and _source_matches_debug_hint(previous_source, source_hint)
@@ -1061,6 +1083,86 @@ def register_debugger_routes(
             if _debug_action_succeeded(result):
                 return True
         return False
+
+    def _workspace_debug_step_action(session, process_oop: int, frame_index: int) -> bool | None:
+        if not _has_live_debugger_process(session, process_oop):
+            return None
+        process_ref = _resolved_debug_process_ref(session, process_oop)
+        frame_level = max(1, int_arg_fn(frame_index, 0) + 1)
+        step_result = _send_safe(
+            session,
+            process_ref,
+            "setStepThroughBreaksAtLevel:breakpointLevel:",
+            frame_level,
+            1,
+            default=Ellipsis,
+        )
+        if step_result is Ellipsis or not _debug_action_succeeded(step_result):
+            return None
+        _send_safe(session, process_ref, "ignoreNextBreakpoint", default=Ellipsis)
+        resume_result = _send_safe(session, process_ref, "resume", default=Ellipsis)
+        if resume_result is Ellipsis:
+            return False
+        return True
+
+    def _workspace_virtual_step_action(session, process_oop: int, frame_index: int) -> bool | None:
+        source_hint = str(debug_source_hint_fn(process_oop) or "").strip()
+        if not source_hint:
+            return None
+        state = debug_executed_frame_state_fn(process_oop)
+        if not isinstance(state, dict):
+            state = {}
+        try:
+            payload = _live_debug_frame_payload(session, process_oop, frame_index, debug_object_ref_fn)
+        except Exception:
+            payload = {}
+        source = str(state.get("source", "") or payload.get("source", "") or source_hint)
+        if not _source_matches_debug_hint(source, source_hint):
+            source = source_hint
+        raw_source_offsets = list(state.get("sourceOffsets", []) or payload.get("sourceOffsets", []) or [])
+        statement_offsets = _workspace_statement_start_offsets(source)
+        source_offsets = statement_offsets or raw_source_offsets
+        if not source_offsets:
+            return None
+        current_step = int_arg_fn(state.get("stepPoint", 0), 0) or int_arg_fn(payload.get("stepPoint", 0), 0)
+        if current_step <= 0:
+            return None
+        if statement_offsets:
+            current_source_offset = int_arg_fn(
+                state.get("sourceOffset", 0),
+                0,
+            ) or int_arg_fn(payload.get("sourceOffset", 0), 0)
+            if current_source_offset <= 0 and raw_source_offsets and current_step <= len(raw_source_offsets):
+                current_source_offset = int_arg_fn(raw_source_offsets[current_step - 1], 0)
+            mapped_step = _workspace_statement_step_for_offset(statement_offsets, current_source_offset)
+            if mapped_step > 0:
+                current_step = mapped_step
+            else:
+                current_step = min(current_step, len(statement_offsets))
+        target_step = current_step + 1
+        target_step = max(1, min(target_step, len(source_offsets)))
+        if target_step == current_step:
+            return None
+        source_offset = int_arg_fn(source_offsets[target_step - 1], 0)
+        if source_offset <= 0:
+            source_offset = 1
+        line_number = _reported_or_offset_line_number(source, source_offset, "") or 1
+        next_state = dict(state)
+        next_state.update(
+            {
+                "source": source,
+                "sourceOffsets": source_offsets,
+                "stepPoint": target_step,
+                "sourceOffset": source_offset,
+                "lineNumber": line_number,
+                "frameIndex": max(0, int_arg_fn(frame_index, 0)),
+                "className": str(state.get("className", payload.get("className", "")) or ""),
+                "selectorName": str(state.get("selectorName", payload.get("selectorName", "")) or ""),
+                "virtualStep": True,
+            }
+        )
+        remember_debug_executed_frame_state_fn(process_oop, next_state)
+        return True
 
     def _fallback_debug_action(session, process_oop: int, calls: list[tuple[str, list[int]]]) -> bool | None:
         if not _has_live_debugger_process(session, process_oop):
@@ -1389,6 +1491,14 @@ def register_debugger_routes(
         resolved_index = int_arg_fn(selected.get("index", selected_frame_index), 0)
         if int(selected_frame_index or 0) != 0:
             return resolved_index
+        try:
+            selected_payload = _live_debug_frame_payload(session, process_oop, resolved_index, debug_object_ref_fn)
+        except Exception:
+            selected_payload = {}
+        if _looks_like_workspace_debug_frame(selected_payload):
+            return resolved_index
+        if source_hint and _source_matches_debug_hint(selected_payload.get("source", ""), source_hint):
+            return resolved_index
         preferred_index, _ = _preferred_workspace_frame_candidate(session, process_oop, frames)
         return preferred_index if preferred_index is not None else resolved_index
 
@@ -1448,7 +1558,7 @@ def register_debugger_routes(
             receiver_oop or int(OOP_NIL),
             source_hint,
             "smalltalk",
-            workspace_debug=True,
+            workspace_debug=False,
         )
         new_process_oop = replay.get("debugThreadOop")
         try:
@@ -1744,6 +1854,8 @@ def register_debugger_routes(
         restart_frame_index_fn=_restart_frame_index,
         restart_needs_workspace_replay_fn=_restart_needs_workspace_replay,
         restart_workspace_debug_process_fn=_restart_workspace_debug_process,
+        workspace_virtual_step_action_fn=_workspace_virtual_step_action,
+        workspace_debug_step_action_fn=_workspace_debug_step_action,
         debug_process_quick_step_point_fn=_debug_process_quick_step_point,
         debug_server_step_script_fn=_debug_server_step_script,
         debug_advance_step_point_script_fn=_debug_advance_step_point_script,

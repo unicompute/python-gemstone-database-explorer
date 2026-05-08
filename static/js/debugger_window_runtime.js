@@ -320,7 +320,11 @@
       return true;
     }
 
-    async function loadFrames() {
+    async function loadFrames(options = {}) {
+      const preserveOnEmpty = options?.preserveOnEmpty === true;
+      const previousFrames = frames;
+      const previousFrameData = currentFrameData;
+      const previousFrameCanStep = currentFrameCanStep;
       debuggerLoadingFrames = true;
       updateDebuggerToolbarState();
       if (framesEl) framesEl.innerHTML = '<span class="spinner" style="margin:8px"></span>';
@@ -344,6 +348,17 @@
         } else {
           const loadedFallbackFrame = await loadFallbackFrameWhenFramesMissing().catch(() => false);
           if (!loadedFallbackFrame) {
+            if (preserveOnEmpty && previousFrames.length) {
+              frames = previousFrames;
+              currentFrameData = previousFrameData;
+              currentFrameCanStep = previousFrameCanStep;
+              if (framesEl) {
+                framesEl.innerHTML = buildDebuggerFramesListHtml(frames, escHtml);
+                applyDebuggerFrameSelection(framesEl, currentFrameIdx);
+              }
+              if (previousFrameData) renderDebuggerSource(previousFrameData, currentFrameIdx);
+              return;
+            }
             if (framesEl) framesEl.innerHTML = '<p style="color:#6c7086;padding:8px">(no stack frames)</p>';
             currentFrameCanStep = false;
             currentFrameData = null;
@@ -604,7 +619,7 @@
                 pendingFrameSelectionStrategy = 'executed';
                 applyActionResultState(result, 0);
                 refreshHaltedThreadsBar();
-                await loadFrames().catch(() => {});
+                await loadFrames({preserveOnEmpty: true}).catch(() => {});
                 setStatus(true, result?.message || 'restart completed without a suspended debugger');
                 return;
               }
@@ -612,10 +627,10 @@
               pendingFrameSelectionStrategy = 'executed';
               applyActionResultState(result, 0);
               refreshHaltedThreadsBar();
-              await loadFrames();
+              await loadFrames({preserveOnEmpty: true});
               setStatus(true, result?.message || 'restarted');
             } catch (error) {
-              await loadFrames().catch(() => {});
+              await loadFrames({preserveOnEmpty: true}).catch(() => {});
               setStatus(false, error.message);
             }
           });

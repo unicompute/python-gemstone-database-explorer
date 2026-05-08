@@ -24,6 +24,7 @@
     return `
     <div class="ws-history" id="${id}-wsh" style="flex:1;min-height:0;overflow-y:auto;padding:6px 10px;font-family:monospace;font-size:12px"></div>
     <div class="ws-input-row" style="flex-shrink:0">
+      <div class="ws-input-resize" id="${id}-wsr" role="separator" aria-label="Resize workspace input" tabindex="0"></div>
       <textarea class="ws-code-area" id="${id}-wsc" placeholder="${placeholder}"></textarea>
       <div class="ws-controls">
         <button class="btn" id="${id}-doit">Do it</button>

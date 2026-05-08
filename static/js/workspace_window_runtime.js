@@ -116,6 +116,67 @@
     let historyEl = null;
     let codeEl = null;
 
+    function workspaceInputHeightBounds() {
+      const bodyHeight = Number(body?.clientHeight || 0) || 440;
+      return {
+        min: 52,
+        max: Math.max(72, Math.min(420, bodyHeight - 120)),
+      };
+    }
+
+    function setWorkspaceInputHeight(height) {
+      if (!codeEl) return;
+      const bounds = workspaceInputHeightBounds();
+      const nextHeight = Math.max(bounds.min, Math.min(bounds.max, Number(height) || bounds.min));
+      codeEl.style.height = `${Math.round(nextHeight)}px`;
+      syncWorkspaceWindowState();
+    }
+
+    function bindWorkspaceInputResize(handle) {
+      if (!handle || !codeEl) return;
+      const doc = handle.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      if (!doc) return;
+      let startY = 0;
+      let startHeight = 0;
+      let dragging = false;
+
+      function stopDrag(event) {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove('dragging');
+        try { handle.releasePointerCapture?.(event.pointerId); } catch (_) {}
+        doc.removeEventListener('pointermove', moveDrag);
+        doc.removeEventListener('pointerup', stopDrag);
+        doc.removeEventListener('pointercancel', stopDrag);
+      }
+
+      function moveDrag(event) {
+        if (!dragging) return;
+        event.preventDefault();
+        setWorkspaceInputHeight(startHeight + startY - event.clientY);
+      }
+
+      handle.addEventListener('pointerdown', event => {
+        if (event.button !== undefined && event.button !== 0) return;
+        dragging = true;
+        startY = event.clientY;
+        startHeight = codeEl.getBoundingClientRect?.().height || codeEl.offsetHeight || 52;
+        handle.classList.add('dragging');
+        try { handle.setPointerCapture?.(event.pointerId); } catch (_) {}
+        doc.addEventListener('pointermove', moveDrag);
+        doc.addEventListener('pointerup', stopDrag);
+        doc.addEventListener('pointercancel', stopDrag);
+      });
+
+      handle.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+        event.preventDefault();
+        const currentHeight = codeEl.getBoundingClientRect?.().height || codeEl.offsetHeight || 52;
+        const delta = event.shiftKey ? 36 : 12;
+        setWorkspaceInputHeight(currentHeight + (event.key === 'ArrowUp' ? delta : -delta));
+      });
+    }
+
     function syncWorkspaceWindowState() {
       upsertWindowState(id, buildWorkspaceWindowState(
         kind,
@@ -265,6 +326,7 @@
       historyEl = body.querySelector(`#${id}-wsh`);
       codeEl = body.querySelector(`#${id}-wsc`);
       if (codeEl) codeEl.value = draft;
+      bindWorkspaceInputResize(body.querySelector(`#${id}-wsr`));
       syncWorkspaceWindowState();
 
       bindWorkspaceWindowActions({

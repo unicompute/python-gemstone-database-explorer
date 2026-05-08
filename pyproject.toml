@@ -5,18 +5,41 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "python-gemstone-database-explorer"
 version = "1.0.0"
-description = "GemStone Database Explorer — Python/Flask port of maglev-database-explorer-gem"
-license = { text = "MIT" }
+description = "Python/Flask web explorer and debugger for GemStone/S databases."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "python-gemstone-database-explorer contributors" }]
 requires-python = ">=3.11"
 dependencies = [
     "flask>=3.0",
-    "gemstone-py",
+    "gemstone-py>=0.2.5",
 ]
+keywords = ["gemstone", "smalltalk", "database", "debugger", "flask"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Flask",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+    "Topic :: Software Development :: Debuggers",
+]
+
+[project.urls]
+Homepage = "https://github.com/unicompute/python-gemstone-database-explorer"
+Repository = "https://github.com/unicompute/python-gemstone-database-explorer"
+Issues = "https://github.com/unicompute/python-gemstone-database-explorer/issues"
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2",
     "pytest>=8",
     "pytest-flask>=1.3",
+    "twine>=5",
 ]
 
 [project.scripts]
@@ -25,3 +48,7 @@ python-gemstone-database-explorer = "gemstone_p.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["gemstone_p*"]
+
+[tool.setuptools.data-files]
+"share/python-gemstone-database-explorer/static/js" = ["static/js/*.js"]
+"share/python-gemstone-database-explorer/templates" = ["templates/*.html"]

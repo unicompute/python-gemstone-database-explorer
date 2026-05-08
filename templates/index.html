@@ -1190,13 +1190,28 @@
     .ws-input-row {
       border-top: 1px solid #313244; display: flex;
       flex-direction: column; flex-shrink: 0;
-      background: #181825; padding: 5px 8px; gap: 4px;
+      background: #181825; padding: 0 8px 5px; gap: 4px;
+    }
+    .ws-input-resize {
+      height: 10px; margin: 0 -8px; flex: 0 0 10px;
+      cursor: ns-resize; position: relative; touch-action: none;
+    }
+    .ws-input-resize::before {
+      content: ""; position: absolute; left: 50%; top: 4px;
+      width: 42px; height: 2px; transform: translateX(-50%);
+      background: #45475a; border-radius: 2px;
+    }
+    .ws-input-resize:hover::before,
+    .ws-input-resize:focus-visible::before,
+    .ws-input-resize.dragging::before {
+      background: #89b4fa;
     }
     .ws-code-area {
       font-family: monospace; font-size: 12px;
       background: #1e1e2e; color: #cdd6f4;
       border: 1px solid #313244; border-radius: 3px;
-      padding: 4px 6px; resize: vertical; min-height: 52px; outline: none;
+      padding: 4px 6px; resize: vertical; min-height: 52px; max-height: min(52vh, 360px);
+      outline: none; box-sizing: border-box;
     }
     .ws-controls { display: flex; gap: 5px; align-items: center; }
     .ws-hint { font-size: 9px; color: #45475a; margin-left: auto; }

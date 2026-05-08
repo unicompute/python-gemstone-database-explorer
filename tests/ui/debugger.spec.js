@@ -50,7 +50,22 @@ test('workspace eval exceptions auto-open the debugger', async ({ page }) => {
   const workspace = windowByTitle(page, 'Workspace');
   await expect(workspace).toBeVisible();
 
-  await workspace.locator('.ws-code-area').fill('1/0');
+  const codeArea = workspace.locator('.ws-code-area');
+  const resizeHandle = workspace.locator('.ws-input-resize');
+  await expect(resizeHandle).toBeVisible();
+  const beforeResize = await codeArea.boundingBox();
+  const handleBox = await resizeHandle.boundingBox();
+  expect(beforeResize).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2 - 60);
+  await page.mouse.up();
+  const afterResize = await codeArea.boundingBox();
+  expect(afterResize).not.toBeNull();
+  expect(afterResize.height).toBeGreaterThan(beforeResize.height + 30);
+
+  await codeArea.fill('1/0');
   await workspace.getByRole('button', { name: 'Do it' }).click();
 
   const debuggerWin = windowByTitle(page, 'Debugger');
@@ -122,9 +137,23 @@ test('debugger restart rewinds to executed code regardless of the selected frame
       }),
     });
   });
+  await page.route(/\/debug\/frames\/700$/, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, frames: [] }),
+    });
+  });
+  await page.route(/\/debug\/frame\/700\?index=0$/, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, hasFrame: false }),
+    });
+  });
   await debuggerWin.getByRole('button', { name: 'Restart' }).click();
   await expect(debuggerWin).toBeVisible();
-  await page.unroute('**/debug/restart/700');
+  await expect(debuggerWin).not.toContainText('(no stack frames)');
 });
 
 test('halted thread bar opens debugger with stack and TLS actions', async ({ page }) => {

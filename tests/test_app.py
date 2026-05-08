@@ -65,7 +65,7 @@ class TestRoutes(unittest.TestCase):
     def test_connection_preflight_suggests_local_stone_fix(self, mock_rs, mock_snapshot, mock_run):
         session = _mock_session()
         session.eval.side_effect = ["3.7.5", "3.7.5"]
-        mock_rs.return_value = _mock_request_session(session)
+        mock_rs.side_effect = lambda *args, **kwargs: _mock_request_session(session)
         mock_snapshot.return_value = {
             "configured": True,
             "stone": "gs64stone",
@@ -2609,7 +2609,7 @@ class TestRoutes(unittest.TestCase):
             return None
 
         session.perform.side_effect = perform
-        mock_rs.return_value = _mock_request_session(session)
+        mock_rs.side_effect = lambda *args, **kwargs: _mock_request_session(session)
 
         r = self.client.post("/debug/step/700", json={"index": 0})
 
@@ -2748,6 +2748,59 @@ class TestRoutes(unittest.TestCase):
         self.assertIn("stepLevel := 3", script)
         self.assertIn("(proc respondsTo: #step:)", script)
         self.assertIn("(supported not and: [proc respondsTo: #stepIntoFromLevel:])", script)
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_debug_step_virtual_workspace_restart_frame_advances_display_step(self, mock_rs):
+        session = _mock_session()
+        source = "1+1.\n \n4*4.\n \n1/0"
+        app_module._remember_debug_source_hint(700, source)
+        app_module._remember_debug_executed_frame_state(
+            700,
+            {
+                "source": source,
+                "sourceOffsets": [1, 1, 8, 15, 17],
+                "stepPoint": 1,
+                "lineNumber": 1,
+                "frameIndex": 0,
+            },
+        )
+
+        def perform(receiver, selector, *args):
+            receiver = int(receiver)
+            if receiver == 700 and selector == "serverProcess":
+                return OopRef(750, session)
+            if receiver == 750 and selector == "printString":
+                return "GsProcess(oop=750, status=suspended, priority=15)"
+            if receiver == 750 and selector == "status":
+                return "suspended"
+            if receiver == 750 and selector == "isTerminated":
+                return False
+            if receiver == 750 and selector == "isSuspended":
+                return True
+            if receiver == 750 and selector == "suspendedContext":
+                return OopRef(701, session)
+            if receiver == 701 and selector == "sender":
+                return None
+            return None
+
+        session.perform.side_effect = perform
+        mock_rs.side_effect = lambda *args, **kwargs: _mock_request_session(session)
+
+        first = self.client.post("/debug/step/700", json={"index": 0})
+        first_state = app_module._debug_executed_frame_state(700)
+        second = self.client.post("/debug/step/700", json={"index": 0})
+
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertEqual(first_state["sourceOffsets"], [1, 8, 15])
+        self.assertEqual(first_state["stepPoint"], 2)
+        self.assertEqual(first_state["sourceOffset"], 8)
+        self.assertEqual(first_state["lineNumber"], 3)
+        self.assertEqual(second.status_code, 200, second.data)
+        state = app_module._debug_executed_frame_state(700)
+        self.assertEqual(state["sourceOffsets"], [1, 8, 15])
+        self.assertEqual(state["stepPoint"], 3)
+        self.assertEqual(state["sourceOffset"], 15)
+        self.assertEqual(state["lineNumber"], 5)
 
     @patch("gemstone_p.app.gs_session.request_session")
     def test_debug_step_over_uses_selected_frame_level(self, mock_rs):
@@ -3348,7 +3401,7 @@ class TestRoutes(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["threadOop"], 990)
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
-        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": False})
         self.assertTrue(terminated)
         self.assertEqual(app_module._debug_source_hint(990), source)
         self.assertEqual(app_module._debug_source_hint(700), "")
@@ -3433,7 +3486,7 @@ class TestRoutes(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["threadOop"], 990)
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
-        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": False})
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -3593,7 +3646,12 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(json.loads(first_restart.data)["threadOop"], 700)
         self.assertEqual(json.loads(second_restart.data)["threadOop"], 700)
         self.assertFalse(json.loads(second_restart.data)["completed"])
-        self.assertEqual(step_state["point"], 2)
+        self.assertEqual(step_state["point"], 1)
+        executed_state = app_module._debug_executed_frame_state(700)
+        self.assertEqual(executed_state["sourceOffsets"], [1, 6])
+        self.assertEqual(executed_state["stepPoint"], 2)
+        self.assertEqual(executed_state["sourceOffset"], 6)
+        self.assertEqual(executed_state["lineNumber"], 2)
         mock_eval_in_context.assert_not_called()
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
@@ -3663,7 +3721,7 @@ class TestRoutes(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["threadOop"], 990)
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
-        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": False})
 
     @patch("gemstone_p.routes_debugger.eval_in_context")
     @patch("gemstone_p.app.gs_session.request_session")
@@ -3762,7 +3820,7 @@ class TestRoutes(unittest.TestCase):
         self.assertFalse(data["completed"])
         self.assertEqual(data["status"], "terminated")
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
-        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": False})
         self.assertTrue(
             all(
                 not ("_objectForOop: 700" in call.args[0] and "restartLevel :=" in call.args[0])
@@ -3965,7 +4023,7 @@ class TestRoutes(unittest.TestCase):
         self.assertFalse(data["completed"])
         self.assertEqual(data["status"], "terminated")
         self.assertEqual(mock_eval_in_context.call_args.args, (session, 900, source, "smalltalk"))
-        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": True})
+        self.assertEqual(mock_eval_in_context.call_args.kwargs, {"workspace_debug": False})
         self.assertTrue(
             all(
                 not ("_objectForOop: 700" in call.args[0] and "restartLevel :=" in call.args[0])

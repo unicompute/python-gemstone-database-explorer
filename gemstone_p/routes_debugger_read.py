@@ -49,9 +49,11 @@ def register_debugger_read_routes(
             "sourceOffsets": source_offsets,
             "className": str(raw.get("className", "") or "").strip(),
             "selectorName": str(raw.get("selectorName", "") or "").strip(),
+            "sourceOffset": max(0, int(raw.get("sourceOffset", 0) or 0)),
             "lineNumber": max(0, int(raw.get("lineNumber", 0) or 0)),
             "stepPoint": max(0, int(raw.get("stepPoint", 0) or 0)),
             "frameIndex": int(raw.get("frameIndex", 0) or 0),
+            "virtualStep": bool(raw.get("virtualStep", False)),
         }
 
     def _remember_workspace_executed_frame_state(thread_oop: int, payload: dict) -> None:
@@ -75,9 +77,11 @@ def register_debugger_read_routes(
                 "sourceOffsets": source_offsets,
                 "className": str(payload.get("className", "") or "").strip(),
                 "selectorName": str(payload.get("selectorName", "") or "").strip(),
+                "sourceOffset": max(0, int(payload.get("sourceOffset", 0) or 0)),
                 "lineNumber": max(0, int(payload.get("lineNumber", 0) or 0)),
                 "stepPoint": max(0, int(payload.get("stepPoint", 0) or 0)),
                 "frameIndex": max(0, int(payload.get("frameIndex", 0) or 0)),
+                "virtualStep": bool(payload.get("virtualStep", False)),
             },
         )
 
