@@ -112,7 +112,9 @@ This design is a compromise: isolate browser/debugger flows better than a single
 - `tests/ui/mock_server.py` provides a deterministic mock backend
 - `tests/ui/smoke.spec.js` covers the SPA against that mock backend
 - `tests/ui/live.spec.js` runs an opt-in live GemStone suite
-- `tests/ui/run_ui_suites.js` always runs the mock suite first and chains the live suite automatically when the required GemStone environment is present
+- `npm run test:ui` runs the deterministic mock suite only
+- `npm run test:ui:live` runs the live suite explicitly
+- `npm run test:ui:all` runs the mock suite first and chains the live suite automatically when the required GemStone environment is present
 
 The mock suite is the main regression harness for layout persistence, window management, helper-window handoffs, debugger behavior, and Class Browser workflows.
 

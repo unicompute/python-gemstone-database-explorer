@@ -134,13 +134,14 @@ Install the Playwright dependency once:
 npm install
 ```
 
-Run the browser suite:
+Run the deterministic mock-backed browser suite:
 
 ```bash
 npm run test:ui
 ```
 
-That always runs the deterministic mock-backed suite first. If `GEMSTONE`, `GS_USERNAME`, and `GS_PASSWORD` are present, it then runs the live GemStone suite automatically; otherwise it prints a skip message after the mock suite.
+That command never connects to a live GemStone runtime. It is the default
+regression lane for local UI work and CI.
 
 Run only the live UI suite:
 
@@ -150,6 +151,13 @@ export GS_USERNAME=DataCurator
 export GS_PASSWORD=swordfish
 
 npm run test:ui:live
+```
+
+To run the mock suite first and then the live suite when the required GemStone
+environment is present:
+
+```bash
+npm run test:ui:all
 ```
 
 The live suite starts the real Flask app on `127.0.0.1:4192` and covers startup browsing, debugger flow, and a transactional Class Browser write flow that aborts its changes before the test ends.
