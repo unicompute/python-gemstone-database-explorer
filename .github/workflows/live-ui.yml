@@ -14,9 +14,6 @@ concurrency:
   group: live-ui
   cancel-in-progress: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   live-ui:
     runs-on: self-hosted
@@ -41,15 +38,15 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.live-env.outputs.enabled == 'true'
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.live-env.outputs.enabled == 'true'
         with:
           python-version: "3.11"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.live-env.outputs.enabled == 'true'
         with:
           node-version: "22"
