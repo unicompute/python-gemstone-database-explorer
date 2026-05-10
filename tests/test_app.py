@@ -19,6 +19,7 @@ def _mock_session():
     session.eval_oop.return_value = 12345
     session.perform_oop.return_value = 12345
     session.perform.return_value = "MockObject"
+    session.perform_value.side_effect = lambda receiver, selector, *args: session.perform(receiver, selector, *args)
     session.resolve.return_value = 12345
     session.int_oop.return_value = 12345
     return session
