@@ -117,7 +117,7 @@ class TestSessionChannelIsolation(unittest.TestCase):
         self.assertFalse(snapshot["channels"][1]["hasSession"])
 
     def test_init_app_accepts_gs_stone_name_alias(self):
-        with patch.dict(os.environ, {"GS_STONE_NAME": "seaside"}, clear=False):
+        with patch.dict(os.environ, {"GS_STONE": "", "GS_STONE_NAME": "seaside"}, clear=False):
             gs_session.init_app(self.flask_app)
         self.assertEqual(gs_session._BROKER._config.stone, "seaside")
 
