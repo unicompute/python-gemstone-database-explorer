@@ -134,7 +134,7 @@ test('workspace 1/0 opens a live debugger with an execution marker', async ({ pa
   await expect(debuggerWin.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
 
   await debuggerWin.getByRole('button', { name: 'Step', exact: true }).click();
-  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 1');
+  await expect(debuggerWin.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 2');
   await expect(debuggerWin.locator('.dbg-source-meta')).toContainText(/Step 2/);
   await expect(debuggerWin.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
 
@@ -229,7 +229,7 @@ test('multiple live debuggers stay independent across refresh restart and termin
   await expect(debuggerA.locator('.dbg-source-meta')).toContainText(/Step 1/);
 
   await clickDebuggerButton(debuggerA, 'Step', { exact: true });
-  await expect(debuggerA.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 1');
+  await expect(debuggerA.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 2');
   await expect(debuggerA.locator('.dbg-source-meta')).toContainText(/Step 2/);
   await expect(debuggerA.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
 
@@ -253,7 +253,7 @@ test('multiple live debuggers stay independent across refresh restart and termin
   await expect(debuggerB.locator('.dbg-source-line.active .dbg-inline-cursor')).toBeVisible();
 
   await clickDebuggerButton(debuggerA, 'Refresh');
-  await expect(debuggerA.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 1');
+  await expect(debuggerA.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 2');
   await clickDebuggerButton(debuggerB, 'Refresh');
   await expect(debuggerB.locator('.dbg-frame-item.active')).toContainText('Executed code @2 line 1');
 

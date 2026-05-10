@@ -10,6 +10,7 @@ def register_debugger_action_routes(
     *,
     request_session_factory,
     object_for_oop_expr_fn,
+    debug_process_resolver_fn,
     debug_source_hint_fn,
     forget_debug_source_hint_fn,
     forget_debug_replay_receiver_fn,
@@ -147,6 +148,22 @@ def register_debugger_action_routes(
             return bool(str(debug_source_hint_fn(oop) or "").strip())
         except Exception:
             return False
+
+    def _resume_workspace_debug_process(session, oop: int) -> bool:
+        direct = direct_debug_action_fn(session, oop, [("resume", [])])
+        if direct is True:
+            return True
+        result = session.eval(
+            f"[ | obj proc resumed |\n"
+            f"{debug_process_resolver_fn(oop)}"
+            f"resumed := false.\n"
+            f"(proc respondsTo: #resume) ifTrue: [\n"
+            f"  resumed := ([proc resume. true] on: Error do: [:e | false])\n"
+            f"].\n"
+            f"resumed ifTrue: ['true'] ifFalse: ['false']\n"
+            f"] value"
+        )
+        return is_true_result_fn(result)
 
     def _advance_workspace_debug_preamble_after_action(
         session,
@@ -552,6 +569,8 @@ def register_debugger_action_routes(
     def debug_terminate(oop: int):
         try:
             with request_session_factory(read_only=False) as session:
+                fallback_attempted = False
+                resume_attempted = False
                 direct = direct_debug_action_fn(
                     session,
                     oop,
@@ -561,27 +580,32 @@ def register_debugger_action_routes(
                     ],
                 )
                 if direct is not True:
-                    session.eval(
+                    fallback_attempted = is_true_result_fn(session.eval(
                         f"| proc attempted ctx |\n"
-                        f"proc := {object_for_oop_expr_fn(oop)}.\n"
+                        f"{debug_process_resolver_fn(oop)}"
                         f"attempted := false.\n"
                         f"(proc respondsTo: #terminate) ifTrue: [\n"
                         f"  attempted := true.\n"
                         f"  [proc terminate] on: Error do: [:e | nil]\n"
                         f"].\n"
-                        f"(attempted not and: [proc respondsTo: #terminateProcess]) ifTrue: [\n"
+                        f"(proc respondsTo: #terminateProcess) ifTrue: [\n"
                         f"  attempted := true.\n"
                         f"  [proc terminateProcess] on: Error do: [:e | nil]\n"
                         f"].\n"
                         f"ctx := [proc suspendedContext] on: Error do: [:e | nil].\n"
-                        f"(attempted not and: [ctx notNil and: [ctx respondsTo: #terminateProcess]]) ifTrue: [\n"
+                        f"(ctx notNil and: [ctx respondsTo: #terminateProcess]) ifTrue: [\n"
                         f"  attempted := true.\n"
                         f"  [ctx terminateProcess] on: Error do: [:e | nil]\n"
                         f"].\n"
                         f"attempted ifTrue: ['true'] ifFalse: ['false']"
-                    )
-                if not _wait_for_debugger_termination(session, oop):
-                    if direct is not True:
+                    ))
+                terminated = _wait_for_debugger_termination(session, oop)
+                if not terminated and _has_workspace_debug_source(oop):
+                    resume_attempted = _resume_workspace_debug_process(session, oop)
+                    if resume_attempted:
+                        terminated = _wait_for_debugger_termination(session, oop)
+                if not terminated:
+                    if direct is not True and not fallback_attempted and not resume_attempted:
                         return _action_error(
                             "terminate",
                             oop,
@@ -592,6 +616,7 @@ def register_debugger_action_routes(
                         )
                 forget_debug_source_hint_fn(oop)
                 forget_debug_replay_receiver_fn(oop)
+                forget_debug_executed_frame_state_fn(oop)
         except Exception as exc:
             return _action_error("terminate", oop, exc, 500, selectors=["terminate", "terminateProcess"])
         return _action_success("terminate", oop, message="terminated", status="terminated")

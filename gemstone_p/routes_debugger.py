@@ -861,6 +861,8 @@ def register_debugger_routes(
         suspended = _coerce_boolean_result(_send_safe(session, process_ref, "isSuspended", default=None), None)
         suspended_context = _send_safe(session, process_ref, "suspendedContext", default=None)
         has_context = isinstance(suspended_context, OopRef)
+        if terminated is True:
+            return "terminated"
         if suspended is True or has_context:
             return "suspended"
         detail = _send_safe(session, process_ref, "_gsiDebuggerDetailedReportAt:", 1, default=Ellipsis)
@@ -869,8 +871,6 @@ def register_debugger_routes(
             and detail is not None
             and _collection_size(session, detail) > 0
         )
-        if terminated is True and not has_detail:
-            return "terminated"
         status = str(_send_safe(session, process_ref, "status", default="") or "").strip().lower()
         if status == "halted":
             return "suspended"
@@ -1842,6 +1842,7 @@ def register_debugger_routes(
     action_shared = dict(
         request_session_factory=request_session_factory,
         object_for_oop_expr_fn=object_for_oop_expr_fn,
+        debug_process_resolver_fn=_debug_process_resolver,
         debug_source_hint_fn=debug_source_hint_fn,
         forget_debug_source_hint_fn=forget_debug_source_hint_fn,
         forget_debug_replay_receiver_fn=forget_debug_replay_receiver_fn,

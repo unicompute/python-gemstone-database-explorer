@@ -500,7 +500,13 @@ def register_debugger_read_routes(
                 if not source or not source_offsets:
                     return payload
                 state_step_point = int_arg_fn(state.get("stepPoint", 0), 0)
-                step_point = state_step_point or int_arg_fn(normalized.get("stepPoint", 0), 0) or 1
+                raw_step_point = int_arg_fn(normalized.get("stepPoint", 0), 0)
+                step_point = max(1, state_step_point, raw_step_point)
+                if len(source_offsets) <= 1 and step_point > 1:
+                    fallback_offsets = _workspace_statement_start_offsets(source)
+                    fallback_offsets = _pad_source_offsets_to_step_point(fallback_offsets, step_point)
+                    if fallback_offsets:
+                        source_offsets = fallback_offsets
                 step_point = max(1, min(step_point, len(source_offsets)))
                 source_offset = _step_point_source_offset(step_point, source_offsets)
                 if source_offset <= 0 and step_point <= 1:
@@ -555,7 +561,12 @@ def register_debugger_read_routes(
         state_step_point = int_arg_fn(state.get("stepPoint", 0), 0)
         if is_top_visible and state_source and state_source_offsets and _source_matches_debug_hint(state_source, source_hint):
             source = state_source
-            source_offsets = state_source_offsets
+            if (
+                state_step_point > step_point
+                or not source_offsets
+                or len(state_source_offsets) > len(source_offsets)
+            ):
+                source_offsets = state_source_offsets
             if state_step_point > step_point:
                 step_point = state_step_point
         if source_offsets:
