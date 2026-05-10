@@ -16,7 +16,6 @@ concurrency:
 
 jobs:
   live-ui:
-    if: ${{ secrets.GEMSTONE != '' && secrets.GS_USERNAME != '' && secrets.GS_PASSWORD != '' }}
     runs-on: self-hosted
     env:
       GEMSTONE: ${{ secrets.GEMSTONE }}
@@ -28,30 +27,49 @@ jobs:
       GS_LIB: ${{ secrets.GS_LIB }}
 
     steps:
+      - name: Check live environment
+        id: live-env
+        shell: bash
+        run: |
+          if [ -z "$GEMSTONE" ] || [ -z "$GS_USERNAME" ] || [ -z "$GS_PASSWORD" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping live UI suite because GEMSTONE, GS_USERNAME, or GS_PASSWORD is not configured."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.live-env.outputs.enabled == 'true'
 
       - uses: actions/setup-python@v5
+        if: steps.live-env.outputs.enabled == 'true'
         with:
           python-version: "3.11"
 
       - uses: actions/setup-node@v4
+        if: steps.live-env.outputs.enabled == 'true'
         with:
           node-version: "22"
           cache: npm
 
       - name: Create virtualenv
+        if: steps.live-env.outputs.enabled == 'true'
         run: python -m venv .venv
 
       - name: Install Python dependencies
+        if: steps.live-env.outputs.enabled == 'true'
         run: |
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/python -m pip install -e ".[dev]"
 
       - name: Install Node dependencies
+        if: steps.live-env.outputs.enabled == 'true'
         run: npm ci
 
       - name: Install Playwright browser
+        if: steps.live-env.outputs.enabled == 'true'
         run: npx playwright install chromium
 
       - name: Run live UI suite
+        if: steps.live-env.outputs.enabled == 'true'
         run: npm run test:ui:live
