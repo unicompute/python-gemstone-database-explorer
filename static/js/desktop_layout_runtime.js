@@ -39,6 +39,16 @@
           sourceWindowId: desc.sourceWindowId || null,
         }) || null;
       }
+      if (desc.kind === 'codegen-explorer') {
+        return helpers.openCodegenExplorer?.({
+          x: desc.x,
+          y: desc.y,
+          width: desc.width,
+          height: desc.height,
+          dictionary: desc.dictionary || null,
+          className: desc.className || null,
+        }) || null;
+      }
       if (desc.kind === 'workspace') {
         return helpers.openWorkspace?.({
           x: desc.x,

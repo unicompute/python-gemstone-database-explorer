@@ -32,6 +32,7 @@
       const launchers = [
         { command: 'open-object-browser', title: 'Object Browser', description: 'Inspect roots and live objects', keywords: 'object browser inspect roots' },
         { command: 'open-class-browser', title: 'Class Browser', description: 'Browse classes, methods, and versions', keywords: 'class browser methods versions' },
+        { command: 'open-codegen-explorer', title: 'Codegen Explorer', description: 'Select live classes and preview gemstone-codegen wrappers', keywords: 'codegen explorer wrappers protocol selectors preview' },
         { command: 'open-workspace', title: 'Workspace', description: 'Scratchpad with transaction controls', keywords: 'workspace evaluate transaction' },
         { command: 'open-symbol-list', title: 'Symbol List', description: 'Inspect users, dictionaries, and bindings', keywords: 'symbol list dictionaries bindings' },
         { command: 'open-web-browser', title: 'Web Browser', description: 'Open a browser window on the desktop', keywords: 'web browser url' },
@@ -220,6 +221,7 @@
       switch (command) {
         case 'open-object-browser': deps.openObjectBrowser(); break;
         case 'open-class-browser': deps.openClassBrowser(); break;
+        case 'open-codegen-explorer': deps.openCodegenExplorer(); break;
         case 'open-workspace': deps.openWorkspace(); break;
         case 'open-ruby-workspace': deps.openRubyWorkspace(); break;
         case 'open-maglev-load-path': deps.openMaglevReportWindow('load-path'); break;

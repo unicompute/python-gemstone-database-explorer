@@ -61,6 +61,16 @@ class TestSessionChannelIsolation(unittest.TestCase):
                     pass
         mock_ensure.assert_called_once_with("debug-r")
 
+    def test_request_session_uses_codegen_channel(self):
+        managed = gs_session._ManagedSession(channel="codegen-r")
+        session = MagicMock()
+        with patch.object(gs_session._BROKER, "_ensure_session", return_value=(managed, session)) as mock_ensure:
+            with self.flask_app.test_request_context("/codegen/class?class=Object"):
+                with gs_session.request_session(read_only=True):
+                    pass
+        mock_ensure.assert_called_once_with("codegen-r")
+        session.abort.assert_called_once()
+
     def test_request_session_preserves_explicit_channel(self):
         managed = gs_session._ManagedSession(channel="custom-w")
         session = MagicMock()

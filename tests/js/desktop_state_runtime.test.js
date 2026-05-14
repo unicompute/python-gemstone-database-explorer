@@ -108,6 +108,112 @@ test('desktop state runtime serializes a restorable workspace window', () => {
   );
 });
 
+test('desktop state runtime serializes codegen explorer selection context', () => {
+  const win = {
+    id: 'codegen-1',
+    style: {
+      left: '18px',
+      top: '28px',
+      width: '900px',
+      height: '640px',
+      zIndex: '10',
+    },
+    dataset: {
+      minimised: '0',
+      savedH: '640',
+    },
+    offsetLeft: 18,
+    offsetTop: 28,
+    offsetWidth: 900,
+    offsetHeight: 640,
+  };
+  const stateMap = new Map([
+    ['codegen-1', {kind: 'codegen-explorer', dictionary: 'UserGlobals', className: 'OkzBooking'}],
+  ]);
+
+  const desktopStateRuntime = runtime.createDesktopStateRuntime({
+    document: {
+      querySelectorAll() {
+        return [win];
+      },
+      getElementById(id) {
+        return id === 'codegen-1' ? win : null;
+      },
+    },
+    windowState: stateMap,
+    restorableWindowKinds: new Set(['codegen-explorer']),
+    windowLayoutModel: {
+      buildWindowLayoutSnapshot(entries) {
+        return entries;
+      },
+      hasRecoverableWindows(entries) {
+        return Array.isArray(entries) && entries.length > 0;
+      },
+    },
+    windowRestoreModel: {
+      resolveRestoredSourceLinks() {
+        return [];
+      },
+    },
+    createDesktopLayoutRuntime() {
+      throw new Error('not used');
+    },
+    localStorage: {},
+    windowLayoutStorageKey: 'layout',
+    healthyWindowLayoutStorageKey: 'healthy',
+    isPersistSuppressed() {
+      return false;
+    },
+    setPersistSuppressed() {},
+    isStartupBootstrapped() {
+      return true;
+    },
+    sanitizeSelectionIndex(index) {
+      return Number(index) || 0;
+    },
+    toggleMinimise() {},
+    focusWin() {},
+    redrawArrows() {},
+    notifyLiveWindowUpdated() {},
+    getZTop() {
+      return 1;
+    },
+    setZTop() {},
+    buildWindowLinkSummaries() {
+      return [];
+    },
+    buildWindowGroupSummaries() {
+      return [];
+    },
+    arrows: [],
+    computeRelatedWindowIds() {
+      return [];
+    },
+    getStartupIds() {
+      return {};
+    },
+    getRoots() {
+      return {};
+    },
+  });
+
+  assert.deepEqual(
+    desktopStateRuntime.serializeWindowLayoutEntry('codegen-1', stateMap.get('codegen-1')),
+    {
+      savedId: 'codegen-1',
+      kind: 'codegen-explorer',
+      x: 18,
+      y: 28,
+      width: 900,
+      height: 640,
+      minimised: false,
+      zIndex: 10,
+      dictionary: 'UserGlobals',
+      className: 'OkzBooking',
+    }
+  );
+});
+
 test('desktop state runtime upserts state and persists layout', () => {
   const stateMap = new Map();
   let persistCalls = 0;

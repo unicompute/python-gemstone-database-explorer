@@ -1850,6 +1850,120 @@
     }
     .class-row span { color: #6c7086; }
 
+    /* ── codegen explorer ─────────────────────────────────────────────── */
+    .codegen-wrap {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      background: #1e1e2e;
+      color: #cdd6f4;
+    }
+    .codegen-toolbar, .codegen-method-toolbar, .codegen-selection-head, .codegen-preview-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border-bottom: 1px solid #313244;
+      background: #24273a;
+    }
+    .codegen-main {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) minmax(240px, 1.4fr) minmax(220px, 1.2fr);
+      min-height: 0;
+      flex: 1 1 auto;
+      border-bottom: 1px solid #313244;
+    }
+    .codegen-column {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #313244;
+    }
+    .codegen-column:last-child { border-right: 0; }
+    .codegen-field { padding: 6px; border-bottom: 1px solid #313244; }
+    .codegen-field label {
+      display: block;
+      margin-bottom: 3px;
+      color: #a6adc8;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+    .codegen-list, .codegen-selected-list {
+      min-height: 0;
+      overflow: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .codegen-row, .codegen-method-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px;
+      align-items: center;
+      text-align: left;
+      color: #cdd6f4;
+      background: #181825;
+      border: 1px solid #313244;
+      border-radius: 4px;
+      padding: 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .codegen-row { grid-template-columns: 1fr; }
+    .codegen-row.active, .codegen-method-row:focus-within {
+      border-color: #89b4fa;
+      background: #1f2538;
+    }
+    .codegen-row small, .codegen-method-row small, .codegen-muted, .codegen-selected-meta {
+      color: #a6adc8;
+      font-size: 10px;
+    }
+    .codegen-selected-card {
+      border: 1px solid #313244;
+      border-radius: 5px;
+      padding: 7px;
+      background: #181825;
+    }
+    .codegen-selected-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .codegen-selected-items {
+      margin-top: 5px;
+      color: #cdd6f4;
+      font-size: 10px;
+      line-height: 1.4;
+    }
+    .codegen-preview-wrap {
+      min-height: 170px;
+      flex: 0 0 34%;
+      display: flex;
+      flex-direction: column;
+    }
+    .codegen-preview {
+      flex: 1 1 auto;
+      width: 100%;
+      min-height: 0;
+      resize: none;
+      border: 0;
+      border-top: 1px solid #313244;
+      background: #11111b;
+      color: #cdd6f4;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      padding: 8px;
+    }
+    .codegen-preview-head [data-state="error"] { color: #f38ba8; }
+
     /* ── modal ───────────────────────────────────────────────────────── */
     #modal-overlay {
       display: none; position: fixed; inset: 0;
@@ -1909,6 +2023,7 @@
   <button class="taskbar-btn" id="taskbar-connection-override" onclick="openConnectionWindow()" style="display:none"></button>
   <button class="taskbar-btn taskbar-window-kind-btn" id="taskbar-launch-object-browser" data-window-kinds="object" data-base-label="Object Browser" data-launch-command="open-object-browser" style="display:none"><span class="taskbar-btn-label">Object Browser</span><span class="taskbar-btn-count">0</span></button>
   <button class="taskbar-btn taskbar-window-kind-btn" id="taskbar-launch-class-browser" data-window-kinds="class-browser" data-base-label="Class Browser" data-launch-command="open-class-browser" style="display:none"><span class="taskbar-btn-label">Class Browser</span><span class="taskbar-btn-count">0</span></button>
+  <button class="taskbar-btn taskbar-window-kind-btn" id="taskbar-launch-codegen" data-window-kinds="codegen-explorer" data-base-label="Codegen" data-launch-command="open-codegen-explorer" style="display:none"><span class="taskbar-btn-label">Codegen</span><span class="taskbar-btn-count">0</span></button>
   <button class="taskbar-btn taskbar-window-kind-btn" id="taskbar-launch-workspace" data-window-kinds="workspace" data-base-label="Workspace" data-launch-command="open-workspace" style="display:none"><span class="taskbar-btn-label">Workspace</span><span class="taskbar-btn-count">0</span></button>
   <button class="taskbar-btn taskbar-window-kind-btn" id="taskbar-launch-ruby-workspace" data-window-kinds="ruby-workspace" data-base-label="Ruby Workspace" data-launch-command="open-ruby-workspace" style="display:none"><span class="taskbar-btn-label">Ruby Workspace</span><span class="taskbar-btn-count">0</span></button>
   <button class="taskbar-btn taskbar-window-kind-btn" id="taskbar-launch-maglev-report" data-window-kinds="maglev-report" data-base-label="MagLev Reports" data-launch-command="open-maglev-loaded-features" style="display:none"><span class="taskbar-btn-label">MagLev Reports</span><span class="taskbar-btn-count">0</span></button>
@@ -1991,6 +2106,7 @@
 <script src="/static/js/class_browser_app_runtime.js"></script>
 <script src="/static/js/class_browser_view.js"></script>
 <script src="/static/js/class_browser_controller.js"></script>
+<script src="/static/js/codegen_explorer_runtime.js"></script>
 <script src="/static/js/modal_runtime.js"></script>
 <script src="/static/js/dock_launcher_model.js"></script>
 <script src="/static/js/dock_context_menu_view.js"></script>
@@ -2052,7 +2168,7 @@ const windowState = new Map();
 const windowLayoutStorageKey = 'python-gemstone-window-layout-v1';
 const healthyWindowLayoutStorageKey = 'python-gemstone-window-layout-healthy-v1';
 const statusHistoryStorageKey = 'python-gemstone-status-history-v1';
-const restorableWindowKinds = new Set(['object', 'class-browser', 'workspace', 'ruby-workspace', 'maglev-report', 'web-browser', 'symbol-list', 'debugger', 'method-query', 'hierarchy', 'versions', 'connection', 'about', 'status-log', 'window-groups', 'window-links']);
+const restorableWindowKinds = new Set(['object', 'class-browser', 'codegen-explorer', 'workspace', 'ruby-workspace', 'maglev-report', 'web-browser', 'symbol-list', 'debugger', 'method-query', 'hierarchy', 'versions', 'connection', 'about', 'status-log', 'window-groups', 'window-links']);
 let suppressWindowLayoutPersist = false;
 let runtimeVersionInfo = null;
 const liveWindowRenderers = new Map();
@@ -2265,6 +2381,9 @@ const {
 const {
   createClassBrowserAppRuntime,
 } = window.ClassBrowserAppRuntime;
+const {
+  createCodegenExplorerRuntime,
+} = window.CodegenExplorerRuntime;
 const {
   createClassBrowserShellRuntime,
 } = window.ClassBrowserShellRuntime;
@@ -2587,6 +2706,7 @@ const appShellRuntime = createAppShellRuntime({
   closeManagedFocusedWindowGroup,
   openObjectBrowser: (...args) => appWindowsRuntime.openObjectBrowser(...args),
   openClassBrowser: (...args) => appWindowsRuntime.openClassBrowser(...args),
+  openCodegenExplorer: (...args) => appWindowsRuntime.openCodegenExplorer(...args),
   openWorkspace: (...args) => appWindowsRuntime.openWorkspace(...args),
   openRubyWorkspace: (...args) => appWindowsRuntime.openRubyWorkspace(...args),
   openMaglevReportWindow: (...args) => appWindowsRuntime.openMaglevReportWindow(...args),
@@ -2728,6 +2848,7 @@ appWindowsRuntime = createAppWindowsRuntime({
   createModalRuntime,
   createObjectBrowserAppRuntime,
   createClassBrowserAppRuntime,
+  createCodegenExplorerRuntime,
   createWorkspaceAppRuntime,
   createSupportWindowsAppRuntime,
   createDeveloperToolsAppRuntime,

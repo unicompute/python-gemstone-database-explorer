@@ -11,6 +11,7 @@
   const defaultPinnedCommands = [
     'open-workspace',
     'open-class-browser',
+    'open-codegen-explorer',
     'open-object-browser',
     'open-symbol-list',
     'open-connection',

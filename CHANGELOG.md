@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add Codegen Explorer APIs and UI for live class/method discovery, selector selection, JSON metadata export, and `gemstone-py` wrapper preview.
+
 ## 1.0.0 - 2026-04-25
 
 - Declared the first packaged explorer release and aligned package metadata with the shipped tool surface.

@@ -24,6 +24,7 @@ from flask import Flask, jsonify, request, render_template
 from gemstone_p import __version__
 from gemstone_p.routes_connection import register_connection_routes
 from gemstone_p.routes_code import register_code_routes
+from gemstone_p.routes_codegen import register_codegen_routes
 from gemstone_p.routes_class_browser import register_class_browser_routes
 from gemstone_p.routes_debugger import register_debugger_routes
 from gemstone_p.routes_maglev import register_maglev_routes
@@ -661,6 +662,17 @@ def create_app() -> Flask:
         cb_dict_expr_fn=_cb_dict_expr,
         cb_behavior_expr_fn=_cb_behavior_expr,
         cb_error_payload_message_fn=_cb_error_payload_message,
+    )
+
+    register_codegen_routes(
+        app,
+        request_session_factory=lambda **kwargs: gs_session.request_session(**kwargs),
+        eval_str_fn=_eval_str,
+        encode_src=_ENCODE_SRC,
+        escape_st_fn=_escape_st,
+        decode_field_fn=_decode_field,
+        cb_dict_expr_fn=_cb_dict_expr,
+        cb_behavior_expr_fn=_cb_behavior_expr,
     )
 
     register_transaction_routes(

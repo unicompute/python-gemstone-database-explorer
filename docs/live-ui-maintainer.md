@@ -41,7 +41,7 @@ npm run test:ui:live
 
 Keep `live.spec.js` narrow.
 
-- Add a live test when a bug depends on real GemStone behavior: debugger frame/source behavior, transaction semantics, session/channel isolation, class-browser writes against a real dictionary, or startup/login integration.
+- Add a live test when a bug depends on real GemStone behavior: debugger frame/source behavior, transaction semantics, session/channel isolation, class-browser writes against a real dictionary, codegen discovery against live class metadata, or startup/login integration.
 - Do not mirror the whole mock suite in live form.
 - If a flow can be proven with the mock server, keep it in the normal UI suite instead.
 

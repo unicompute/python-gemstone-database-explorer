@@ -44,6 +44,13 @@ test('app windows runtime delegates window openers to composed runtimes', () => 
         },
       };
     },
+    createCodegenExplorerRuntime() {
+      return {
+        openCodegenExplorer(options) {
+          return ['codegen-explorer', options];
+        },
+      };
+    },
     createWorkspaceAppRuntime() {
       return {
         openExpressionWorkspace(options) {
@@ -110,6 +117,7 @@ test('app windows runtime delegates window openers to composed runtimes', () => 
   assert.deepEqual(runtime.openConnectionWindow({ y: 2 }), ['connection', { y: 2 }]);
   assert.deepEqual(runtime.openDebugger(7, 'thread', { sessionChannel: 'debug-w' }), ['debugger', 7, 'thread', { sessionChannel: 'debug-w' }]);
   assert.deepEqual(runtime.openClassBrowser({ dictionary: 'UserGlobals' }), ['class-browser', { dictionary: 'UserGlobals' }]);
+  assert.deepEqual(runtime.openCodegenExplorer({ dictionary: 'UserGlobals' }), ['codegen-explorer', { dictionary: 'UserGlobals' }]);
   assert.deepEqual(runtime.openTextWindow('Report', 'body', 'Report'), ['text', 'Report', 'body', 'Report']);
 });
 
@@ -147,6 +155,9 @@ test('app windows runtime builds db tables through the shared helper', () => {
     },
     createClassBrowserAppRuntime() {
       return { openClassBrowser() {} };
+    },
+    createCodegenExplorerRuntime() {
+      return { openCodegenExplorer() {} };
     },
     createWorkspaceAppRuntime() {
       return {
@@ -217,6 +228,9 @@ test('app windows runtime can expose global window openers', () => {
     createClassBrowserAppRuntime() {
       return { openClassBrowser() { return 'class-browser'; } };
     },
+    createCodegenExplorerRuntime() {
+      return { openCodegenExplorer() { return 'codegen-explorer'; } };
+    },
     createWorkspaceAppRuntime() {
       return {
         openExpressionWorkspace() { return 'expression-workspace'; },
@@ -253,4 +267,5 @@ test('app windows runtime can expose global window openers', () => {
   assert.equal(target.openWorkspace(), 'workspace');
   assert.equal(target.openConnectionWindow(), 'connection');
   assert.equal(target.openClassBrowser(), 'class-browser');
+  assert.equal(target.openCodegenExplorer(), 'codegen-explorer');
 });

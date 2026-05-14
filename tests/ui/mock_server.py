@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 import re
 from pathlib import Path
@@ -520,6 +521,28 @@ def _methods_for(class_name: str, protocol: str, meta: bool) -> list[str]:
     else:
         methods = list(protocols.get(protocol, []))
     return methods
+
+
+def _selector_to_python_name(selector: str) -> str:
+    parts = [part for part in str(selector or "").split(":") if part]
+    if not parts:
+        base = str(selector or "")
+    elif len(parts) == 1 and ":" not in str(selector or ""):
+        base = parts[0]
+    else:
+        base = "_".join(parts)
+    name = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", base)
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+    name = re.sub(r"[^0-9A-Za-z_]+", "_", name).strip("_").lower()
+    if not name:
+        return "method"
+    if name[0].isdigit():
+        return f"_{name}"
+    return name
+
+
+def _python_module_name(class_name: str) -> str:
+    return _selector_to_python_name(class_name)
 
 
 def _dictionary_for_class(class_name: str, preferred: str = "") -> str:
@@ -1540,6 +1563,151 @@ def class_browser_source():
     else:
         source = _class_definition(class_name, meta)
     return jsonify(success=True, source=source)
+
+
+@app.get("/codegen/dictionaries")
+def codegen_dictionaries():
+    _count_request("codegen.dictionaries")
+    return jsonify(success=True, dictionaries=sorted(CLASS_DICTIONARIES.keys()))
+
+
+@app.get("/codegen/classes")
+def codegen_classes():
+    _count_request("codegen.classes")
+    dictionary = request.args.get("dictionary", "").strip()
+    return jsonify(
+        success=True,
+        dictionary=dictionary,
+        classes=[
+            {"className": class_name, "dictionary": dictionary}
+            for class_name in CLASS_DICTIONARIES.get(dictionary, [])
+        ],
+    )
+
+
+@app.get("/codegen/class")
+def codegen_class_details():
+    _count_request("codegen.class")
+    class_name = request.args.get("class", "").strip()
+    dictionary = request.args.get("dictionary", "").strip()
+
+    def method_row(selector: str, category: str, meta: bool) -> dict:
+        return {
+            "selector": selector,
+            "category": category,
+            "argCount": selector.count(":"),
+            "pythonName": _selector_to_python_name(selector),
+            "propertyCandidate": not meta and ":" not in selector,
+        }
+
+    instance_methods = []
+    class_methods = []
+    for category, selectors in CLASS_PROTOCOLS.get((class_name, False), {}).items():
+        instance_methods.extend(method_row(selector, category, False) for selector in selectors)
+    for category, selectors in CLASS_PROTOCOLS.get((class_name, True), {}).items():
+        class_methods.extend(method_row(selector, category, True) for selector in selectors)
+    return jsonify(
+        success=True,
+        dictionary=dictionary,
+        className=class_name,
+        instvars=sorted(CLASS_INSTANCE_VARS.get(class_name, [])),
+        instanceMethods=instance_methods,
+        classMethods=class_methods,
+    )
+
+
+@app.get("/codegen/source")
+def codegen_source():
+    _count_request("codegen.source")
+    class_name = request.args.get("class", "").strip()
+    selector = request.args.get("selector", "").strip()
+    meta = request.args.get("meta") == "1"
+    return jsonify(
+        success=True,
+        className=class_name,
+        selector=selector,
+        meta=meta,
+        source=METHOD_SOURCES.get((class_name, meta, selector), ""),
+    )
+
+
+@app.post("/codegen/preview")
+def codegen_preview():
+    _count_request("codegen.preview")
+    data = request.get_json(force=True) or {}
+    classes = data.get("classes") if isinstance(data.get("classes"), list) else []
+    lines = [
+        "from __future__ import annotations",
+        "",
+        "from typing import Any, Protocol",
+        "",
+        "from gemstone_py import gemstone_class, gemstone_selector",
+        "",
+    ]
+    files = [
+        {"path": "__init__.py", "source": "", "className": "", "protocolName": "", "warnings": []},
+        {"path": "__init__.pyi", "source": "", "className": "", "protocolName": "", "warnings": []},
+    ]
+    for class_spec in classes:
+        class_name = str(class_spec.get("className") or "").strip()
+        protocol_name = str(class_spec.get("protocolName") or f"{class_name}Proto").strip()
+        if not class_name:
+            continue
+        lines.append(f"@gemstone_class({class_name!r}, async_=True)")
+        lines.append(f"class {protocol_name}(Protocol):")
+        body_count = 0
+        for field in class_spec.get("fields") or []:
+            lines.append(f"    {field}: Any")
+            body_count += 1
+        for method in class_spec.get("methods") or []:
+            selector = str(method.get("selector") or "").strip()
+            python_name = str(method.get("pythonName") or _selector_to_python_name(selector)).strip()
+            arg_count = selector.count(":")
+            arg_names = method.get("argNames") if isinstance(method.get("argNames"), list) else []
+            if len(arg_names) != arg_count:
+                arg_names = [f"arg{index + 1}" for index in range(arg_count)]
+            args = ", ".join(["self", *[f"{arg}: Any" for arg in arg_names]])
+            lines.append(f"    @gemstone_selector({selector!r})")
+            lines.append(f"    def {python_name}({args}) -> Any: ...")
+            body_count += 1
+        if body_count == 0:
+            lines.append("    pass")
+        lines.append("")
+        module_name = _python_module_name(class_name)
+        files.append({
+            "path": f"{module_name}.py",
+            "source": f"class {class_name}:\n    __gemstone_class_name__ = {class_name!r}\n",
+            "className": class_name,
+            "protocolName": protocol_name,
+            "warnings": [],
+        })
+        files.append({
+            "path": f"{module_name}.pyi",
+            "source": f"class {class_name}: ...\n",
+            "className": class_name,
+            "protocolName": protocol_name,
+            "warnings": [],
+        })
+    selection = {
+        "schemaVersion": 1,
+        "moduleName": str(data.get("moduleName") or "preview_models"),
+        "async": bool(data.get("async", True)),
+        "classes": classes,
+    }
+    return jsonify(success=True, selection=selection, protocolSource="\n".join(lines).rstrip() + "\n", files=files, warnings=[])
+
+
+@app.post("/codegen/export-selection")
+def codegen_export_selection():
+    _count_request("codegen.export-selection")
+    data = request.get_json(force=True) or {}
+    selection = {
+        "schemaVersion": 1,
+        "moduleName": str(data.get("moduleName") or "preview_models"),
+        "async": bool(data.get("async", True)),
+        "classes": data.get("classes") if isinstance(data.get("classes"), list) else [],
+    }
+    return jsonify(success=True, selection=selection, json=json.dumps(selection, indent=2, sort_keys=True))
 
 
 @app.get("/class-browser/hierarchy")

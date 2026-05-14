@@ -261,6 +261,7 @@ test('app shell runtime exposes window bindings and delegates taskbar/object-lin
     closeManagedFocusedWindowGroup() {},
     openObjectBrowser() {},
     openClassBrowser() {},
+    openCodegenExplorer() {},
     openWorkspace() {},
     openRubyWorkspace() {},
     openMaglevReportWindow() {},

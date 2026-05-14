@@ -12,7 +12,7 @@ authors = [{ name = "python-gemstone-database-explorer contributors" }]
 requires-python = ">=3.11"
 dependencies = [
     "flask>=3.0",
-    "gemstone-py>=0.2.5",
+    "gemstone-py>=0.2.14",
 ]
 keywords = ["gemstone", "smalltalk", "database", "debugger", "flask"]
 classifiers = [

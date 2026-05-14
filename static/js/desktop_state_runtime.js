@@ -73,6 +73,13 @@
           meta: !!state.meta,
         };
       }
+      if (state.kind === 'codegen-explorer') {
+        return {
+          ...base,
+          dictionary: state.dictionary || '',
+          className: state.className || '',
+        };
+      }
       if (state.kind === 'workspace') {
         return {
           ...base,
@@ -228,6 +235,7 @@
         setZTop: deps.setZTop,
         openObjectBrowser: deps.openObjectBrowser,
         openClassBrowser: deps.openClassBrowser,
+        openCodegenExplorer: deps.openCodegenExplorer,
         openWorkspace: deps.openWorkspace,
         openRubyWorkspace: deps.openRubyWorkspace,
         openMaglevReportWindow: deps.openMaglevReportWindow,

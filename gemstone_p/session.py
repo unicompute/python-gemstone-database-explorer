@@ -144,6 +144,8 @@ class _SessionBroker:
         path = str(request.path or "")
         if path.startswith("/debug"):
             base = "debug"
+        elif path.startswith("/codegen"):
+            base = "codegen"
         elif path.startswith("/transaction"):
             base = "transaction"
         elif path.startswith("/class-browser"):

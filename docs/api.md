@@ -443,6 +443,92 @@ Method actions:
 
 The compile response may include `selector`, `previousSelector`, and `category` so the UI can follow method renames.
 
+## Codegen Explorer
+
+The Codegen Explorer is an integration surface for `gemstone-py` codegen. The explorer discovers live classes and methods, lets users choose selectors, exports selection metadata, and can preview the generated wrapper package. Code generation rules stay in `gemstone-py`.
+
+### `GET /codegen/dictionaries`
+
+Returns visible symbol-list dictionaries for codegen discovery.
+
+### `GET /codegen/classes`
+
+Returns classes in a dictionary.
+
+Query parameters:
+
+- `dictionary`
+
+Response:
+
+```json
+{
+  "success": true,
+  "dictionary": "Globals",
+  "classes": [
+    {"className": "Object", "dictionary": "Globals"}
+  ]
+}
+```
+
+### `GET /codegen/class`
+
+Returns instance variables, instance methods, and class-side methods for a class.
+
+Query parameters:
+
+- `dictionary`
+- `class`
+
+Each method includes `selector`, `category`, `argCount`, `pythonName`, and `propertyCandidate`. `propertyCandidate` is true for no-argument instance selectors that can be selected as generated fields.
+
+### `GET /codegen/source`
+
+Returns method source for a selector.
+
+Query parameters:
+
+- `dictionary`
+- `class`
+- `selector`
+- `meta=1` for class side
+
+### `POST /codegen/preview`
+
+Normalizes a selection, renders a Protocol draft, runs `gemstone_py.codegen.generate_package()` in a temporary directory, and returns generated file previews.
+
+Body:
+
+```json
+{
+  "moduleName": "my_app.protocols",
+  "async": true,
+  "classes": [
+    {
+      "className": "Booking",
+      "protocolName": "BookingProto",
+      "dictionary": "Globals",
+      "fields": ["status"],
+      "methods": [
+        {
+          "selector": "markPaid:",
+          "pythonName": "mark_paid",
+          "argNames": ["payment"],
+          "returnAnnotation": "Any"
+        }
+      ],
+      "classMethods": []
+    }
+  ]
+}
+```
+
+Response includes `selection`, `protocolSource`, `files`, and `warnings`.
+
+### `POST /codegen/export-selection`
+
+Validates and returns the normalized selection metadata as JSON. This is for tools that want to persist or hand off the selected dictionaries/classes/selectors without invoking code generation.
+
 ## Symbol List Browser
 
 ### `GET /symbol-list/users`

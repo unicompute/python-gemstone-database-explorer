@@ -31,6 +31,7 @@
   function createAppWindowsRuntime(deps = {}) {
     let objectBrowserAppRuntime = null;
     let classBrowserAppRuntime = null;
+    let codegenExplorerRuntime = null;
     let workspaceAppRuntime = null;
     let supportWindowsAppRuntime = null;
     let developerToolsAppRuntime = null;
@@ -107,6 +108,10 @@
       return classBrowserAppRuntime.openClassBrowser(options);
     }
 
+    function openCodegenExplorer(options = {}) {
+      return codegenExplorerRuntime.openCodegenExplorer(options);
+    }
+
     function exposeWindowBindings(target) {
       Object.assign(target, {
         openObjectBrowser,
@@ -127,6 +132,7 @@
         openHierarchyWindow,
         openVersionsWindow,
         openClassBrowser,
+        openCodegenExplorer,
       });
       return target;
     }
@@ -263,6 +269,19 @@
       buildCompileRequest: deps.buildCompileRequest,
       applyCompileResponse: deps.applyCompileResponse,
       buildTransactionActionSpec: deps.buildTransactionActionSpec,
+      escHtml: deps.escHtml,
+    });
+
+    codegenExplorerRuntime = deps.createCodegenExplorerRuntime({
+      createWindow: deps.createWindow,
+      exactWriteSessionChannel: deps.exactWriteSessionChannel,
+      api: deps.api,
+      apiPost: deps.apiPost,
+      apiWithParams: deps.apiWithParams,
+      upsertWindowState: deps.upsertWindowState,
+      setStatus: deps.setStatus,
+      copyTextToClipboard: deps.copyTextToClipboard,
+      downloadDataFile: deps.downloadDataFile,
       escHtml: deps.escHtml,
     });
 
@@ -472,6 +491,7 @@
       requestConfirmModal,
       objectBrowserAppRuntime,
       classBrowserAppRuntime,
+      codegenExplorerRuntime,
       workspaceAppRuntime,
       supportWindowsAppRuntime,
       developerToolsAppRuntime,
@@ -493,6 +513,7 @@
       openHierarchyWindow,
       openVersionsWindow,
       openClassBrowser,
+      openCodegenExplorer,
       exposeWindowBindings,
       makeTable(headers, rows) {
         return makeTable(deps.document, deps.escHtml, headers, rows);

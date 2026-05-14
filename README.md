@@ -9,6 +9,7 @@ A Python/Flask web application for browsing and inspecting objects in a [GemSton
 - Object inspectors with draggable object chips, linking arrows, eval, transaction controls, and backend-driven tabs
 - Workspace windows that can evaluate code, open linked inspectors, and auto-open the debugger on halts
 - Full Class Browser with dictionary/class/protocol/method panes, compile, file-out, structure editing, helper windows, and inspect actions
+- Codegen Explorer for live class/method discovery, selector selection, JSON metadata export, and gemstone-py wrapper preview
 - Helper windows for method queries, hierarchy, and versions, including load/open/inspect flows
 - Debugger windows with halted-thread summaries, stack frames, locals, thread-local storage, step/proceed/trim, and execution-point highlighting
 - Symbol List Browser for users, dictionaries, entries, and value inspection

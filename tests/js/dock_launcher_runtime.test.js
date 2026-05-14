@@ -94,6 +94,7 @@ test('dock launcher runtime builds pinned, system, and open-window sections', ()
 
 test('dock launcher runtime dispatches launcher commands', () => {
   let objectBrowserOpens = 0;
+  let codegenExplorerOpens = 0;
   let launcherState = null;
   const dockLauncherRuntime = runtime.createDockLauncherRuntime({
     document: {
@@ -156,14 +157,19 @@ test('dock launcher runtime dispatches launcher commands', () => {
     openObjectBrowser() {
       objectBrowserOpens += 1;
     },
+    openCodegenExplorer() {
+      codegenExplorerOpens += 1;
+    },
     closeDockContextMenu() {},
     closeDockWindowPreview() {},
   });
 
   assert.equal(dockLauncherRuntime.runDockLauncherCommand('open-object-browser'), true);
+  assert.equal(dockLauncherRuntime.runDockLauncherCommand('open-codegen-explorer'), true);
   dockLauncherRuntime.setDockLauncherOpen(true);
 
   assert.equal(objectBrowserOpens, 1);
+  assert.equal(codegenExplorerOpens, 1);
   assert.equal(dockLauncherRuntime.isDockLauncherOpen(), true);
   assert.equal(launcherState, true);
 });

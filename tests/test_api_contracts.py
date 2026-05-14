@@ -158,6 +158,123 @@ class TestApiContracts(unittest.TestCase):
         )
 
     @patch("gemstone_p.app.gs_session.request_session")
+    def test_codegen_class_details_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = (
+            "I|status\n"
+            "M|instance|accessing|status\n"
+            "M|instance|actions|markPaid:\n"
+            "M|class|finding|findById:\n"
+        )
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.get("/codegen/class?dictionary=Globals&class=OkzBooking")
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(
+            set(data.keys()),
+            {"success", "dictionary", "className", "instvars", "instanceMethods", "classMethods"},
+        )
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["dictionary"], "Globals")
+        self.assertEqual(data["className"], "OkzBooking")
+        self.assertEqual(data["instvars"], ["status"])
+        self.assertEqual(data["instanceMethods"][0]["selector"], "status")
+        self.assertEqual(data["instanceMethods"][0]["pythonName"], "status")
+        self.assertEqual(data["instanceMethods"][0]["argCount"], 0)
+        self.assertTrue(data["instanceMethods"][0]["propertyCandidate"])
+        self.assertEqual(data["instanceMethods"][1]["selector"], "markPaid:")
+        self.assertEqual(data["instanceMethods"][1]["pythonName"], "mark_paid")
+        self.assertEqual(data["classMethods"][0]["selector"], "findById:")
+        self.assertEqual(data["classMethods"][0]["pythonName"], "find_by_id")
+
+    def test_codegen_preview_contract(self):
+        response = self.client.post(
+            "/codegen/preview",
+            json={
+                "moduleName": "preview_models",
+                "async": True,
+                "classes": [
+                    {
+                        "className": "OkzBooking",
+                        "dictionary": "Globals",
+                        "fields": ["status"],
+                        "methods": [
+                            {"selector": "markPaid:", "pythonName": "mark_paid"},
+                        ],
+                        "classMethods": [
+                            {"selector": "findById:", "pythonName": "find_by_id"},
+                        ],
+                    },
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "selection", "protocolSource", "files", "warnings"})
+        self.assertIs(data["success"], True)
+        self.assertIn("@gemstone_class('OkzBooking', async_=True)", data["protocolSource"])
+        self.assertIn("@gemstone_selector('findById:')", data["protocolSource"])
+        self.assertIn("class OkzBookingProto(Protocol):", data["protocolSource"])
+        paths = {item["path"] for item in data["files"]}
+        self.assertIn("__init__.py", paths)
+        self.assertIn("__init__.pyi", paths)
+        self.assertIn("okz_booking.py", paths)
+        self.assertIn("okz_booking.pyi", paths)
+        wrapper = next(item for item in data["files"] if item["path"] == "okz_booking.py")
+        self.assertIn("class OkzBooking(TypedOop[Any]):", wrapper["source"])
+        self.assertIn("__gemstone_selectors__", wrapper["source"])
+
+    def test_codegen_export_selection_contract(self):
+        response = self.client.post(
+            "/codegen/export-selection",
+            json={
+                "moduleName": "preview_models",
+                "classes": [
+                    {
+                        "className": "OkzBooking",
+                        "fields": ["status"],
+                    },
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "selection", "json"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["selection"]["schemaVersion"], 1)
+        self.assertEqual(data["selection"]["classes"][0]["protocolName"], "OkzBookingProto")
+        exported = json.loads(data["json"])
+        self.assertEqual(exported["moduleName"], "preview_models")
+
+    def test_codegen_preview_rejects_unsafe_return_annotation(self):
+        response = self.client.post(
+            "/codegen/preview",
+            json={
+                "moduleName": "preview_models",
+                "classes": [
+                    {
+                        "className": "OkzBooking",
+                        "methods": [
+                            {
+                                "selector": "markPaid:",
+                                "returnAnnotation": "Any:\n    raise RuntimeError('no')",
+                            },
+                        ],
+                    },
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIs(data["success"], False)
+        self.assertIn("returnAnnotation", data["exception"])
+
+    @patch("gemstone_p.app.gs_session.request_session")
     def test_class_browser_add_dictionary_contract(self, mock_rs):
         session = _mock_session()
         session.eval.return_value = "OK|TmpUI"

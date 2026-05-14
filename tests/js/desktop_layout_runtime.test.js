@@ -197,3 +197,36 @@ test('desktop layout runtime restores saved layout through openers and reapplies
   assert.ok(persistCalls >= 1);
   assert.equal(typeof persistedSnapshot, 'string');
 });
+
+test('desktop layout runtime restores codegen explorer windows', async () => {
+  let openedOptions = null;
+  const layoutRuntime = runtime.createDesktopLayoutRuntime({});
+
+  const win = await layoutRuntime.openWindowFromLayoutDescriptor(
+    {
+      kind: 'codegen-explorer',
+      x: 10,
+      y: 20,
+      width: 900,
+      height: 640,
+      dictionary: 'UserGlobals',
+      className: 'OkzBooking',
+    },
+    {
+      openCodegenExplorer(options) {
+        openedOptions = options;
+        return { id: 'codegen-1' };
+      },
+    }
+  );
+
+  assert.deepEqual(win, { id: 'codegen-1' });
+  assert.deepEqual(openedOptions, {
+    x: 10,
+    y: 20,
+    width: 900,
+    height: 640,
+    dictionary: 'UserGlobals',
+    className: 'OkzBooking',
+  });
+});
