@@ -189,6 +189,43 @@ class TestApiContracts(unittest.TestCase):
         self.assertEqual(data["classMethods"][0]["selector"], "findById:")
         self.assertEqual(data["classMethods"][0]["pythonName"], "find_by_id")
 
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_codegen_protocols_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "accessing\nactions\n"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.get("/codegen/protocols?dictionary=Globals&class=OkzBooking")
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "dictionary", "className", "meta", "protocols"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["dictionary"], "Globals")
+        self.assertEqual(data["className"], "OkzBooking")
+        self.assertEqual(data["protocols"], ["accessing", "actions"])
+
+    @patch("gemstone_p.app.gs_session.request_session")
+    def test_codegen_methods_contract(self, mock_rs):
+        session = _mock_session()
+        session.eval.return_value = "accessing|status\nactions|markPaid:\n"
+        mock_rs.return_value = _mock_request_session(session)
+
+        response = self.client.get("/codegen/methods?dictionary=Globals&class=OkzBooking&protocol=actions")
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(set(data.keys()), {"success", "dictionary", "className", "meta", "protocol", "methods"})
+        self.assertIs(data["success"], True)
+        self.assertEqual(data["dictionary"], "Globals")
+        self.assertEqual(data["className"], "OkzBooking")
+        self.assertEqual(data["protocol"], "actions")
+        self.assertEqual(data["methods"][0]["selector"], "status")
+        self.assertEqual(data["methods"][0]["pythonName"], "status")
+        self.assertTrue(data["methods"][0]["propertyCandidate"])
+        self.assertEqual(data["methods"][1]["selector"], "markPaid:")
+        self.assertEqual(data["methods"][1]["argCount"], 1)
+
     def test_codegen_preview_contract(self):
         response = self.client.post(
             "/codegen/preview",

@@ -146,6 +146,98 @@ def register_codegen_routes(
             classMethods=class_methods,
         )
 
+    @app.get("/codegen/protocols")
+    def codegen_protocols():
+        class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
+        meta = str(request.args.get("meta", "")).strip().lower() in {"1", "true", "yes", "on"}
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        try:
+            with request_session(read_only=True) as session:
+                raw = eval_str(
+                    session,
+                    "[ | cls encode rows |\n"
+                    f"{encode_src}\n"
+                    "rows := OrderedCollection new.\n"
+                    f"cls := {cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    "cls ifNotNil: [\n"
+                    "  [cls categoryNames asSortedCollection do: [:cat |\n"
+                    "    rows add: (encode value: cat asString)\n"
+                    "  ]] on: Error do: [:e | nil]\n"
+                    "].\n"
+                    "(String streamContents: [:stream | rows do: [:row | stream nextPutAll: row; lf]])\n"
+                    "] value",
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        protocols = [decode_field(line.strip()) for line in str(raw).splitlines() if line.strip()]
+        return jsonify(
+            success=True,
+            dictionary=dictionary,
+            className=class_name,
+            meta=meta,
+            protocols=protocols,
+        )
+
+    @app.get("/codegen/methods")
+    def codegen_methods():
+        class_name = request.args.get("class", "").strip()
+        dictionary = request.args.get("dictionary", "").strip()
+        protocol = request.args.get("protocol", "").strip()
+        if protocol == "-- all --":
+            protocol = ""
+        meta = str(request.args.get("meta", "")).strip().lower() in {"1", "true", "yes", "on"}
+        if not class_name:
+            return jsonify(success=False, exception="missing class"), 400
+        try:
+            with request_session(read_only=True) as session:
+                raw = eval_str(
+                    session,
+                    "[ | cls encode rows categories |\n"
+                    f"{encode_src}\n"
+                    "rows := OrderedCollection new.\n"
+                    f"cls := {cb_behavior_expr(class_name, meta, dictionary)}.\n"
+                    "cls ifNotNil: [\n"
+                    f"  categories := '{escape_st(protocol)}' isEmpty\n"
+                    "    ifTrue: [cls categoryNames]\n"
+                    f"    ifFalse: [Array with: '{escape_st(protocol)}'].\n"
+                    "  [categories asSortedCollection do: [:cat |\n"
+                    "    | selectors |\n"
+                    "    selectors := ([cls selectorsIn: cat] on: Error do: [:e | #()]).\n"
+                    "    selectors ifNil: [selectors := #()].\n"
+                    "    selectors asSortedCollection do: [:sel |\n"
+                    "      rows add: ((encode value: cat asString), '|', (encode value: sel asString))\n"
+                    "    ]\n"
+                    "  ]] on: Error do: [:e | nil]\n"
+                    "].\n"
+                    "(String streamContents: [:stream | rows do: [:row | stream nextPutAll: row; lf]])\n"
+                    "] value",
+                )
+        except Exception as exc:
+            return jsonify(success=False, exception=str(exc)), 500
+        methods = []
+        for line in str(raw).splitlines():
+            if "|" not in line:
+                continue
+            category, selector = line.split("|", 1)
+            decoded_selector = decode_field(selector)
+            methods.append({
+                "selector": decoded_selector,
+                "category": decode_field(category),
+                "argCount": decoded_selector.count(":"),
+                "pythonName": _selector_to_python_name(decoded_selector),
+                "propertyCandidate": not meta and ":" not in decoded_selector,
+            })
+        return jsonify(
+            success=True,
+            dictionary=dictionary,
+            className=class_name,
+            meta=meta,
+            protocol=protocol,
+            methods=methods,
+        )
+
     @app.get("/codegen/source")
     def codegen_source():
         class_name = request.args.get("class", "").strip()

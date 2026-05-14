@@ -342,6 +342,7 @@ INITIAL_CLASS_PROTOCOLS = {
         "printing": ["printString"],
     },
     ("DemoRecord", False): {
+        "actions": ["renameTo:"],
         "accessing": ["name"],
     },
 }
@@ -352,6 +353,7 @@ INITIAL_METHOD_SOURCES = {
     ("Object", True, "new"): "new\n^ super new",
     ("Behavior", False, "printString"): "printString\n^ self name",
     ("DemoRecord", False, "name"): "name\n^ @maglev_attributes at: #name",
+    ("DemoRecord", False, "renameTo:"): "renameTo: newName\n@maglev_attributes at: #name put: newName.\n^ self",
 }
 
 INITIAL_SYMBOL_LISTS = {
@@ -1616,6 +1618,52 @@ def codegen_class_details():
     )
 
 
+@app.get("/codegen/protocols")
+def codegen_protocols():
+    _count_request("codegen.protocols")
+    class_name = request.args.get("class", "").strip()
+    meta = request.args.get("meta") == "1"
+    return jsonify(
+        success=True,
+        dictionary=request.args.get("dictionary", "").strip(),
+        className=class_name,
+        meta=meta,
+        protocols=sorted(CLASS_PROTOCOLS.get((class_name, meta), {}).keys()),
+    )
+
+
+@app.get("/codegen/methods")
+def codegen_methods():
+    _count_request("codegen.methods")
+    class_name = request.args.get("class", "").strip()
+    dictionary = request.args.get("dictionary", "").strip()
+    protocol = request.args.get("protocol", "").strip()
+    meta = request.args.get("meta") == "1"
+    protocols = CLASS_PROTOCOLS.get((class_name, meta), {})
+    if protocol and protocol != "-- all --":
+        selected = {protocol: protocols.get(protocol, [])}
+    else:
+        selected = protocols
+    methods = []
+    for category, selectors in selected.items():
+        for selector in selectors:
+            methods.append({
+                "selector": selector,
+                "category": category,
+                "argCount": selector.count(":"),
+                "pythonName": _selector_to_python_name(selector),
+                "propertyCandidate": not meta and ":" not in selector,
+            })
+    return jsonify(
+        success=True,
+        dictionary=dictionary,
+        className=class_name,
+        meta=meta,
+        protocol=protocol,
+        methods=methods,
+    )
+
+
 @app.get("/codegen/source")
 def codegen_source():
     _count_request("codegen.source")
@@ -1666,9 +1714,10 @@ def codegen_preview():
             arg_names = method.get("argNames") if isinstance(method.get("argNames"), list) else []
             if len(arg_names) != arg_count:
                 arg_names = [f"arg{index + 1}" for index in range(arg_count)]
+            return_annotation = str(method.get("returnAnnotation") or "Any").strip() or "Any"
             args = ", ".join(["self", *[f"{arg}: Any" for arg in arg_names]])
             lines.append(f"    @gemstone_selector({selector!r})")
-            lines.append(f"    def {python_name}({args}) -> Any: ...")
+            lines.append(f"    def {python_name}({args}) -> {return_annotation}: ...")
             body_count += 1
         if body_count == 0:
             lines.append("    pass")

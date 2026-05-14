@@ -2,6 +2,8 @@
 
 GemStone Database Explorer is configured entirely through environment variables, read at startup by `gemstone-py`.
 
+The canonical connection variable names are `GS_USERNAME`, `GS_PASSWORD`, `GS_STONE`, `GS_HOST`, and `GS_NETLDI`. Shorter aliases such as `GS_USER` or longer aliases such as `GS_NETLDI_NAME_OR_PORT` are not primary configuration keys for this app.
+
 ## Required variables
 
 | Variable | Description |

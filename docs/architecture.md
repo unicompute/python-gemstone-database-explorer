@@ -4,18 +4,18 @@
 
 ```text
 Browser SPA (templates/index.html)
-        │
-        │ HTTP / JSON
-        ▼
+        |
+        | HTTP / JSON
+        v
 Flask routes (gemstone_p/app.py)
-        │
-        ├── object_view.py  → batched object inspection + eval result shaping
-        └── session.py      → brokered GemStone sessions + channel families
-                │
-                ▼
+        |
+        +-- object_view.py  -> batched object inspection + eval result shaping
+        +-- session.py      -> brokered GemStone sessions + channel families
+                |
+                v
          gemstone-py / GCI
-                │
-                ▼
+                |
+                v
           GemStone/S Stone
 ```
 
@@ -30,7 +30,7 @@ The frontend is intentionally self-contained. It provides:
 - object inspectors and workspace windows
 - Symbol List Browser
 - Class Browser
-- Codegen Explorer for selecting live classes/selectors and previewing gemstone-py generated wrappers
+- Codegen Explorer for selecting live classes/protocols/selectors, inspecting method source, importing/exporting selection JSON, and previewing gemstone-py generated wrappers
 - helper windows for queries, hierarchy, and versions
 - debugger windows
 - status-log, Connection, and About/support windows, including client-side support-bundle export
@@ -99,7 +99,7 @@ Current isolation model:
 - when no explicit channel is supplied, the broker falls back to route-derived channels
 - broken sessions can be dropped without tearing down the whole process
 
-The Codegen Explorer uses this same route-derived `codegen` family and honors exact per-window channels from the frontend. Its backend routes expose stable JSON for dictionaries, classes, methods, and source, then use `gemstone-py` codegen only for local preview generation. The explorer does not own generation rules; `gemstone-py` remains the source of decorators, selector rules, wrapper output, `.pyi` files, and async-wrapper behavior.
+The Codegen Explorer uses this same route-derived `codegen` family and honors exact per-window channels from the frontend. Its backend routes expose stable JSON for dictionaries, classes, protocols/categories, methods, and source, then use `gemstone-py` codegen only for local preview generation. The browser keeps selection editing local: imported JSON is normalized by the backend, and users can adjust Python method names, argument names, and return annotations before preview/export. The explorer does not own generation rules; `gemstone-py` remains the source of decorators, selector rules, wrapper output, `.pyi` files, and async-wrapper behavior.
 
 This design is a compromise: isolate browser/debugger flows better than a single global session, while staying honest about GemStone/GCI limits.
 

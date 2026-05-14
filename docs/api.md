@@ -445,7 +445,7 @@ The compile response may include `selector`, `previousSelector`, and `category` 
 
 ## Codegen Explorer
 
-The Codegen Explorer is an integration surface for `gemstone-py` codegen. The explorer discovers live classes and methods, lets users choose selectors, exports selection metadata, and can preview the generated wrapper package. Code generation rules stay in `gemstone-py`.
+The Codegen Explorer is an integration surface for `gemstone-py` codegen. The explorer discovers live classes, protocols/categories, methods, and source; lets users choose selectors; exports/imports selection metadata; and can preview the generated wrapper package. Code generation rules stay in `gemstone-py`.
 
 ### `GET /codegen/dictionaries`
 
@@ -480,7 +480,30 @@ Query parameters:
 - `dictionary`
 - `class`
 
-Each method includes `selector`, `category`, `argCount`, `pythonName`, and `propertyCandidate`. `propertyCandidate` is true for no-argument instance selectors that can be selected as generated fields.
+Each method includes `selector`, `category`, `argCount`, `pythonName`, and `propertyCandidate`. `propertyCandidate` is true for no-argument instance selectors that can be selected as generated fields. UI selections can override `pythonName`, `argNames`, and `returnAnnotation` before preview/export.
+
+### `GET /codegen/protocols`
+
+Returns protocols/categories for a class or metaclass.
+
+Query parameters:
+
+- `dictionary`
+- `class`
+- `meta=1` for class side
+
+### `GET /codegen/methods`
+
+Returns method metadata for a class or a single protocol/category.
+
+Query parameters:
+
+- `dictionary`
+- `class`
+- `protocol` optional; omit or pass `-- all --` for all protocols
+- `meta=1` for class side
+
+Each method has the same shape as `/codegen/class` method entries.
 
 ### `GET /codegen/source`
 
@@ -527,7 +550,7 @@ Response includes `selection`, `protocolSource`, `files`, and `warnings`.
 
 ### `POST /codegen/export-selection`
 
-Validates and returns the normalized selection metadata as JSON. This is for tools that want to persist or hand off the selected dictionaries/classes/selectors without invoking code generation.
+Validates and returns the normalized selection metadata as JSON. This is for tools that want to persist or hand off the selected dictionaries/classes/selectors without invoking code generation. The browser uses the same endpoint to normalize imported selection JSON before restoring it into the UI.
 
 ## Symbol List Browser
 

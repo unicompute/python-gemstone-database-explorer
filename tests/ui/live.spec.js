@@ -3,7 +3,7 @@ const { clickClassBrowserAction, launchDockApp, submitModal, windowByTitle } = r
 
 // Keep this suite narrow. Add cases here only when the behavior depends on a
 // real GemStone runtime and cannot be covered faithfully by the mock UI suite.
-const LIVE_STONE = process.env.GS_STONE || '';
+const LIVE_STONE = process.env.GS_STONE || process.env.GS_STONE_NAME || 'gs64stone';
 
 test('startup opens the default browser windows against a live GemStone session', async ({ page }) => {
   await page.goto('/');
@@ -77,6 +77,35 @@ test('class browser can locate Object and open its hierarchy report', async ({ p
   const hierarchy = windowByTitle(page, 'Object Hierarchy');
   await expect(hierarchy).toBeVisible();
   await expect(hierarchy).toContainText('Object');
+});
+
+test('codegen explorer discovers live class metadata', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#status-txt')).toContainText('connected');
+
+  await launchDockApp(page, 'Codegen Explorer');
+  const explorer = windowByTitle(page, 'Codegen Explorer');
+  await expect(explorer).toBeVisible();
+
+  const dictionarySelect = explorer.locator('select[id$="-dictionary"]');
+  await expect(dictionarySelect).toBeVisible();
+  const dictionaryOptions = await dictionarySelect.locator('option').allTextContents();
+  if (dictionaryOptions.includes('Globals')) {
+    await dictionarySelect.selectOption('Globals');
+  }
+
+  await explorer.locator('input[id$="-class-filter"]').fill('');
+  const classRows = explorer.locator('[data-class-name]');
+  await expect(classRows.first()).toBeVisible();
+  const className = await classRows.first().getAttribute('data-class-name');
+  expect(String(className || '')).not.toBe('');
+  await classRows.first().click();
+
+  const methodRows = explorer.locator('.codegen-method-row');
+  await expect(methodRows.first()).toBeVisible();
+  const selector = await methodRows.first().getAttribute('data-selector');
+  expect(String(selector || '')).not.toBe('');
+  await expect(explorer.locator('select[id$="-category-filter"] option').first()).toHaveText('All protocols');
 });
 
 test('workspace 1/0 opens a live debugger with an execution marker', async ({ page }) => {

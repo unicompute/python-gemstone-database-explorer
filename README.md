@@ -50,7 +50,6 @@ Set the GemStone connection environment before starting the app:
 | `GEMSTONE` | Path to the GemStone installation | `/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin` |
 | `GS_USERNAME` | GemStone login username | `DataCurator` |
 | `GS_PASSWORD` | GemStone login password | `swordfish` |
-| `GS_STONE` | Stone name | `seaside` |
 | `GS_STONE` | Stone name | `gs64stone` |
 | `GS_HOST` | Host running the Stone/NetLDI | `localhost` |
 | `GS_NETLDI` | NetLDI service name or port | `50377` |
@@ -119,6 +118,19 @@ Then open `http://127.0.0.1:9292/` in a browser.
 
 If startup fails because the wrong Stone name or local monitor target is configured, use the taskbar `Connection` window. It shows the effective target, the local `gslist -lcv` probe when available, and a copyable shell fix such as `export GS_STONE=seaside`.
 
+## Codegen Explorer
+
+The Codegen Explorer is a live selection surface for `gemstone-py` wrapper generation. It discovers dictionaries, classes, protocols/categories, selectors, and method source from the connected Stone, while keeping the generation rules in `gemstone-py`.
+
+Current workflow:
+
+- filter classes and selectors from live metadata
+- filter selectors by protocol/category and inspect method source before selecting
+- add instance-side fields, methods, and class-side methods to a selection
+- edit generated Python method names, argument names, and return annotations before previewing
+- export normalized selection JSON and import that JSON back into the UI later
+- preview the generated Protocol draft and wrapper package without writing files
+
 ## Testing
 
 ### Python
@@ -150,6 +162,9 @@ Run only the live UI suite:
 export GEMSTONE=/opt/gemstone/GemStone64Bit3.7.5-arm64.Darwin
 export GS_USERNAME=DataCurator
 export GS_PASSWORD=swordfish
+export GS_STONE=gs64stone
+export GS_HOST=localhost
+export GS_NETLDI=50377
 
 npm run test:ui:live
 ```
@@ -161,7 +176,7 @@ environment is present:
 npm run test:ui:all
 ```
 
-The live suite starts the real Flask app on `127.0.0.1:4192` and covers startup browsing, debugger flow, and a transactional Class Browser write flow that aborts its changes before the test ends.
+The live suite starts the real Flask app on `127.0.0.1:4192` and covers startup browsing, Codegen Explorer metadata discovery, debugger flow, and a transactional Class Browser write flow that aborts its changes before the test ends.
 
 ### Session Soak
 

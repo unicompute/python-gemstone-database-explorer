@@ -42,9 +42,11 @@
           <button class="btn" id="${id}-refresh">Refresh</button>
           <button class="btn-ghost" id="${id}-add">Add Selected</button>
           <button class="btn-ghost" id="${id}-preview">Preview</button>
+          <button class="btn-ghost" id="${id}-import">Import JSON</button>
           <button class="btn-ghost" id="${id}-export">Export JSON</button>
           <button class="btn-ghost" id="${id}-copy-protocol">Copy Protocol</button>
           <label class="cb-meta"><input type="checkbox" id="${id}-async" checked> Async wrappers</label>
+          <input type="file" id="${id}-import-file" accept="application/json,.json" hidden>
         </div>
         <div class="codegen-main">
           <section class="codegen-column codegen-discovery">
@@ -67,7 +69,18 @@
               <label>Method filter</label>
               <input id="${id}-method-filter" class="cb-filter" placeholder="Filter selectors">
             </div>
+            <div class="codegen-field">
+              <label>Protocol</label>
+              <select id="${id}-category-filter" class="cb-select"></select>
+            </div>
             <div id="${id}-methods" class="codegen-list codegen-method-list" tabindex="0"></div>
+            <div class="codegen-source-wrap">
+              <div class="codegen-source-head">
+                <span>Source</span>
+                <span id="${id}-source-label" class="codegen-muted">Select a selector</span>
+              </div>
+              <pre id="${id}-source" class="codegen-source"></pre>
+            </div>
           </section>
           <section class="codegen-column codegen-selection">
             <div class="codegen-selection-head">
@@ -108,8 +121,11 @@
         classDetails: null,
         selectedClassName: String(options.className || '').trim(),
         selectedDictionary: String(options.dictionary || '').trim(),
+        selectedCategory: '',
         selectedMethods: new Set(),
         selections: new Map(),
+        sourceCache: new Map(),
+        moduleName: 'gemstone_codegen_preview_protocols',
         lastPreview: null,
       };
 
@@ -126,6 +142,8 @@
         refresh: body.querySelector(`#${id}-refresh`),
         add: body.querySelector(`#${id}-add`),
         preview: body.querySelector(`#${id}-preview`),
+        importSelection: body.querySelector(`#${id}-import`),
+        importFile: body.querySelector(`#${id}-import-file`),
         exportJson: body.querySelector(`#${id}-export`),
         copyProtocol: body.querySelector(`#${id}-copy-protocol`),
         async: body.querySelector(`#${id}-async`),
@@ -135,7 +153,10 @@
         classSide: body.querySelector(`#${id}-class-side`),
         classTitle: body.querySelector(`#${id}-class-title`),
         methodFilter: body.querySelector(`#${id}-method-filter`),
+        categoryFilter: body.querySelector(`#${id}-category-filter`),
         methods: body.querySelector(`#${id}-methods`),
+        sourceLabel: body.querySelector(`#${id}-source-label`),
+        source: body.querySelector(`#${id}-source`),
         clear: body.querySelector(`#${id}-clear`),
         selection: body.querySelector(`#${id}-selection`),
         status: body.querySelector(`#${id}-status`),
@@ -152,7 +173,7 @@
 
       function selectionPayload() {
         return {
-          moduleName: 'gemstone_codegen_preview_protocols',
+          moduleName: state.moduleName || 'gemstone_codegen_preview_protocols',
           async: !!els.async?.checked,
           classes: Array.from(state.selections.values()).map(selection => ({
             className: selection.className,
@@ -165,11 +186,18 @@
         };
       }
 
-      function currentMethods() {
+      function sideMethods() {
         const details = state.classDetails || {};
         const source = els.classSide?.checked ? details.classMethods : details.instanceMethods;
+        return Array.isArray(source) ? source : [];
+      }
+
+      function currentMethods() {
+        const source = sideMethods();
         const filter = String(els.methodFilter?.value || '').trim().toLowerCase();
-        return (Array.isArray(source) ? source : []).filter(method => {
+        const category = String(els.categoryFilter?.value || state.selectedCategory || '').trim();
+        return source.filter(method => {
+          if (category && String(method.category || '') !== category) return false;
           if (!filter) return true;
           return [method.selector, method.category, method.pythonName].join(' ').toLowerCase().includes(filter);
         });
@@ -201,6 +229,7 @@
         const className = String(details?.className || state.selectedClassName || '').trim();
         const side = els.classSide?.checked ? 'class' : 'instance';
         els.classTitle.textContent = className ? `${className} ${side} side` : 'No class selected';
+        renderCategoryFilter();
         const methods = currentMethods();
         els.methods.innerHTML = methods.length
           ? methods.map(method => {
@@ -208,7 +237,7 @@
               const checked = state.selectedMethods.has(key) ? ' checked' : '';
               const argText = Number(method.argCount || 0) === 1 ? '1 arg' : `${Number(method.argCount || 0)} args`;
               return `
-                <label class="codegen-method-row">
+                <label class="codegen-method-row" data-method-key="${escapeHtml(key)}" data-selector="${escapeHtml(method.selector)}">
                   <input type="checkbox" data-method-key="${escapeHtml(key)}" data-selector="${escapeHtml(method.selector)}"${checked}>
                   <span>${escapeHtml(method.selector)}</span>
                   <small>${escapeHtml(method.category || '')} / ${escapeHtml(method.pythonName || selectorToPythonName(method.selector))} / ${argText}</small>
@@ -218,6 +247,21 @@
           : '<div class="cb-empty">(no methods)</div>';
       }
 
+      function renderCategoryFilter() {
+        if (!els.categoryFilter) return;
+        const categories = Array.from(new Set(
+          sideMethods().map(method => String(method.category || '').trim()).filter(Boolean)
+        )).sort((left, right) => left.localeCompare(right));
+        const current = categories.includes(state.selectedCategory) ? state.selectedCategory : '';
+        state.selectedCategory = current;
+        els.categoryFilter.innerHTML = [
+          `<option value=""${current ? '' : ' selected'}>All protocols</option>`,
+          ...categories.map(category => (
+            `<option value="${escapeHtml(category)}"${category === current ? ' selected' : ''}>${escapeHtml(category)}</option>`
+          )),
+        ].join('');
+      }
+
       function renderSelection() {
         const selections = Array.from(state.selections.values());
         if (!selections.length) {
@@ -225,6 +269,7 @@
           return;
         }
         els.selection.innerHTML = selections.map(selection => {
+          const selectionKey = makeSelectionKey(selection.dictionary, selection.className);
           const fields = Array.from(selection.fields).sort();
           const methods = Array.from(selection.methods.values());
           const classMethods = Array.from(selection.classMethods.values());
@@ -232,17 +277,46 @@
             <div class="codegen-selected-card">
               <div class="codegen-selected-title">
                 <span>${escapeHtml(selection.className)}</span>
-                <button type="button" class="btn-ghost" data-remove-selection="${escapeHtml(makeSelectionKey(selection.dictionary, selection.className))}">Remove</button>
+                <button type="button" class="btn-ghost" data-remove-selection="${escapeHtml(selectionKey)}">Remove</button>
               </div>
               <div class="codegen-selected-meta">${escapeHtml(selection.dictionary || '(symbol list)')} / ${escapeHtml(selection.protocolName)}</div>
               <div class="codegen-selected-items">
                 ${fields.length ? `<div>fields: ${escapeHtml(fields.join(', '))}</div>` : ''}
-                ${methods.length ? `<div>methods: ${escapeHtml(methods.map(m => m.selector).join(', '))}</div>` : ''}
-                ${classMethods.length ? `<div>class: ${escapeHtml(classMethods.map(m => m.selector).join(', '))}</div>` : ''}
+                ${renderMethodEditors(selectionKey, 'instance', methods)}
+                ${renderMethodEditors(selectionKey, 'class', classMethods)}
               </div>
             </div>
           `;
         }).join('');
+      }
+
+      function renderMethodEditors(selectionKey, side, methods) {
+        if (!methods.length) return '';
+        return `
+          <div class="codegen-selected-group">${side === 'class' ? 'class methods' : 'methods'}</div>
+          ${methods.map(method => {
+            const argNames = Array.isArray(method.argNames) ? method.argNames : [];
+            return `
+              <div class="codegen-method-editor">
+                <div class="codegen-method-editor-selector">${escapeHtml(method.selector)}</div>
+                <label>
+                  <span>Python</span>
+                  <input class="codegen-edit-input" data-edit-method="1" data-selection-key="${escapeHtml(selectionKey)}" data-side="${side}" data-selector="${escapeHtml(method.selector)}" data-field="pythonName" value="${escapeHtml(method.pythonName || selectorToPythonName(method.selector))}">
+                </label>
+                ${argNames.map((argName, index) => `
+                  <label>
+                    <span>Arg ${index + 1}</span>
+                    <input class="codegen-edit-input" data-edit-method="1" data-selection-key="${escapeHtml(selectionKey)}" data-side="${side}" data-selector="${escapeHtml(method.selector)}" data-field="argName" data-arg-index="${index}" value="${escapeHtml(argName)}">
+                  </label>
+                `).join('')}
+                <label>
+                  <span>Returns</span>
+                  <input class="codegen-edit-input" data-edit-method="1" data-selection-key="${escapeHtml(selectionKey)}" data-side="${side}" data-selector="${escapeHtml(method.selector)}" data-field="returnAnnotation" value="${escapeHtml(method.returnAnnotation || 'Any')}">
+                </label>
+              </div>
+            `;
+          }).join('')}
+        `;
       }
 
       function renderAll() {
@@ -250,6 +324,11 @@
         renderClasses();
         renderMethods();
         renderSelection();
+      }
+
+      function clearMethodSource(message = 'Select a selector') {
+        if (els.sourceLabel) els.sourceLabel.textContent = message;
+        if (els.source) els.source.textContent = '';
       }
 
       async function loadDictionaries() {
@@ -283,6 +362,7 @@
       async function loadClassDetails(className) {
         state.selectedClassName = String(className || '').trim();
         state.selectedMethods.clear();
+        clearMethodSource();
         if (!state.selectedClassName) return;
         deps.upsertWindowState?.(id, {
           dictionary: state.selectedDictionary,
@@ -296,6 +376,7 @@
         if (!data.success) throw new Error(data.exception || 'failed to load class');
         state.classDetails = data;
         renderAll();
+        clearMethodSource();
         setStatus(`Loaded ${state.selectedClassName}`);
       }
 
@@ -337,11 +418,89 @@
         if (selection.fields.size || selection.methods.size || selection.classMethods.size) {
           state.selections.set(key, selection);
           state.selectedMethods.clear();
+          state.lastPreview = null;
           renderAll();
           setStatus(`Added ${selection.className} to codegen selection`);
         } else {
           setStatus('Check at least one selector first', true);
         }
+      }
+
+      async function loadMethodSource(selector, meta) {
+        const className = String(state.selectedClassName || '').trim();
+        const dictionary = String(state.selectedDictionary || '').trim();
+        const normalizedSelector = String(selector || '').trim();
+        if (!className || !normalizedSelector) {
+          clearMethodSource();
+          return;
+        }
+        const cacheKey = `${dictionary}::${className}::${meta ? '1' : '0'}::${normalizedSelector}`;
+        if (els.sourceLabel) els.sourceLabel.textContent = `${className}${meta ? ' class' : ''} >> ${normalizedSelector}`;
+        if (state.sourceCache.has(cacheKey)) {
+          if (els.source) els.source.textContent = state.sourceCache.get(cacheKey);
+          return;
+        }
+        if (els.source) els.source.textContent = 'Loading source...';
+        const data = await apiWithParams('/codegen/source', {
+          dictionary,
+          class: className,
+          selector: normalizedSelector,
+          meta: meta ? '1' : '0',
+        });
+        if (!data.success) throw new Error(data.exception || 'failed to load source');
+        const source = String(data.source || '');
+        state.sourceCache.set(cacheKey, source);
+        if (els.source) els.source.textContent = source || '(source unavailable)';
+      }
+
+      function applySelection(selection) {
+        state.moduleName = String(selection.moduleName || 'gemstone_codegen_preview_protocols').trim() || 'gemstone_codegen_preview_protocols';
+        if (els.async) els.async.checked = selection.async !== false;
+        state.selections.clear();
+        (Array.isArray(selection.classes) ? selection.classes : []).forEach(classSpec => {
+          const className = String(classSpec.className || '').trim();
+          if (!className) return;
+          const dictionary = String(classSpec.dictionary || '').trim();
+          const key = makeSelectionKey(dictionary, className);
+          state.selections.set(key, {
+            className,
+            protocolName: String(classSpec.protocolName || `${className}Proto`).trim() || `${className}Proto`,
+            dictionary,
+            fields: new Set(Array.isArray(classSpec.fields) ? classSpec.fields : []),
+            methods: new Map((Array.isArray(classSpec.methods) ? classSpec.methods : []).map(method => [
+              String(method.selector || '').trim(),
+              {
+                selector: String(method.selector || '').trim(),
+                pythonName: String(method.pythonName || selectorToPythonName(method.selector)).trim(),
+                argNames: Array.isArray(method.argNames) ? method.argNames.map(name => String(name || '').trim()) : [],
+                returnAnnotation: String(method.returnAnnotation || 'Any').trim() || 'Any',
+              },
+            ]).filter(([selector]) => selector)),
+            classMethods: new Map((Array.isArray(classSpec.classMethods) ? classSpec.classMethods : []).map(method => [
+              String(method.selector || '').trim(),
+              {
+                selector: String(method.selector || '').trim(),
+                pythonName: String(method.pythonName || selectorToPythonName(method.selector)).trim(),
+                argNames: Array.isArray(method.argNames) ? method.argNames.map(name => String(name || '').trim()) : [],
+                returnAnnotation: String(method.returnAnnotation || 'Any').trim() || 'Any',
+              },
+            ]).filter(([selector]) => selector)),
+          });
+        });
+        state.lastPreview = null;
+        if (els.previewText) els.previewText.value = '';
+        renderSelection();
+      }
+
+      async function importSelectionFile(file) {
+        if (!file) return;
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const payload = parsed && typeof parsed === 'object' && parsed.selection ? parsed.selection : parsed;
+        const data = await apiPost('/codegen/export-selection', payload);
+        if (!data.success) throw new Error(data.exception || 'import failed');
+        applySelection(data.selection || {});
+        setStatus(`Imported ${state.selections.size} codegen selection${state.selections.size === 1 ? '' : 's'}`);
       }
 
       async function preview() {
@@ -367,15 +526,17 @@
         setStatus(`Previewed ${files.length} generated file${files.length === 1 ? '' : 's'}`);
       }
 
-      function exportSelection() {
+      async function exportSelection() {
         const payload = selectionPayload();
         if (!payload.classes.length) {
           setStatus('Add at least one class to export', true);
           return;
         }
+        const data = await apiPost('/codegen/export-selection', payload);
+        if (!data.success) throw new Error(data.exception || 'export failed');
         deps.downloadDataFile?.(
           'codegen-workbench.json',
-          JSON.stringify(payload, null, 2),
+          data.json || JSON.stringify(data.selection || payload, null, 2),
           'application/json'
         );
         setStatus('Exported codegen-workbench.json');
@@ -395,13 +556,25 @@
       els.dictionary?.addEventListener('change', () => loadClasses().catch(error => setStatus(String(error.message || error), true)));
       els.classFilter?.addEventListener('input', renderClasses);
       els.methodFilter?.addEventListener('input', renderMethods);
-      els.classSide?.addEventListener('change', () => {
+      els.categoryFilter?.addEventListener('change', () => {
+        state.selectedCategory = String(els.categoryFilter?.value || '');
         state.selectedMethods.clear();
         renderMethods();
       });
+      els.classSide?.addEventListener('change', () => {
+        state.selectedCategory = '';
+        state.selectedMethods.clear();
+        renderMethods();
+        clearMethodSource();
+      });
       els.add?.addEventListener('click', addSelectedMethods);
       els.preview?.addEventListener('click', () => preview().catch(error => setStatus(String(error.message || error), true)));
-      els.exportJson?.addEventListener('click', exportSelection);
+      els.importSelection?.addEventListener('click', () => els.importFile?.click());
+      els.importFile?.addEventListener('change', () => {
+        importSelectionFile(els.importFile.files?.[0]).catch(error => setStatus(String(error.message || error), true));
+        els.importFile.value = '';
+      });
+      els.exportJson?.addEventListener('click', () => exportSelection().catch(error => setStatus(String(error.message || error), true)));
       els.copyProtocol?.addEventListener('click', () => copyProtocol().catch(error => setStatus(String(error.message || error), true)));
       els.clear?.addEventListener('click', () => {
         state.selections.clear();
@@ -415,17 +588,42 @@
         if (!row) return;
         loadClassDetails(row.dataset.className).catch(error => setStatus(String(error.message || error), true));
       });
+      els.methods?.addEventListener('click', event => {
+        if (event.target?.closest?.('input[type="checkbox"]')) return;
+        const row = event.target?.closest?.('.codegen-method-row');
+        if (!row) return;
+        loadMethodSource(row.dataset.selector, !!els.classSide?.checked).catch(error => setStatus(String(error.message || error), true));
+      });
       els.methods?.addEventListener('change', event => {
         const input = event.target?.closest?.('[data-method-key]');
         if (!input) return;
         if (input.checked) state.selectedMethods.add(input.dataset.methodKey);
         else state.selectedMethods.delete(input.dataset.methodKey);
+        loadMethodSource(input.dataset.selector, !!els.classSide?.checked).catch(error => setStatus(String(error.message || error), true));
       });
       els.selection?.addEventListener('click', event => {
         const button = event.target?.closest?.('[data-remove-selection]');
         if (!button) return;
         state.selections.delete(button.dataset.removeSelection);
+        state.lastPreview = null;
         renderSelection();
+      });
+      els.selection?.addEventListener('input', event => {
+        const input = event.target?.closest?.('[data-edit-method]');
+        if (!input) return;
+        const selection = state.selections.get(input.dataset.selectionKey);
+        if (!selection) return;
+        const methods = input.dataset.side === 'class' ? selection.classMethods : selection.methods;
+        const method = methods.get(input.dataset.selector);
+        if (!method) return;
+        const field = input.dataset.field;
+        if (field === 'pythonName') method.pythonName = input.value;
+        if (field === 'returnAnnotation') method.returnAnnotation = input.value;
+        if (field === 'argName') {
+          const index = Number(input.dataset.argIndex || 0);
+          method.argNames[index] = input.value;
+        }
+        state.lastPreview = null;
       });
 
       renderAll();
